@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
+import Tasks from './pages/Tasks';
 import Candidates from './pages/Candidates';
 import CandidateDetail from './pages/CandidateDetail';
 import Pipeline from './pages/Pipeline';
@@ -17,6 +18,7 @@ function App() {
     <Routes>
       <Route path="/" element={<Layout />}>
         <Route index element={<Dashboard />} />
+        <Route path="tasks" element={<Tasks />} />
         <Route path="candidates" element={<Candidates />} />
         <Route path="candidates/:id" element={<CandidateDetail />} />
         <Route path="pipeline" element={<Pipeline />} />

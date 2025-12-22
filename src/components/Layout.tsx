@@ -9,10 +9,12 @@ import {
   Settings,
   Menu,
   Briefcase,
+  CheckSquare,
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Tasks', href: '/tasks', icon: CheckSquare },
   { name: 'Candidates', href: '/candidates', icon: Users },
   { name: 'Pipeline', href: '/pipeline', icon: Kanban },
   { name: 'Interviews', href: '/interviews', icon: Calendar },
