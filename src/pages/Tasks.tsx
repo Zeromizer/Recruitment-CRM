@@ -6,13 +6,14 @@ import {
   Clock,
   User,
   Calendar,
-  Building2,
   Phone,
   Mail,
   FileCheck,
   Briefcase,
   AlertCircle,
   Star,
+  Plus,
+  X,
 } from 'lucide-react';
 import { format, parseISO, isToday, isTomorrow, isPast } from 'date-fns';
 import { useCandidates } from '../hooks/useData';
@@ -22,13 +23,36 @@ interface TaskItem {
   id: string;
   candidate: Candidate;
   task: string;
-  dueDate: string | null;
+  dueDate: string;
   isOverdue: boolean;
   isDueToday: boolean;
   isDueTomorrow: boolean;
+  isManual?: boolean;
 }
 
-function generateTasksForCandidate(candidate: Candidate): TaskItem[] {
+interface ManualTask {
+  id: string;
+  candidateId: string;
+  task: string;
+  dueDate: string;
+}
+
+// Load manual tasks from localStorage
+function loadManualTasks(): ManualTask[] {
+  try {
+    const saved = localStorage.getItem('recruiter-crm-tasks');
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return [];
+  }
+}
+
+// Save manual tasks to localStorage
+function saveManualTasks(tasks: ManualTask[]) {
+  localStorage.setItem('recruiter-crm-tasks', JSON.stringify(tasks));
+}
+
+function generateAutoTasks(candidate: Candidate): TaskItem[] {
   // Only create tasks for top candidates with score 8+
   if (!candidate.ai_score || candidate.ai_score < 8) {
     return [];
@@ -58,6 +82,24 @@ function generateTasksForCandidate(candidate: Candidate): TaskItem[] {
   }];
 }
 
+function convertManualTask(manualTask: ManualTask, candidates: Candidate[]): TaskItem | null {
+  const candidate = candidates.find(c => c.id === manualTask.candidateId);
+  if (!candidate) return null;
+
+  const dueDate = parseISO(manualTask.dueDate);
+
+  return {
+    id: manualTask.id,
+    candidate,
+    task: manualTask.task,
+    dueDate: manualTask.dueDate,
+    isOverdue: isPast(dueDate) && !isToday(dueDate),
+    isDueToday: isToday(dueDate),
+    isDueTomorrow: isTomorrow(dueDate),
+    isManual: true,
+  };
+}
+
 function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: () => void }) {
   const priorityClass = task.isOverdue
     ? 'border-l-red-500 bg-red-500/5'
@@ -81,10 +123,12 @@ function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: () => void
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-white font-medium">{task.task}</p>
-            <span className="flex items-center gap-1 text-amber-400 text-sm">
-              <Star className="w-4 h-4 fill-amber-400" />
-              {task.candidate.ai_score}/10
-            </span>
+            {task.candidate.ai_score && task.candidate.ai_score >= 8 && (
+              <span className="flex items-center gap-1 text-amber-400 text-sm">
+                <Star className="w-4 h-4 fill-amber-400" />
+                {task.candidate.ai_score}/10
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-4 mt-2 text-sm">
@@ -100,31 +144,26 @@ function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: () => void
               <Briefcase className="w-4 h-4" />
               {task.candidate.applied_role || 'No role'}
             </span>
-
-            {task.candidate.client_submitted_to && (
-              <span className="flex items-center gap-1 text-navy-400">
-                <Building2 className="w-4 h-4" />
-                {task.candidate.client_submitted_to}
-              </span>
-            )}
           </div>
 
           <div className="flex items-center gap-3 mt-2">
-            <span className="badge badge-success text-xs">Top Candidate</span>
-
-            {task.dueDate && (
-              <span className={`flex items-center gap-1 text-xs ${
-                task.isOverdue ? 'text-red-400' :
-                task.isDueToday ? 'text-amber-400' :
-                task.isDueTomorrow ? 'text-blue-400' : 'text-navy-400'
-              }`}>
-                <Clock className="w-3 h-3" />
-                {task.isOverdue ? 'Overdue' :
-                 task.isDueToday ? 'Due today' :
-                 task.isDueTomorrow ? 'Due tomorrow' :
-                 format(parseISO(task.dueDate), 'MMM d')}
-              </span>
+            {task.isManual ? (
+              <span className="badge badge-info text-xs">Manual Task</span>
+            ) : (
+              <span className="badge badge-success text-xs">Top Candidate</span>
             )}
+
+            <span className={`flex items-center gap-1 text-xs ${
+              task.isOverdue ? 'text-red-400' :
+              task.isDueToday ? 'text-amber-400' :
+              task.isDueTomorrow ? 'text-blue-400' : 'text-navy-400'
+            }`}>
+              <Clock className="w-3 h-3" />
+              {task.isOverdue ? 'Overdue' :
+               task.isDueToday ? 'Due today' :
+               task.isDueTomorrow ? 'Due tomorrow' :
+               format(parseISO(task.dueDate), 'MMM d')}
+            </span>
           </div>
         </div>
 
@@ -158,18 +197,28 @@ export default function Tasks() {
   const { data: candidates = [], isLoading } = useCandidates();
   const [filter, setFilter] = useState<'all' | 'overdue' | 'today' | 'upcoming'>('all');
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
+  const [manualTasks, setManualTasks] = useState<ManualTask[]>(loadManualTasks);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newTask, setNewTask] = useState({ candidateId: '', task: '', dueDate: '' });
 
-  // Generate tasks only for top candidates (score 8+)
-  const allTasks = candidates.flatMap(generateTasksForCandidate)
+  // Generate auto tasks for top candidates
+  const autoTasks = candidates.flatMap(generateAutoTasks);
+
+  // Convert manual tasks to TaskItems
+  const manualTaskItems = manualTasks
+    .map(mt => convertManualTask(mt, candidates))
+    .filter((t): t is TaskItem => t !== null);
+
+  // Combine all tasks and filter completed
+  const allTasks = [...autoTasks, ...manualTaskItems]
     .filter(task => !completedTasks.has(task.id));
 
-  // Group tasks
+  // Group tasks by priority
   const overdueTasks = allTasks.filter(t => t.isOverdue);
   const todayTasks = allTasks.filter(t => t.isDueToday);
   const tomorrowTasks = allTasks.filter(t => t.isDueTomorrow);
   const upcomingTasks = allTasks.filter(t => !t.isOverdue && !t.isDueToday && !t.isDueTomorrow);
 
-  // Filter tasks based on selection
   const getFilteredTasks = () => {
     switch (filter) {
       case 'overdue': return overdueTasks;
@@ -183,6 +232,30 @@ export default function Tasks() {
 
   const handleCompleteTask = (taskId: string) => {
     setCompletedTasks(prev => new Set([...prev, taskId]));
+    // Also remove from manual tasks if it's a manual task
+    const updatedManualTasks = manualTasks.filter(t => t.id !== taskId);
+    setManualTasks(updatedManualTasks);
+    saveManualTasks(updatedManualTasks);
+  };
+
+  const handleAddTask = () => {
+    if (!newTask.candidateId || !newTask.task || !newTask.dueDate) {
+      alert('Please fill in all fields');
+      return;
+    }
+
+    const task: ManualTask = {
+      id: `manual-${Date.now()}`,
+      candidateId: newTask.candidateId,
+      task: newTask.task,
+      dueDate: newTask.dueDate,
+    };
+
+    const updatedTasks = [...manualTasks, task];
+    setManualTasks(updatedTasks);
+    saveManualTasks(updatedTasks);
+    setNewTask({ candidateId: '', task: '', dueDate: '' });
+    setShowAddModal(false);
   };
 
   if (isLoading) {
@@ -200,9 +273,16 @@ export default function Tasks() {
         <div>
           <h1 className="font-display text-3xl text-white">Tasks</h1>
           <p className="text-navy-400 mt-1">
-            {allTasks.length} top candidate{allTasks.length !== 1 ? 's' : ''} to review and call
+            {allTasks.length} task{allTasks.length !== 1 ? 's' : ''} to complete
           </p>
         </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="btn-primary flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          Add Task
+        </button>
       </div>
 
       {/* Summary Cards */}
@@ -275,7 +355,7 @@ export default function Tasks() {
           <p className="text-xl text-white mb-2">All caught up!</p>
           <p className="text-navy-400">
             {filter === 'all'
-              ? 'No top candidates (score 8+) pending review.'
+              ? 'No pending tasks. Click "Add Task" to create one.'
               : `No ${filter} tasks.`}
           </p>
         </div>
@@ -288,6 +368,87 @@ export default function Tasks() {
               onComplete={() => handleCompleteTask(task.id)}
             />
           ))}
+        </div>
+      )}
+
+      {/* Add Task Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-navy-900 border border-navy-700 rounded-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-navy-700">
+              <h2 className="font-display text-xl text-white">Add Task</h2>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="text-navy-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Candidate Select */}
+              <div>
+                <label className="block text-sm text-navy-400 mb-1">
+                  Candidate <span className="text-coral-400">*</span>
+                </label>
+                <select
+                  value={newTask.candidateId}
+                  onChange={(e) => setNewTask({ ...newTask, candidateId: e.target.value })}
+                  className="input w-full"
+                >
+                  <option value="">Select a candidate</option>
+                  {candidates.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.full_name} - {c.applied_role || 'No role'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Task Description */}
+              <div>
+                <label className="block text-sm text-navy-400 mb-1">
+                  Task <span className="text-coral-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newTask.task}
+                  onChange={(e) => setNewTask({ ...newTask, task: e.target.value })}
+                  className="input w-full"
+                  placeholder="e.g., Follow up on interview"
+                />
+              </div>
+
+              {/* Due Date */}
+              <div>
+                <label className="block text-sm text-navy-400 mb-1">
+                  Due Date <span className="text-coral-400">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={newTask.dueDate}
+                  onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
+                  className="input w-full"
+                  min={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 p-6 border-t border-navy-700">
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddTask}
+                className="btn-primary"
+              >
+                Add Task
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
