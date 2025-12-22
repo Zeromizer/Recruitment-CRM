@@ -7,8 +7,12 @@ import Pipeline from './pages/Pipeline';
 import Interviews from './pages/Interviews';
 import Activities from './pages/Activities';
 import Settings from './pages/Settings';
+import { useRealtimeSubscription } from './hooks/useData';
 
 function App() {
+  // Enable realtime updates from Supabase
+  useRealtimeSubscription();
+
   return (
     <Routes>
       <Route path="/" element={<Layout />}>

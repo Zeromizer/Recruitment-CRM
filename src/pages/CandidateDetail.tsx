@@ -15,6 +15,7 @@ import {
   ExternalLink,
   Send,
   PhoneCall,
+  X,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import {
@@ -134,6 +135,17 @@ export default function CandidateDetail() {
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [notes, setNotes] = useState('');
   const [editingNotes, setEditingNotes] = useState(false);
+  const [showInterviewModal, setShowInterviewModal] = useState(false);
+  const [interviewForm, setInterviewForm] = useState({
+    date: '',
+    time: '',
+    type: 'Video',
+    round: '1st',
+    company: '',
+    location: '',
+    interviewer: '',
+    notes: '',
+  });
 
   if (isLoading) {
     return (
@@ -212,6 +224,49 @@ export default function CandidateDetail() {
       follow_up_action: 'Log outcome',
       logged_by: 'Shawn',
     });
+  };
+
+  const handleScheduleInterview = async () => {
+    if (!interviewForm.date || !interviewForm.time) {
+      alert('Please select a date and time');
+      return;
+    }
+
+    const interviewDateTime = new Date(`${interviewForm.date}T${interviewForm.time}`);
+
+    await createActivity.mutateAsync({
+      candidate_id: candidate.id,
+      candidate_name: candidate.full_name,
+      activity_date: new Date().toISOString(),
+      activity_type: 'Interview Scheduled',
+      direction: 'Outbound',
+      channel: 'System',
+      subject: `Interview Scheduled with ${candidate.full_name}`,
+      details: `${interviewForm.type} interview (${interviewForm.round} Round) scheduled for ${format(interviewDateTime, 'MMM d, yyyy')} at ${interviewForm.time}${interviewForm.company ? ` with ${interviewForm.company}` : ''}${interviewForm.location ? ` at ${interviewForm.location}` : ''}`,
+      related_job: candidate.applied_role,
+      related_client: interviewForm.company || candidate.client_submitted_to,
+      outcome: null,
+      follow_up_required: true,
+      follow_up_date: interviewForm.date,
+      follow_up_action: 'Log outcome',
+      logged_by: 'Shawn',
+    });
+
+    // Update candidate status to interview_scheduled
+    await updateStatus.mutateAsync({ id: candidate.id, status: 'interview_scheduled' });
+
+    // Reset form and close modal
+    setInterviewForm({
+      date: '',
+      time: '',
+      type: 'Video',
+      round: '1st',
+      company: '',
+      location: '',
+      interviewer: '',
+      notes: '',
+    });
+    setShowInterviewModal(false);
   };
 
   return (
@@ -319,7 +374,7 @@ export default function CandidateDetail() {
                 Log Email
               </button>
               <button
-                onClick={() => handleQuickAction('Interview Scheduled')}
+                onClick={() => setShowInterviewModal(true)}
                 className="btn-secondary flex items-center gap-2"
               >
                 <Calendar className="w-4 h-4" />
@@ -557,6 +612,144 @@ export default function CandidateDetail() {
           )}
         </div>
       </div>
+
+      {/* Schedule Interview Modal */}
+      {showInterviewModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-navy-900 border border-navy-700 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-navy-700">
+              <h2 className="font-display text-xl text-white">Schedule Interview</h2>
+              <button
+                onClick={() => setShowInterviewModal(false)}
+                className="text-navy-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Date and Time - Required */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-navy-400 mb-1">
+                    Date <span className="text-coral-400">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={interviewForm.date}
+                    onChange={(e) => setInterviewForm({ ...interviewForm, date: e.target.value })}
+                    className="input w-full"
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-navy-400 mb-1">
+                    Time <span className="text-coral-400">*</span>
+                  </label>
+                  <input
+                    type="time"
+                    value={interviewForm.time}
+                    onChange={(e) => setInterviewForm({ ...interviewForm, time: e.target.value })}
+                    className="input w-full"
+                  />
+                </div>
+              </div>
+
+              {/* Interview Type and Round */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-navy-400 mb-1">Interview Type</label>
+                  <select
+                    value={interviewForm.type}
+                    onChange={(e) => setInterviewForm({ ...interviewForm, type: e.target.value })}
+                    className="input w-full"
+                  >
+                    <option value="Video">Video Call</option>
+                    <option value="Phone">Phone</option>
+                    <option value="In-Person">In-Person</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-navy-400 mb-1">Round</label>
+                  <select
+                    value={interviewForm.round}
+                    onChange={(e) => setInterviewForm({ ...interviewForm, round: e.target.value })}
+                    className="input w-full"
+                  >
+                    <option value="1st">1st Round</option>
+                    <option value="2nd">2nd Round</option>
+                    <option value="3rd">3rd Round</option>
+                    <option value="Final">Final Round</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Company */}
+              <div>
+                <label className="block text-sm text-navy-400 mb-1">Company</label>
+                <input
+                  type="text"
+                  value={interviewForm.company}
+                  onChange={(e) => setInterviewForm({ ...interviewForm, company: e.target.value })}
+                  className="input w-full"
+                  placeholder="e.g., DBS Bank"
+                />
+              </div>
+
+              {/* Location / Meeting Link */}
+              <div>
+                <label className="block text-sm text-navy-400 mb-1">Location / Meeting Link</label>
+                <input
+                  type="text"
+                  value={interviewForm.location}
+                  onChange={(e) => setInterviewForm({ ...interviewForm, location: e.target.value })}
+                  className="input w-full"
+                  placeholder="e.g., Zoom link or office address"
+                />
+              </div>
+
+              {/* Interviewer */}
+              <div>
+                <label className="block text-sm text-navy-400 mb-1">Interviewer Name</label>
+                <input
+                  type="text"
+                  value={interviewForm.interviewer}
+                  onChange={(e) => setInterviewForm({ ...interviewForm, interviewer: e.target.value })}
+                  className="input w-full"
+                  placeholder="e.g., John Smith (HR Manager)"
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm text-navy-400 mb-1">Notes</label>
+                <textarea
+                  value={interviewForm.notes}
+                  onChange={(e) => setInterviewForm({ ...interviewForm, notes: e.target.value })}
+                  className="input w-full resize-none"
+                  rows={3}
+                  placeholder="Any additional notes for the interview..."
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 p-6 border-t border-navy-700">
+              <button
+                onClick={() => setShowInterviewModal(false)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleScheduleInterview}
+                className="btn-primary"
+              >
+                Schedule Interview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
