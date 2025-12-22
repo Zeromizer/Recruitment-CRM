@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import {
   supabase,
   isSupabaseConfigured,
@@ -455,4 +456,63 @@ export function useUpcomingInterviews() {
     },
     enabled: interviews.length > 0,
   });
+}
+
+// Realtime subscription hook - automatically updates when data changes in Supabase
+export function useRealtimeSubscription() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      return;
+    }
+
+    // Subscribe to candidates table changes
+    const candidatesChannel = supabase
+      .channel('candidates-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'candidates' },
+        () => {
+          // Invalidate all candidate-related queries
+          queryClient.invalidateQueries({ queryKey: ['candidates'] });
+          queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+        }
+      )
+      .subscribe();
+
+    // Subscribe to activities table changes
+    const activitiesChannel = supabase
+      .channel('activities-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'activities' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['activities'] });
+        }
+      )
+      .subscribe();
+
+    // Subscribe to interviews table changes
+    const interviewsChannel = supabase
+      .channel('interviews-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'interviews' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['interviews'] });
+          queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscriptions on unmount
+    return () => {
+      if (supabase) {
+        supabase.removeChannel(candidatesChannel);
+        supabase.removeChannel(activitiesChannel);
+        supabase.removeChannel(interviewsChannel);
+      }
+    };
+  }, [queryClient]);
 }
