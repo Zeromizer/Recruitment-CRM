@@ -8,11 +8,13 @@ import {
   ChevronRight,
   Users,
   X,
+  Plus,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { useCandidates } from '../hooks/useData';
 import type { Candidate, CandidateStatus } from '../types';
 import { STATUS_LABELS } from '../types';
+import AddCandidateModal from '../components/AddCandidateModal';
 
 function getStatusBadgeClass(status: CandidateStatus): string {
   const statusColors: Record<string, string> = {
@@ -112,6 +114,7 @@ export default function Candidates() {
   const [statusFilter, setStatusFilter] = useState<CandidateStatus | ''>('');
   const [sourceFilter, setSourceFilter] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   // Get unique sources for filter
   const sources = useMemo(() => {
@@ -168,6 +171,13 @@ export default function Candidates() {
             {hasActiveFilters && ` (filtered from ${candidates.length})`}
           </p>
         </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="btn-primary flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          Add Candidate
+        </button>
       </div>
 
       {/* Search and Filters */}
@@ -284,6 +294,12 @@ export default function Candidates() {
           </div>
         )}
       </div>
+
+      {/* Add Candidate Modal */}
+      <AddCandidateModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+      />
     </div>
   );
 }
