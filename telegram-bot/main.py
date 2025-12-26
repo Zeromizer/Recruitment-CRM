@@ -17,6 +17,119 @@ from google.oauth2.service_account import Credentials
 conversations = {}
 MAX_MESSAGES = 10
 
+# Spam protection
+import time
+rate_limit_tracker = {}  # {user_id: [timestamp1, timestamp2, ...]}
+RATE_LIMIT_MESSAGES = 10  # Max messages per time window
+RATE_LIMIT_WINDOW = 60  # Time window in seconds (1 minute)
+
+# Spam keywords to ignore (case-insensitive)
+SPAM_KEYWORDS = [
+    "crypto", "bitcoin", "ethereum", "investment opportunity",
+    "make money fast", "work from home", "earn $", "earn usd",
+    "click here", "free money", "lottery", "you have won",
+    "nigerian prince", "wire transfer", "western union",
+    "telegram premium", "free premium", "hack", "password"
+]
+
+
+def get_blocked_users() -> set:
+    """Get set of blocked user IDs from environment variable."""
+    blocked = os.environ.get('BLOCKED_TELEGRAM_USERS', '')
+    if not blocked:
+        return set()
+    try:
+        return set(int(uid.strip()) for uid in blocked.split(',') if uid.strip())
+    except ValueError:
+        return set()
+
+
+def get_whitelist_users() -> set:
+    """Get set of whitelisted user IDs (if whitelist mode is enabled)."""
+    whitelist = os.environ.get('WHITELIST_TELEGRAM_USERS', '')
+    if not whitelist:
+        return set()
+    try:
+        return set(int(uid.strip()) for uid in whitelist.split(',') if uid.strip())
+    except ValueError:
+        return set()
+
+
+def is_whitelist_mode() -> bool:
+    """Check if whitelist mode is enabled."""
+    return os.environ.get('TELEGRAM_WHITELIST_MODE', '').lower() in ('true', '1', 'yes')
+
+
+def is_user_allowed(user_id: int) -> tuple[bool, str]:
+    """Check if a user is allowed to interact with the bot.
+    Returns (allowed, reason) tuple.
+    """
+    # Check blocked list
+    if user_id in get_blocked_users():
+        return False, "blocked"
+
+    # Check whitelist mode
+    if is_whitelist_mode():
+        whitelist = get_whitelist_users()
+        if whitelist and user_id not in whitelist:
+            return False, "not_whitelisted"
+
+    return True, "allowed"
+
+
+def is_rate_limited(user_id: int) -> bool:
+    """Check if user has exceeded rate limit."""
+    current_time = time.time()
+
+    if user_id not in rate_limit_tracker:
+        rate_limit_tracker[user_id] = []
+
+    # Remove old timestamps outside the window
+    rate_limit_tracker[user_id] = [
+        ts for ts in rate_limit_tracker[user_id]
+        if current_time - ts < RATE_LIMIT_WINDOW
+    ]
+
+    # Check if over limit
+    if len(rate_limit_tracker[user_id]) >= RATE_LIMIT_MESSAGES:
+        return True
+
+    # Add current timestamp
+    rate_limit_tracker[user_id].append(current_time)
+    return False
+
+
+def contains_spam(text: str) -> bool:
+    """Check if message contains spam keywords."""
+    if not text:
+        return False
+    text_lower = text.lower()
+    return any(keyword in text_lower for keyword in SPAM_KEYWORDS)
+
+
+async def check_spam_protection(event, user_id: int, username: str, text: str = "") -> bool:
+    """Run all spam checks. Returns True if message should be ignored."""
+    # Check if user is allowed
+    allowed, reason = is_user_allowed(user_id)
+    if not allowed:
+        print(f"Blocked user {user_id} (@{username}): {reason}")
+        return True
+
+    # Check rate limit
+    if is_rate_limited(user_id):
+        print(f"Rate limited user {user_id} (@{username})")
+        # Optionally send a warning (only once)
+        if len(rate_limit_tracker.get(user_id, [])) == RATE_LIMIT_MESSAGES:
+            await event.respond("You're sending messages too quickly. Please wait a moment.")
+        return True
+
+    # Check for spam content
+    if contains_spam(text):
+        print(f"Spam detected from {user_id} (@{username}): {text[:50]}...")
+        return True
+
+    return False
+
 SYSTEM_PROMPT = """You are a friendly recruiter assistant helping to collect resumes from job candidates.
 Your goal is to:
 1. Greet candidates warmly and professionally
@@ -389,105 +502,120 @@ def setup_handlers(telegram_client):
         if event.file:
             return
 
-        if event.is_private:
-            sender = await event.get_sender()
-            user_id = sender.id
-            username = sender.username or ""
-            full_name = f"{sender.first_name or ''} {sender.last_name or ''}".strip()
-            print(f"Message from {full_name} (@{username}): {event.text}")
-            async with telegram_client.action(event.chat_id, 'typing'):
-                response = await get_ai_response(user_id, event.text or "")
-            await event.respond(response)
-            await save_candidate(user_id, username, full_name)
+        # Only respond to private messages (ignore groups/channels)
+        if not event.is_private:
+            return
+
+        sender = await event.get_sender()
+        user_id = sender.id
+        username = sender.username or ""
+        full_name = f"{sender.first_name or ''} {sender.last_name or ''}".strip()
+
+        # Run spam protection checks
+        if await check_spam_protection(event, user_id, username, event.text or ""):
+            return
+
+        print(f"Message from {full_name} (@{username}): {event.text}")
+        async with telegram_client.action(event.chat_id, 'typing'):
+            response = await get_ai_response(user_id, event.text or "")
+        await event.respond(response)
+        await save_candidate(user_id, username, full_name)
 
     @telegram_client.on(events.NewMessage(incoming=True, func=lambda e: e.file))
     async def handle_file(event):
-        if event.is_private:
-            sender = await event.get_sender()
-            user_id = sender.id
-            username = sender.username or ""
-            full_name = f"{sender.first_name or ''} {sender.last_name or ''}".strip()
+        # Only respond to private messages (ignore groups/channels)
+        if not event.is_private:
+            return
 
-            # Get file info
-            file_name = event.file.name or "unknown"
-            file_size = event.file.size or 0
-            mime_type = event.file.mime_type or ""
+        sender = await event.get_sender()
+        user_id = sender.id
+        username = sender.username or ""
+        full_name = f"{sender.first_name or ''} {sender.last_name or ''}".strip()
 
-            print(f"File received from {full_name} (@{username}): {file_name} ({mime_type}, {file_size} bytes)")
+        # Run spam protection checks (no text for file messages)
+        if await check_spam_protection(event, user_id, username):
+            return
 
-            # Check if it's a PDF or document
-            is_resume = (
-                mime_type == "application/pdf" or
-                file_name.lower().endswith('.pdf') or
-                mime_type in ["application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"] or
-                file_name.lower().endswith(('.doc', '.docx'))
-            )
+        # Get file info
+        file_name = event.file.name or "unknown"
+        file_size = event.file.size or 0
+        mime_type = event.file.mime_type or ""
 
-            if is_resume:
-                await event.respond("Thank you for your resume! I'm processing it now... 📄")
+        print(f"File received from {full_name} (@{username}): {file_name} ({mime_type}, {file_size} bytes)")
 
-                async with telegram_client.action(event.chat_id, 'typing'):
-                    # Download the file
-                    try:
-                        file_bytes = await event.download_media(file=bytes)
+        # Check if it's a PDF or document
+        is_resume = (
+            mime_type == "application/pdf" or
+            file_name.lower().endswith('.pdf') or
+            mime_type in ["application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"] or
+            file_name.lower().endswith(('.doc', '.docx'))
+        )
 
-                        if file_bytes:
-                            # Extract text from PDF
-                            if mime_type == "application/pdf" or file_name.lower().endswith('.pdf'):
-                                resume_text = extract_text_from_pdf(file_bytes)
-                            else:
-                                # For non-PDF, just note that it was received
-                                resume_text = f"[Document received: {file_name}]"
+        if is_resume:
+            await event.respond("Thank you for your resume! I'm processing it now... 📄")
 
-                            if resume_text and len(resume_text) > 100:
-                                print(f"Extracted {len(resume_text)} characters from resume")
+            async with telegram_client.action(event.chat_id, 'typing'):
+                # Download the file
+                try:
+                    file_bytes = await event.download_media(file=bytes)
 
-                                # Upload resume to storage
-                                resume_url = await upload_resume_to_storage(file_bytes, file_name, user_id)
+                    if file_bytes:
+                        # Extract text from PDF
+                        if mime_type == "application/pdf" or file_name.lower().endswith('.pdf'):
+                            resume_text = extract_text_from_pdf(file_bytes)
+                        else:
+                            # For non-PDF, just note that it was received
+                            resume_text = f"[Document received: {file_name}]"
 
-                                # Screen the resume
-                                screening_result = await screen_resume(resume_text)
-                                print(f"Screening result: {screening_result.get('recommendation', 'Unknown')}")
+                        if resume_text and len(resume_text) > 100:
+                            print(f"Extracted {len(resume_text)} characters from resume")
 
-                                # Save candidate with screening results and resume URL
-                                await save_candidate(user_id, username, full_name, screening_result, resume_url)
+                            # Upload resume to storage
+                            resume_url = await upload_resume_to_storage(file_bytes, file_name, user_id)
 
-                                # Generate response based on screening
-                                score = screening_result.get('score', 0)
-                                matched_job = screening_result.get('job_matched', 'our open positions')
+                            # Screen the resume
+                            screening_result = await screen_resume(resume_text)
+                            print(f"Screening result: {screening_result.get('recommendation', 'Unknown')}")
 
-                                response = f"""Thank you for submitting your resume, {full_name or 'candidate'}!
+                            # Save candidate with screening results and resume URL
+                            await save_candidate(user_id, username, full_name, screening_result, resume_url)
+
+                            # Generate response based on screening
+                            score = screening_result.get('score', 0)
+                            matched_job = screening_result.get('job_matched', 'our open positions')
+
+                            response = f"""Thank you for submitting your resume, {full_name or 'candidate'}!
 
 I've reviewed your application and found you could be a great fit for **{matched_job}**.
 
 Our recruitment team will review your profile and get back to you soon. In the meantime, is there anything specific about the role you'd like to know?"""
 
-                                await event.respond(response)
-                            else:
-                                print("Could not extract sufficient text from resume")
-                                await event.respond(
-                                    "Thank you for your resume! I received the file but had trouble reading its contents. "
-                                    "Our team will review it manually. Is there anything else I can help you with?"
-                                )
-                                await save_candidate(user_id, username, full_name)
+                            await event.respond(response)
                         else:
-                            print("Failed to download file")
+                            print("Could not extract sufficient text from resume")
                             await event.respond(
-                                "I had trouble downloading your file. Could you please try sending it again?"
+                                "Thank you for your resume! I received the file but had trouble reading its contents. "
+                                "Our team will review it manually. Is there anything else I can help you with?"
                             )
-                    except Exception as e:
-                        print(f"Error processing file: {e}")
+                            await save_candidate(user_id, username, full_name)
+                    else:
+                        print("Failed to download file")
                         await event.respond(
-                            "I encountered an error processing your file. Our team will follow up with you. "
-                            "Is there anything else I can help with?"
+                            "I had trouble downloading your file. Could you please try sending it again?"
                         )
-                        await save_candidate(user_id, username, full_name)
-            else:
-                # Non-resume file
-                async with telegram_client.action(event.chat_id, 'typing'):
-                    response = await get_ai_response(user_id, f"[User sent a file: {file_name}]")
-                await event.respond(response)
-                await save_candidate(user_id, username, full_name)
+                except Exception as e:
+                    print(f"Error processing file: {e}")
+                    await event.respond(
+                        "I encountered an error processing your file. Our team will follow up with you. "
+                        "Is there anything else I can help with?"
+                    )
+                    await save_candidate(user_id, username, full_name)
+        else:
+            # Non-resume file
+            async with telegram_client.action(event.chat_id, 'typing'):
+                response = await get_ai_response(user_id, f"[User sent a file: {file_name}]")
+            await event.respond(response)
+            await save_candidate(user_id, username, full_name)
 
 
 async def main():
