@@ -2,19 +2,20 @@ import os
 import json
 import asyncio
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 from anthropic import Anthropic
 from supabase import create_client, Client
 
 # Environment variables
 API_ID = int(os.environ.get('TELEGRAM_API_ID', '0'))
 API_HASH = os.environ.get('TELEGRAM_API_HASH', '')
-BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+SESSION_STRING = os.environ.get('TELEGRAM_SESSION_STRING', '')
 CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
 SUPABASE_KEY = os.environ.get('SUPABASE_ANON_KEY', '')
 
-# Initialize clients
-client = TelegramClient('bot_session', API_ID, API_HASH)
+# Initialize clients - use StringSession for pre-authenticated session
+client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
 anthropic = Anthropic(api_key=CLAUDE_API_KEY)
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -115,7 +116,7 @@ async def handle_file(event):
 
 async def main():
     print("Starting Telegram bot...")
-    await client.start(bot_token=BOT_TOKEN)
+    await client.start()
     print("Bot is running!")
     await client.run_until_disconnected()
 
