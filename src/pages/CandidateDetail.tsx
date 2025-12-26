@@ -754,7 +754,7 @@ export default function CandidateDetail() {
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                         <div className="bg-navy-900 border border-navy-700 rounded-xl w-full max-w-4xl h-[90vh] flex flex-col">
                                     <div className="flex items-center justify-between p-4 border-b border-navy-700">
-                                                  <h2 className="font-display text-xl text-white">Resume Preview</h2>h2>
+                                                  <h2 className="font-display text-xl text-white">Resume Preview</h2>
                                                   <div className="flex items-center gap-2">
                                                                   <a
                                                                                       href={candidate.resume_url}
@@ -764,7 +764,7 @@ export default function CandidateDetail() {
                                                                                     >
                                                                                     <ExternalLink className="w-4 h-4" />
                                                                                     Open in New Tab
-                                                                  </a>a>
+                                                                  </a>
                                                                   <button
                                                                                       onClick={() => setShowResumePreview(false)}
                                                                                       className="text-navy-400 hover:text-white transition-colors"
