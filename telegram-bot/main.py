@@ -34,23 +34,27 @@ SCREENING_PROMPT = """Here are the available job roles with their requirements a
 RESUME TEXT:
 {resume_text}
 
-First, identify which job role the candidate is applying for. Match it to one of the available roles. If the message does not clearly indicate a role, select the most suitable role based on the candidates experience. Then analyze this resume against that specific roles requirements and scoring guide.
+Please analyze this resume and provide a screening assessment.
 
-IMPORTANT: Extract the candidates email address and phone number from the resume if available.
+1. First, identify which job role the candidate is applying for. Match it to one of the available roles. If the message does not clearly indicate a role, select the most suitable role based on the candidates experience.
+
+2. Then analyze this resume against that specific roles requirements and scoring guide.
+
+3. Extract the candidates email address and phone number from the resume if available.
 
 IMPORTANT CITIZENSHIP REQUIREMENT: Candidates MUST be Singapore Citizens or Permanent Residents. Look for indicators such as: NRIC number (starts with S or T for citizens, F or G for PRs), National Service or NS completion, Singapore address, local education (Singapore polytechnics like Ngee Ann or Temasek, universities like NUS NTU SMU SIT SUSS, or local schools), or explicit mention of citizenship or PR status. If no clear indicator of Singapore Citizen or PR status is found, set recommendation to Rejected regardless of qualifications.
 
-CRITICAL: Your response must be ONLY a JSON object. Do not include any text, explanation, or markdown before or after the JSON. Start your response with {{ and end with }}.
-
-The JSON must contain these fields:
-- candidate_name (string)
-- candidate_email (string or null if not found)
-- candidate_phone (string or null if not found)
-- job_matched (the role matched from your list)
-- score (number 1-10)
-- citizenship_status (Singapore Citizen or PR or Unknown or Foreigner)
-- recommendation (Top Candidate or Review or Rejected)
-- summary (brief evaluation including citizenship verification note)
+Please include a JSON block in your response with these fields:
+{
+  "candidate_name": "Name from resume",
+  "candidate_email": "email or null",
+  "candidate_phone": "phone or null",
+  "job_matched": "the role matched from your list",
+  "score": 1-10,
+  "citizenship_status": "Singapore Citizen or PR or Unknown or Foreigner",
+  "recommendation": "Top Candidate or Review or Rejected",
+  "summary": "brief evaluation including citizenship verification note"
+}
 
 Use the scoring guide for the matched role."""
 
