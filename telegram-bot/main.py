@@ -45,7 +45,7 @@ Please analyze this resume and provide a screening assessment.
 IMPORTANT CITIZENSHIP REQUIREMENT: Candidates MUST be Singapore Citizens or Permanent Residents. Look for indicators such as: NRIC number (starts with S or T for citizens, F or G for PRs), National Service or NS completion, Singapore address, local education (Singapore polytechnics like Ngee Ann or Temasek, universities like NUS NTU SMU SIT SUSS, or local schools), or explicit mention of citizenship or PR status. If no clear indicator of Singapore Citizen or PR status is found, set recommendation to Rejected regardless of qualifications.
 
 Please include a JSON block in your response with these fields:
-{
+{{
   "candidate_name": "Full name from resume",
   "candidate_email": "email@example.com or null",
   "candidate_phone": "+65 XXXX XXXX or null",
@@ -54,7 +54,7 @@ Please include a JSON block in your response with these fields:
   "citizenship_status": "Singapore Citizen",
   "recommendation": "Top Candidate",
   "summary": "Brief evaluation text"
-}
+}}
 
 Note: score should be a number from 1-10, citizenship_status should be one of: Singapore Citizen, PR, Unknown, or Foreigner. recommendation should be one of: Top Candidate, Review, or Rejected.
 
