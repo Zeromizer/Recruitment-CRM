@@ -755,10 +755,10 @@ export default function CandidateDetail() {
 
       {/* Resume Preview Side Panel */}
       {showResumePreview && candidate.resume_url && (
-        <div className="w-1/2 flex-shrink-0 h-[calc(100vh-8rem)] sticky top-24 transition-all duration-300">
-          <div className="bg-navy-900 border border-navy-700 rounded-xl h-full flex flex-col">
+        <div className="w-1/2 flex-shrink-0 transition-all duration-300">
+          <div className="bg-navy-900 border border-navy-700 rounded-xl flex flex-col" style={{ height: 'calc(100vh - 10rem)' }}>
             {/* Panel Header */}
-            <div className="flex items-center justify-between p-4 border-b border-navy-700">
+            <div className="flex items-center justify-between p-4 border-b border-navy-700 flex-shrink-0">
               <h2 className="font-display text-lg text-white flex items-center gap-2">
                 <FileText className="w-5 h-5 text-coral-400" />
                 Resume Preview
@@ -783,7 +783,7 @@ export default function CandidateDetail() {
               </div>
             </div>
             {/* PDF Viewer */}
-            <div className="flex-1 p-4 overflow-hidden">
+            <div className="flex-1 p-4 min-h-0">
               <iframe
                 src={candidate.resume_url}
                 className="w-full h-full rounded-lg border border-navy-700 bg-white"
