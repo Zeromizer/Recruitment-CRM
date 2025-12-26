@@ -8,7 +8,7 @@ from supabase import create_client, Client
 # Environment variables
 API_ID = int(os.environ.get('TELEGRAM_API_ID', '0'))
 API_HASH = os.environ.get('TELEGRAM_API_HASH', '')
-PHONE = os.environ.get('TELEGRAM_PHONE', '')
+BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
 SUPABASE_KEY = os.environ.get('SUPABASE_ANON_KEY', '')
@@ -115,7 +115,7 @@ async def handle_file(event):
 
 async def main():
     print("Starting Telegram bot...")
-    await client.start(phone=PHONE)
+    await client.start(bot_token=BOT_TOKEN)
     print("Bot is running!")
     await client.run_until_disconnected()
 
