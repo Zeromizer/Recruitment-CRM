@@ -212,7 +212,47 @@ async def screen_resume(resume_text: str) -> dict:
         }
 
 
-async def save_candidate(user_id: int, username: str, full_name: str, screening_result: dict = None):
+async def upload_resume_to_storage(file_bytes: bytes, file_name: str, user_id: int) -> str:
+    """Upload resume file to Supabase Storage and return the public URL."""
+    try:
+        import time
+        # Create a unique filename
+        timestamp = int(time.time())
+        safe_name = file_name.replace(' ', '_')
+        storage_path = f"resumes/{user_id}_{timestamp}_{safe_name}"
+
+        # Upload to Supabase Storage
+        result = supabase_client.storage.from_("resumes").upload(
+            storage_path,
+            file_bytes,
+            {"content-type": "application/pdf"}
+        )
+
+        # Get public URL
+        public_url = supabase_client.storage.from_("resumes").get_public_url(storage_path)
+        print(f"Resume uploaded to: {public_url}")
+        return public_url
+
+    except Exception as e:
+        print(f"Error uploading resume to storage: {e}")
+        # Try creating the bucket if it doesn't exist
+        try:
+            supabase_client.storage.create_bucket("resumes", {"public": True})
+            # Retry upload
+            result = supabase_client.storage.from_("resumes").upload(
+                storage_path,
+                file_bytes,
+                {"content-type": "application/pdf"}
+            )
+            public_url = supabase_client.storage.from_("resumes").get_public_url(storage_path)
+            print(f"Resume uploaded to: {public_url}")
+            return public_url
+        except Exception as e2:
+            print(f"Failed to create bucket and upload: {e2}")
+            return None
+
+
+async def save_candidate(user_id: int, username: str, full_name: str, screening_result: dict = None, resume_url: str = None):
     """Save or update candidate in database with optional screening results."""
     try:
         conv_history = get_conversation(user_id)
@@ -256,6 +296,10 @@ async def save_candidate(user_id: int, username: str, full_name: str, screening_
                 pass
         else:
             data["status"] = "new"
+
+        # Add resume URL if provided
+        if resume_url:
+            data["resume_url"] = resume_url
 
         existing = supabase_client.table("candidates").select("id").eq("telegram_user_id", user_id).execute()
         if existing.data:
@@ -390,12 +434,15 @@ def setup_handlers(telegram_client):
                             if resume_text and len(resume_text) > 100:
                                 print(f"Extracted {len(resume_text)} characters from resume")
 
+                                # Upload resume to storage
+                                resume_url = await upload_resume_to_storage(file_bytes, file_name, user_id)
+
                                 # Screen the resume
                                 screening_result = await screen_resume(resume_text)
                                 print(f"Screening result: {screening_result.get('recommendation', 'Unknown')}")
 
-                                # Save candidate with screening results
-                                await save_candidate(user_id, username, full_name, screening_result)
+                                # Save candidate with screening results and resume URL
+                                await save_candidate(user_id, username, full_name, screening_result, resume_url)
 
                                 # Generate response based on screening
                                 score = screening_result.get('score', 0)
