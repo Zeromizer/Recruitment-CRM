@@ -97,7 +97,7 @@ async def get_ai_response(user_id: int, message: str) -> str:
 
     try:
         response = anthropic_client.messages.create(
-            model="claude-3-5-haiku-20241022",
+            model="claude-haiku-4-5-20251101",
             max_tokens=1024,
             system=SYSTEM_PROMPT,
             messages=valid_messages
@@ -176,7 +176,7 @@ async def screen_resume(resume_text: str) -> dict:
         )
 
         response = anthropic_client.messages.create(
-            model="claude-3-5-haiku-20241022",
+            model="claude-haiku-4-5-20251101",
             max_tokens=2048,
             messages=[{"role": "user", "content": prompt}]
         )
