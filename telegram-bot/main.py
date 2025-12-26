@@ -41,13 +41,27 @@ def add_message(user_id: int, role: str, content: str):
 
 
 async def get_ai_response(user_id: int, message: str) -> str:
+    # Ensure message is not empty
+    if not message or not message.strip():
+        message = "[Empty message]"
+
     add_message(user_id, "user", message)
+
+    # Filter out any empty messages from conversation history
+    valid_messages = [
+        msg for msg in get_conversation(user_id)
+        if msg.get("content") and msg["content"].strip()
+    ]
+
+    if not valid_messages:
+        return "Hello! I'm a recruiter assistant. How can I help you today?"
+
     try:
         response = anthropic_client.messages.create(
             model="claude-3-5-haiku-20241022",
             max_tokens=1024,
             system=SYSTEM_PROMPT,
-            messages=get_conversation(user_id)
+            messages=valid_messages
         )
         ai_message = response.content[0].text
         add_message(user_id, "assistant", ai_message)
