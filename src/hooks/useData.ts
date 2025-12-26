@@ -123,6 +123,38 @@ export function useUpdateCandidate() {
   });
 }
 
+export function useCreateCandidate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (candidate: Omit<Candidate, 'id' | 'created_at' | 'updated_at'>) => {
+      if (!isSupabaseConfigured || !supabase) {
+        const newCandidate: Candidate = {
+          ...candidate,
+          id: String(demoCandidates.length + 1 + Math.random()),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        demoCandidates.unshift(newCandidate);
+        return newCandidate;
+      }
+
+      const { data, error } = await supabase
+        .from('candidates')
+        .insert(candidate)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['candidates'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
 // Activities hooks
 export function useActivities() {
   return useQuery({
