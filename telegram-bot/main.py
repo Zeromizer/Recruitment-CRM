@@ -46,15 +46,17 @@ IMPORTANT CITIZENSHIP REQUIREMENT: Candidates MUST be Singapore Citizens or Perm
 
 Please include a JSON block in your response with these fields:
 {
-  "candidate_name": "Name from resume",
-  "candidate_email": "email or null",
-  "candidate_phone": "phone or null",
-  "job_matched": "the role matched from your list",
-  "score": 1-10,
-  "citizenship_status": "Singapore Citizen or PR or Unknown or Foreigner",
-  "recommendation": "Top Candidate or Review or Rejected",
-  "summary": "brief evaluation including citizenship verification note"
+  "candidate_name": "Full name from resume",
+  "candidate_email": "email@example.com or null",
+  "candidate_phone": "+65 XXXX XXXX or null",
+  "job_matched": "matched role name",
+  "score": 7,
+  "citizenship_status": "Singapore Citizen",
+  "recommendation": "Top Candidate",
+  "summary": "Brief evaluation text"
 }
+
+Note: score should be a number from 1-10, citizenship_status should be one of: Singapore Citizen, PR, Unknown, or Foreigner. recommendation should be one of: Top Candidate, Review, or Rejected.
 
 Use the scoring guide for the matched role."""
 
