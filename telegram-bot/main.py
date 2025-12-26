@@ -116,9 +116,16 @@ async def handle_file(event):
 
 async def main():
     print("Starting Telegram bot...")
-    await client.start()
-    print("Bot is running!")
-    await client.run_until_disconnected()
+    try:
+        await client.connect()
+        if not await client.is_user_authorized():
+            print("ERROR: Session is not authorized. Please regenerate your session string.")
+            return
+        print("Bot is running!")
+        await client.run_until_disconnected()
+    except Exception as e:
+        print(f"ERROR: Failed to connect: {e}")
+        raise
 
 
 if __name__ == "__main__":
