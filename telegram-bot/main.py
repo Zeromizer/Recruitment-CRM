@@ -27,34 +27,36 @@ Your goal is to:
 
 Always be professional but approachable. If they send a file, thank them for their resume."""
 
-SCREENING_PROMPT = """You are an expert recruiter screening resumes. Analyze the following resume against the job requirements and scoring guide provided.
+SCREENING_PROMPT = """Here are the available job roles with their requirements and scoring guides (format: Job Title, Requirements, Scoring Guide):
 
-JOB ROLES AND REQUIREMENTS:
 {job_roles}
 
 RESUME TEXT:
 {resume_text}
 
-Based on the resume, provide:
-1. BEST MATCHING JOB: Which job role from the list best matches this candidate?
-2. MATCH SCORE: Rate 1-10 how well they match (use the scoring guide)
-3. KEY QUALIFICATIONS: List 3-5 relevant qualifications found
-4. MISSING REQUIREMENTS: List any key requirements they're missing
-5. RECOMMENDATION: "Top Candidate", "Review", or "Rejected" with brief reason
-6. EXTRACTED INFO: Extract name, email, phone if visible in resume
+Please analyze this resume and provide a screening assessment.
 
-Format your response as JSON:
-{{
-    "matched_job": "job title",
-    "score": 8,
-    "qualifications": ["qual1", "qual2"],
-    "missing": ["missing1"],
-    "recommendation": "Review",
-    "reason": "Brief explanation",
-    "extracted_name": "Name if found",
-    "extracted_email": "email@example.com if found",
-    "extracted_phone": "phone if found"
-}}"""
+1. First, identify which job role the candidate is applying for. Match it to one of the available roles. If the message does not clearly indicate a role, select the most suitable role based on the candidates experience.
+
+2. Then analyze this resume against that specific roles requirements and scoring guide.
+
+3. Extract the candidates email address and phone number from the resume if available.
+
+IMPORTANT CITIZENSHIP REQUIREMENT: Candidates MUST be Singapore Citizens or Permanent Residents. Look for indicators such as: NRIC number (starts with S or T for citizens, F or G for PRs), National Service or NS completion, Singapore address, local education (Singapore polytechnics like Ngee Ann or Temasek, universities like NUS NTU SMU SIT SUSS, or local schools), or explicit mention of citizenship or PR status. If no clear indicator of Singapore Citizen or PR status is found, set recommendation to Rejected regardless of qualifications.
+
+Please include a JSON block in your response with these fields:
+{
+  "candidate_name": "Name from resume",
+  "candidate_email": "email or null",
+  "candidate_phone": "phone or null",
+  "job_matched": "the role matched from your list",
+  "score": 1-10,
+  "citizenship_status": "Singapore Citizen or PR or Unknown or Foreigner",
+  "recommendation": "Top Candidate or Review or Rejected",
+  "summary": "brief evaluation including citizenship verification note"
+}
+
+Use the scoring guide for the matched role."""
 
 # Global clients - initialized in main()
 client = None
@@ -268,12 +270,12 @@ async def save_candidate(user_id: int, username: str, full_name: str, screening_
         # Add screening results if available
         if screening_result:
             # Update name/email/phone if extracted from resume
-            if screening_result.get("extracted_name"):
-                data["full_name"] = screening_result["extracted_name"]
-            if screening_result.get("extracted_email"):
-                data["email"] = screening_result["extracted_email"]
-            if screening_result.get("extracted_phone"):
-                data["phone"] = screening_result["extracted_phone"]
+            if screening_result.get("candidate_name"):
+                data["full_name"] = screening_result["candidate_name"]
+            if screening_result.get("candidate_email"):
+                data["email"] = screening_result["candidate_email"]
+            if screening_result.get("candidate_phone"):
+                data["phone"] = screening_result["candidate_phone"]
 
             # Map recommendation to status
             rec = screening_result.get("recommendation", "Review")
@@ -285,9 +287,13 @@ async def save_candidate(user_id: int, username: str, full_name: str, screening_
                 data["status"] = "Review"
 
             # Add screening data
-            data["applied_role"] = screening_result.get("matched_job", "")
+            data["applied_role"] = screening_result.get("job_matched", "")
             data["ai_score"] = screening_result.get("score", 0)
-            data["ai_summary"] = screening_result.get("reason", "")
+            data["ai_summary"] = screening_result.get("summary", "")
+
+            # Add citizenship status if column exists
+            if screening_result.get("citizenship_status"):
+                data["citizenship_status"] = screening_result["citizenship_status"]
 
             # Store full screening result as JSON if column exists
             try:
@@ -446,7 +452,7 @@ def setup_handlers(telegram_client):
 
                                 # Generate response based on screening
                                 score = screening_result.get('score', 0)
-                                matched_job = screening_result.get('matched_job', 'our open positions')
+                                matched_job = screening_result.get('job_matched', 'our open positions')
 
                                 response = f"""Thank you for submitting your resume, {full_name or 'candidate'}!
 
