@@ -2,10 +2,16 @@ import os
 import sys
 import json
 import asyncio
+import tempfile
+import re
+from io import BytesIO
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from anthropic import Anthropic
 from supabase import create_client, Client
+import PyPDF2
+import gspread
+from google.oauth2.service_account import Credentials
 
 # Conversation memory (max 10 messages per user)
 conversations = {}
@@ -21,10 +27,43 @@ Your goal is to:
 
 Always be professional but approachable. If they send a file, thank them for their resume."""
 
+SCREENING_PROMPT = """You are an expert recruiter screening resumes. Analyze the following resume against the job requirements and scoring guide provided.
+
+JOB ROLES AND REQUIREMENTS:
+{job_roles}
+
+RESUME TEXT:
+{resume_text}
+
+Based on the resume, provide:
+1. BEST MATCHING JOB: Which job role from the list best matches this candidate?
+2. MATCH SCORE: Rate 1-10 how well they match (use the scoring guide)
+3. KEY QUALIFICATIONS: List 3-5 relevant qualifications found
+4. MISSING REQUIREMENTS: List any key requirements they're missing
+5. RECOMMENDATION: "Top Candidate", "Review", or "Rejected" with brief reason
+6. EXTRACTED INFO: Extract name, email, phone if visible in resume
+
+Format your response as JSON:
+{{
+    "matched_job": "job title",
+    "score": 8,
+    "qualifications": ["qual1", "qual2"],
+    "missing": ["missing1"],
+    "recommendation": "Review",
+    "reason": "Brief explanation",
+    "extracted_name": "Name if found",
+    "extracted_email": "email@example.com if found",
+    "extracted_phone": "phone if found"
+}}"""
+
 # Global clients - initialized in main()
 client = None
 anthropic_client = None
 supabase_client = None
+gsheets_client = None
+job_roles_cache = None
+job_roles_cache_time = 0
+JOB_ROLES_CACHE_DURATION = 300  # 5 minutes
 
 
 def get_conversation(user_id: int) -> list:
@@ -71,26 +110,165 @@ async def get_ai_response(user_id: int, message: str) -> str:
         return "I apologize, but I'm having trouble processing your message. Please try again."
 
 
-async def save_candidate(user_id: int, username: str, full_name: str):
+def extract_text_from_pdf(pdf_bytes: bytes) -> str:
+    """Extract text content from a PDF file."""
+    try:
+        pdf_reader = PyPDF2.PdfReader(BytesIO(pdf_bytes))
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text() or ""
+        return text.strip()
+    except Exception as e:
+        print(f"Error extracting PDF text: {e}")
+        return ""
+
+
+def get_job_roles_from_sheets() -> str:
+    """Fetch job roles from Google Sheets with caching."""
+    global job_roles_cache, job_roles_cache_time, gsheets_client
+
+    import time
+    current_time = time.time()
+
+    # Return cached data if still valid
+    if job_roles_cache and (current_time - job_roles_cache_time) < JOB_ROLES_CACHE_DURATION:
+        return job_roles_cache
+
+    if not gsheets_client:
+        print("Warning: Google Sheets not configured, using default job roles")
+        return "No specific job roles configured. Screen the resume generally."
+
+    try:
+        spreadsheet_id = os.environ.get('GOOGLE_SHEETS_ID')
+        if not spreadsheet_id:
+            print("Warning: GOOGLE_SHEETS_ID not set")
+            return "No specific job roles configured."
+
+        sheet = gsheets_client.open_by_key(spreadsheet_id).sheet1
+        records = sheet.get_all_records()
+
+        job_roles_text = ""
+        for row in records:
+            job_title = row.get('Job Title', '')
+            requirements = row.get('Requirements', '')
+            scoring = row.get('Scoring Guide', '')
+            if job_title:
+                job_roles_text += f"\n\nJOB: {job_title}\nRequirements: {requirements}\nScoring: {scoring}"
+
+        job_roles_cache = job_roles_text
+        job_roles_cache_time = current_time
+        print(f"Fetched {len(records)} job roles from Google Sheets")
+        return job_roles_text
+
+    except Exception as e:
+        print(f"Error fetching job roles from Google Sheets: {e}")
+        return job_roles_cache or "No specific job roles configured."
+
+
+async def screen_resume(resume_text: str) -> dict:
+    """Use AI to screen the resume against job requirements."""
+    try:
+        job_roles = get_job_roles_from_sheets()
+
+        prompt = SCREENING_PROMPT.format(
+            job_roles=job_roles,
+            resume_text=resume_text[:15000]  # Limit resume text length
+        )
+
+        response = anthropic_client.messages.create(
+            model="claude-3-5-haiku-20241022",
+            max_tokens=2048,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        response_text = response.content[0].text
+
+        # Try to parse JSON from response
+        try:
+            # Find JSON in response
+            json_match = re.search(r'\{[\s\S]*\}', response_text)
+            if json_match:
+                return json.loads(json_match.group())
+        except json.JSONDecodeError:
+            pass
+
+        # Return basic structure if parsing fails
+        return {
+            "matched_job": "Unknown",
+            "score": 5,
+            "qualifications": [],
+            "missing": [],
+            "recommendation": "Review",
+            "reason": response_text[:500],
+            "raw_response": response_text
+        }
+
+    except Exception as e:
+        print(f"Error screening resume: {e}")
+        return {
+            "error": str(e),
+            "recommendation": "Review",
+            "reason": "Screening failed - manual review required"
+        }
+
+
+async def save_candidate(user_id: int, username: str, full_name: str, screening_result: dict = None):
+    """Save or update candidate in database with optional screening results."""
     try:
         conv_history = get_conversation(user_id)
+
         data = {
             "full_name": full_name or f"Telegram User {user_id}",
             "telegram_user_id": user_id,
             "telegram_username": username,
             "source": "telegram",
-            "status": "new",
             "conversation_history": json.dumps(conv_history)
         }
+
+        # Add screening results if available
+        if screening_result:
+            # Update name/email/phone if extracted from resume
+            if screening_result.get("extracted_name"):
+                data["full_name"] = screening_result["extracted_name"]
+            if screening_result.get("extracted_email"):
+                data["email"] = screening_result["extracted_email"]
+            if screening_result.get("extracted_phone"):
+                data["phone"] = screening_result["extracted_phone"]
+
+            # Map recommendation to status
+            rec = screening_result.get("recommendation", "Review")
+            if "Top" in rec:
+                data["status"] = "Top Candidate"
+            elif "Reject" in rec:
+                data["status"] = "Rejected"
+            else:
+                data["status"] = "Review"
+
+            # Add screening data
+            data["applied_role"] = screening_result.get("matched_job", "")
+            data["ai_score"] = screening_result.get("score", 0)
+            data["ai_summary"] = screening_result.get("reason", "")
+
+            # Store full screening result as JSON if column exists
+            try:
+                data["screening_result"] = json.dumps(screening_result)
+            except:
+                pass
+        else:
+            data["status"] = "new"
+
         existing = supabase_client.table("candidates").select("id").eq("telegram_user_id", user_id).execute()
         if existing.data:
             supabase_client.table("candidates").update(data).eq("telegram_user_id", user_id).execute()
-            print(f"Updated candidate: {full_name}")
+            print(f"Updated candidate: {data['full_name']}")
         else:
             supabase_client.table("candidates").insert(data).execute()
-            print(f"Created new candidate: {full_name}")
+            print(f"Created new candidate: {data['full_name']}")
+
+        return True
     except Exception as e:
         print(f"Error saving candidate: {e}")
+        return False
 
 
 def validate_env_vars():
@@ -117,7 +295,37 @@ def validate_env_vars():
         print(f"ERROR: TELEGRAM_API_ID must be a number, got: {required['TELEGRAM_API_ID']}")
         return False
 
+    # Check optional Google Sheets config
+    if not os.environ.get('GOOGLE_SHEETS_CREDENTIALS'):
+        print("Warning: GOOGLE_SHEETS_CREDENTIALS not set - resume screening will use basic mode")
+    if not os.environ.get('GOOGLE_SHEETS_ID'):
+        print("Warning: GOOGLE_SHEETS_ID not set - resume screening will use basic mode")
+
     return True
+
+
+def init_google_sheets():
+    """Initialize Google Sheets client."""
+    global gsheets_client
+
+    creds_json = os.environ.get('GOOGLE_SHEETS_CREDENTIALS')
+    if not creds_json:
+        print("Google Sheets credentials not configured")
+        return None
+
+    try:
+        creds_dict = json.loads(creds_json)
+        scopes = [
+            'https://www.googleapis.com/auth/spreadsheets.readonly',
+            'https://www.googleapis.com/auth/drive.readonly'
+        ]
+        credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        gsheets_client = gspread.authorize(credentials)
+        print("Google Sheets client initialized")
+        return gsheets_client
+    except Exception as e:
+        print(f"Error initializing Google Sheets: {e}")
+        return None
 
 
 def setup_handlers(telegram_client):
@@ -125,6 +333,10 @@ def setup_handlers(telegram_client):
 
     @telegram_client.on(events.NewMessage(incoming=True))
     async def handle_message(event):
+        # Skip if this is a file message (handled separately)
+        if event.file:
+            return
+
         if event.is_private:
             sender = await event.get_sender()
             user_id = sender.id
@@ -132,7 +344,7 @@ def setup_handlers(telegram_client):
             full_name = f"{sender.first_name or ''} {sender.last_name or ''}".strip()
             print(f"Message from {full_name} (@{username}): {event.text}")
             async with telegram_client.action(event.chat_id, 'typing'):
-                response = await get_ai_response(user_id, event.text)
+                response = await get_ai_response(user_id, event.text or "")
             await event.respond(response)
             await save_candidate(user_id, username, full_name)
 
@@ -143,11 +355,84 @@ def setup_handlers(telegram_client):
             user_id = sender.id
             username = sender.username or ""
             full_name = f"{sender.first_name or ''} {sender.last_name or ''}".strip()
-            print(f"File received from {full_name} (@{username})")
-            async with telegram_client.action(event.chat_id, 'typing'):
-                response = await get_ai_response(user_id, "[User sent a file/resume]")
-            await event.respond(response)
-            await save_candidate(user_id, username, full_name)
+
+            # Get file info
+            file_name = event.file.name or "unknown"
+            file_size = event.file.size or 0
+            mime_type = event.file.mime_type or ""
+
+            print(f"File received from {full_name} (@{username}): {file_name} ({mime_type}, {file_size} bytes)")
+
+            # Check if it's a PDF or document
+            is_resume = (
+                mime_type == "application/pdf" or
+                file_name.lower().endswith('.pdf') or
+                mime_type in ["application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"] or
+                file_name.lower().endswith(('.doc', '.docx'))
+            )
+
+            if is_resume:
+                await event.respond("Thank you for your resume! I'm processing it now... 📄")
+
+                async with telegram_client.action(event.chat_id, 'typing'):
+                    # Download the file
+                    try:
+                        file_bytes = await event.download_media(file=bytes)
+
+                        if file_bytes:
+                            # Extract text from PDF
+                            if mime_type == "application/pdf" or file_name.lower().endswith('.pdf'):
+                                resume_text = extract_text_from_pdf(file_bytes)
+                            else:
+                                # For non-PDF, just note that it was received
+                                resume_text = f"[Document received: {file_name}]"
+
+                            if resume_text and len(resume_text) > 100:
+                                print(f"Extracted {len(resume_text)} characters from resume")
+
+                                # Screen the resume
+                                screening_result = await screen_resume(resume_text)
+                                print(f"Screening result: {screening_result.get('recommendation', 'Unknown')}")
+
+                                # Save candidate with screening results
+                                await save_candidate(user_id, username, full_name, screening_result)
+
+                                # Generate response based on screening
+                                score = screening_result.get('score', 0)
+                                matched_job = screening_result.get('matched_job', 'our open positions')
+
+                                response = f"""Thank you for submitting your resume, {full_name or 'candidate'}!
+
+I've reviewed your application and found you could be a great fit for **{matched_job}**.
+
+Our recruitment team will review your profile and get back to you soon. In the meantime, is there anything specific about the role you'd like to know?"""
+
+                                await event.respond(response)
+                            else:
+                                print("Could not extract sufficient text from resume")
+                                await event.respond(
+                                    "Thank you for your resume! I received the file but had trouble reading its contents. "
+                                    "Our team will review it manually. Is there anything else I can help you with?"
+                                )
+                                await save_candidate(user_id, username, full_name)
+                        else:
+                            print("Failed to download file")
+                            await event.respond(
+                                "I had trouble downloading your file. Could you please try sending it again?"
+                            )
+                    except Exception as e:
+                        print(f"Error processing file: {e}")
+                        await event.respond(
+                            "I encountered an error processing your file. Our team will follow up with you. "
+                            "Is there anything else I can help with?"
+                        )
+                        await save_candidate(user_id, username, full_name)
+            else:
+                # Non-resume file
+                async with telegram_client.action(event.chat_id, 'typing'):
+                    response = await get_ai_response(user_id, f"[User sent a file: {file_name}]")
+                await event.respond(response)
+                await save_candidate(user_id, username, full_name)
 
 
 async def main():
@@ -188,6 +473,10 @@ async def main():
     except Exception as e:
         print(f"ERROR: Failed to initialize Supabase client: {e}")
         sys.exit(1)
+
+    # Initialize Google Sheets client (optional)
+    print("Initializing Google Sheets client...")
+    init_google_sheets()
 
     # Initialize Telegram client
     print("Initializing Telegram client...")
