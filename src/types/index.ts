@@ -49,7 +49,7 @@ export type InterviewRound = '1st' | '2nd' | '3rd' | 'Final' | 'Assessment';
 export type InterviewStatus = 'Scheduled' | 'Completed' | 'Cancelled' | 'No Show';
 
 // Source
-export type CandidateSource = 'Seek' | 'FastJobs' | 'Indeed' | 'LinkedIn' | 'Direct' | 'Referral';
+export type CandidateSource = 'Seek' | 'FastJobs' | 'Indeed' | 'LinkedIn' | 'Direct' | 'Referral' | 'Email';
 
 export interface Candidate {
   id: string;

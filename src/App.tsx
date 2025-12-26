@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Tasks from './pages/Tasks';
@@ -9,6 +9,13 @@ import Interviews from './pages/Interviews';
 import Activities from './pages/Activities';
 import Settings from './pages/Settings';
 import { useRealtimeSubscription } from './hooks/useData';
+
+// OAuth callback component - redirects to settings with query params preserved
+function AuthCallback() {
+  // The query params (code) are preserved during redirect
+  // Settings page handles the OAuth callback
+  return <Navigate to={`/settings${window.location.search}`} replace />;
+}
 
 function App() {
   // Enable realtime updates from Supabase
@@ -25,6 +32,7 @@ function App() {
         <Route path="interviews" element={<Interviews />} />
         <Route path="activities" element={<Activities />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="auth/callback" element={<AuthCallback />} />
       </Route>
     </Routes>
   );
