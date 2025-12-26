@@ -136,6 +136,7 @@ export default function CandidateDetail() {
   const [notes, setNotes] = useState('');
   const [editingNotes, setEditingNotes] = useState(false);
   const [showInterviewModal, setShowInterviewModal] = useState(false);
+    const [showResumePreview, setShowResumePreview] = useState(false);
   const [interviewForm, setInterviewForm] = useState({
     date: '',
     time: '',
@@ -381,16 +382,13 @@ export default function CandidateDetail() {
                 Schedule Interview
               </button>
               {candidate.resume_url && (
-                <a
-                  href={candidate.resume_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-secondary flex items-center gap-2"
-                >
-                  <FileText className="w-4 h-4" />
-                  View Resume
-                  <ExternalLink className="w-3 h-3" />
-                </a>
+                <button
+                                    onClick={() => setShowResumePreview(true)}
+                                    className="btn-secondary flex items-center gap-2"
+                                  >
+                                  <FileText className="w-4 h-4" />
+                                  View Resume
+                </button>
               )}
             </div>
           </div>
@@ -750,6 +748,41 @@ export default function CandidateDetail() {
           </div>
         </div>
       )}
+
+      {/* Resume Preview Modal */}
+      {showResumePreview && candidate.resume_url && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-navy-900 border border-navy-700 rounded-xl w-full max-w-4xl h-[90vh] flex flex-col">
+                                    <div className="flex items-center justify-between p-4 border-b border-navy-700">
+                                                  <h2 className="font-display text-xl text-white">Resume Preview</h2>h2>
+                                                  <div className="flex items-center gap-2">
+                                                                  <a
+                                                                                      href={candidate.resume_url}
+                                                                                      target="_blank"
+                                                                                      rel="noopener noreferrer"
+                                                                                      className="btn-secondary text-sm flex items-center gap-1"
+                                                                                    >
+                                                                                    <ExternalLink className="w-4 h-4" />
+                                                                                    Open in New Tab
+                                                                  </a>a>
+                                                                  <button
+                                                                                      onClick={() => setShowResumePreview(false)}
+                                                                                      className="text-navy-400 hover:text-white transition-colors"
+                                                                                    >
+                                                                                    <X className="w-5 h-5" />
+                                                                  </button>
+                                                  </div>
+                                    </div>
+                                    <div className="flex-1 p-4">
+                                                  <iframe
+                                                                    src={candidate.resume_url}
+                                                                    className="w-full h-full rounded-lg border border-navy-700"
+                                                                    title="Resume Preview"
+                                                                  />
+                                    </div>
+                        </div>
+              </div>
+          )}
     </div>
   );
 }
