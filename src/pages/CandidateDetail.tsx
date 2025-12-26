@@ -12,7 +12,6 @@ import {
   MessageSquare,
   Clock,
   ChevronDown,
-  ChevronRight,
   ExternalLink,
   Send,
   PhoneCall,
@@ -137,7 +136,6 @@ export default function CandidateDetail() {
   const [notes, setNotes] = useState('');
   const [editingNotes, setEditingNotes] = useState(false);
   const [showInterviewModal, setShowInterviewModal] = useState(false);
-    const [showResumePreview, setShowResumePreview] = useState(false);
   const [interviewForm, setInterviewForm] = useState({
     date: '',
     time: '',
@@ -273,8 +271,8 @@ export default function CandidateDetail() {
 
   return (
     <div className="flex gap-6">
-      {/* Main Content Area */}
-      <div className={`flex-1 min-w-0 space-y-6 transition-all duration-300 ${showResumePreview && candidate.resume_url ? 'w-1/2' : 'w-full'}`}>
+      {/* Left Side - Candidate Info */}
+      <div className="flex-1 min-w-0 space-y-6">
         {/* Back Button */}
         <button
           onClick={() => navigate(-1)}
@@ -284,334 +282,309 @@ export default function CandidateDetail() {
           Back
         </button>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Profile Header */}
-          <div className="card p-6">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start gap-4">
-                <div className="w-16 h-16 bg-navy-700 rounded-full flex items-center justify-center">
-                  <span className="text-xl font-medium text-white">
-                    {candidate.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                  </span>
-                </div>
-                <div>
-                  <h1 className="font-display text-2xl text-white">{candidate.full_name}</h1>
-                  <p className="text-navy-400 mt-1">{candidate.applied_role}</p>
-                  <div className="flex items-center gap-3 mt-3">
-                    {getCitizenshipBadge(candidate.citizenship_status)}
-                    {getAICategoryBadge(candidate.ai_category)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Status Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowStatusDropdown(!showStatusDropdown)}
-                  className={`badge ${getStatusBadgeClass(candidate.current_status)} flex items-center gap-1 cursor-pointer hover:opacity-80`}
-                >
-                  {STATUS_LABELS[candidate.current_status]}
-                  <ChevronDown className="w-3 h-3" />
-                </button>
-                {showStatusDropdown && (
-                  <div className="absolute right-0 mt-2 w-56 bg-navy-800 border border-navy-700 rounded-lg shadow-xl z-10 max-h-80 overflow-y-auto">
-                    {Object.entries(STATUS_LABELS).map(([status, label]) => (
-                      <button
-                        key={status}
-                        onClick={() => handleStatusChange(status as CandidateStatus)}
-                        className={`w-full text-left px-4 py-2 text-sm hover:bg-navy-700 transition-colors ${
-                          status === candidate.current_status ? 'text-coral-400' : 'text-navy-200'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Contact Info */}
-            <div className="mt-6 flex flex-wrap gap-4">
-              {candidate.email && (
-                <a
-                  href={`mailto:${candidate.email}`}
-                  className="flex items-center gap-2 text-navy-300 hover:text-white transition-colors"
-                >
-                  <Mail className="w-4 h-4" />
-                  {candidate.email}
-                </a>
-              )}
-              {candidate.phone && (
-                <a
-                  href={`tel:${candidate.phone}`}
-                  className="flex items-center gap-2 text-navy-300 hover:text-white transition-colors"
-                >
-                  <Phone className="w-4 h-4" />
-                  {candidate.phone}
-                </a>
-              )}
-              {candidate.source && (
-                <span className="flex items-center gap-2 text-navy-400">
-                  <MapPin className="w-4 h-4" />
-                  Source: {candidate.source}
+        {/* Profile Header with Inline Details */}
+        <div className="card p-6">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-4">
+              <div className="w-16 h-16 bg-navy-700 rounded-full flex items-center justify-center">
+                <span className="text-xl font-medium text-white">
+                  {candidate.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                 </span>
-              )}
+              </div>
+              <div>
+                <h1 className="font-display text-2xl text-white">{candidate.full_name}</h1>
+                <p className="text-navy-400 mt-1">{candidate.applied_role}</p>
+                <div className="flex items-center gap-3 mt-3">
+                  {getCitizenshipBadge(candidate.citizenship_status)}
+                  {getAICategoryBadge(candidate.ai_category)}
+                </div>
+              </div>
             </div>
 
-            {/* Quick Actions */}
-            <div className="mt-6 flex flex-wrap gap-3">
+            {/* Status Dropdown */}
+            <div className="relative">
               <button
-                onClick={() => handleQuickAction('Phone Call')}
-                className="btn-secondary flex items-center gap-2"
+                onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                className={`badge ${getStatusBadgeClass(candidate.current_status)} flex items-center gap-1 cursor-pointer hover:opacity-80`}
               >
-                <PhoneCall className="w-4 h-4" />
-                Log Call
+                {STATUS_LABELS[candidate.current_status]}
+                <ChevronDown className="w-3 h-3" />
               </button>
-              <button
-                onClick={() => handleQuickAction('Email Sent')}
-                className="btn-secondary flex items-center gap-2"
+              {showStatusDropdown && (
+                <div className="absolute right-0 mt-2 w-56 bg-navy-800 border border-navy-700 rounded-lg shadow-xl z-10 max-h-80 overflow-y-auto">
+                  {Object.entries(STATUS_LABELS).map(([status, label]) => (
+                    <button
+                      key={status}
+                      onClick={() => handleStatusChange(status as CandidateStatus)}
+                      className={`w-full text-left px-4 py-2 text-sm hover:bg-navy-700 transition-colors ${
+                        status === candidate.current_status ? 'text-coral-400' : 'text-navy-200'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Contact Info */}
+          <div className="mt-6 flex flex-wrap gap-4">
+            {candidate.email && (
+              <a
+                href={`mailto:${candidate.email}`}
+                className="flex items-center gap-2 text-navy-300 hover:text-white transition-colors"
               >
                 <Mail className="w-4 h-4" />
-                Log Email
-              </button>
-              <button
-                onClick={() => setShowInterviewModal(true)}
-                className="btn-secondary flex items-center gap-2"
+                {candidate.email}
+              </a>
+            )}
+            {candidate.phone && (
+              <a
+                href={`tel:${candidate.phone}`}
+                className="flex items-center gap-2 text-navy-300 hover:text-white transition-colors"
               >
-                <Calendar className="w-4 h-4" />
-                Schedule Interview
-              </button>
-              {candidate.resume_url && (
-                <button
-                  onClick={() => setShowResumePreview(!showResumePreview)}
-                  className={`btn-secondary flex items-center gap-2 ${showResumePreview ? 'bg-navy-700 border-coral-500' : ''}`}
-                >
-                  <FileText className="w-4 h-4" />
-                  {showResumePreview ? 'Hide Resume' : 'View Resume'}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* AI Assessment */}
-          {candidate.ai_score && (
-            <div className="card p-6">
-              <h2 className="font-display text-lg text-white flex items-center gap-2 mb-4">
-                <Star className="w-5 h-5 text-amber-400" />
-                AI Assessment
-              </h2>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="bg-navy-800/50 rounded-lg p-4">
-                  <p className="text-sm text-navy-400">Score</p>
-                  <p className="text-3xl font-semibold text-white mt-1">
-                    {candidate.ai_score}
-                    <span className="text-lg text-navy-500">/10</span>
-                  </p>
-                </div>
-                <div className="bg-navy-800/50 rounded-lg p-4">
-                  <p className="text-sm text-navy-400">Category</p>
-                  <p className="text-xl font-medium text-white mt-1">{candidate.ai_category}</p>
-                </div>
-              </div>
-              {candidate.ai_summary && (
-                <div className="mb-4">
-                  <p className="text-sm text-navy-400 mb-1">Summary</p>
-                  <p className="text-navy-200">{candidate.ai_summary}</p>
-                </div>
-              )}
-              {candidate.ai_reasoning && (
-                <div>
-                  <p className="text-sm text-navy-400 mb-1">Reasoning</p>
-                  <p className="text-navy-200">{candidate.ai_reasoning}</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Activity Timeline */}
-          <div className="card p-6">
-            <h2 className="font-display text-lg text-white flex items-center gap-2 mb-4">
-              <Clock className="w-5 h-5 text-blue-400" />
-              Activity Timeline
-            </h2>
-            {activities.length > 0 ? (
-              <div className="space-y-3">
-                {activities.map(activity => (
-                  <ActivityItem key={activity.id} activity={activity} />
-                ))}
-              </div>
-            ) : (
-              <p className="text-navy-400 text-center py-8">No activities logged yet</p>
+                <Phone className="w-4 h-4" />
+                {candidate.phone}
+              </a>
+            )}
+            {candidate.source && (
+              <span className="flex items-center gap-2 text-navy-400">
+                <MapPin className="w-4 h-4" />
+                Source: {candidate.source}
+              </span>
             )}
           </div>
-        </div>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Details */}
-          <div className="card p-6">
-            <h2 className="font-display text-lg text-white mb-4">Details</h2>
-            <dl className="space-y-4">
+          {/* Inline Details */}
+          <div className="mt-6 pt-6 border-t border-navy-700">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <dt className="text-sm text-navy-400">Date Received</dt>
-                <dd className="text-navy-200">
-                  {format(parseISO(candidate.date_received), 'MMM d, yyyy')}
-                </dd>
+                <p className="text-sm text-navy-400">Date Received</p>
+                <p className="text-navy-200">{format(parseISO(candidate.date_received), 'MMM d, yyyy')}</p>
               </div>
               {candidate.assigned_recruiter && (
                 <div>
-                  <dt className="text-sm text-navy-400">Assigned To</dt>
-                  <dd className="text-navy-200">{candidate.assigned_recruiter}</dd>
+                  <p className="text-sm text-navy-400">Assigned To</p>
+                  <p className="text-navy-200">{candidate.assigned_recruiter}</p>
                 </div>
               )}
               {candidate.client_submitted_to && (
                 <div>
-                  <dt className="text-sm text-navy-400">Submitted To</dt>
-                  <dd className="text-navy-200">{candidate.client_submitted_to}</dd>
+                  <p className="text-sm text-navy-400">Submitted To</p>
+                  <p className="text-navy-200">{candidate.client_submitted_to}</p>
                 </div>
               )}
               {candidate.submission_date && (
                 <div>
-                  <dt className="text-sm text-navy-400">Submission Date</dt>
-                  <dd className="text-navy-200">
-                    {format(parseISO(candidate.submission_date), 'MMM d, yyyy')}
-                  </dd>
+                  <p className="text-sm text-navy-400">Submission Date</p>
+                  <p className="text-navy-200">{format(parseISO(candidate.submission_date), 'MMM d, yyyy')}</p>
                 </div>
               )}
               {candidate.interview_date && (
                 <div>
-                  <dt className="text-sm text-navy-400">Interview Date</dt>
-                  <dd className="text-navy-200">
+                  <p className="text-sm text-navy-400">Interview Date</p>
+                  <p className="text-navy-200">
                     {format(parseISO(candidate.interview_date), 'MMM d, yyyy')}
-                    {candidate.interview_outcome && (
-                      <span className="ml-2 text-sm text-navy-400">
-                        ({candidate.interview_outcome})
-                      </span>
-                    )}
-                  </dd>
+                    {candidate.interview_outcome && ` (${candidate.interview_outcome})`}
+                  </p>
                 </div>
               )}
               {candidate.offer_date && (
                 <div>
-                  <dt className="text-sm text-navy-400">Offer Date</dt>
-                  <dd className="text-navy-200">
+                  <p className="text-sm text-navy-400">Offer Date</p>
+                  <p className="text-navy-200">
                     {format(parseISO(candidate.offer_date), 'MMM d, yyyy')}
-                    {candidate.offer_status && (
-                      <span className="ml-2 text-sm text-navy-400">
-                        ({candidate.offer_status})
-                      </span>
-                    )}
-                  </dd>
+                    {candidate.offer_status && ` (${candidate.offer_status})`}
+                  </p>
                 </div>
               )}
               {candidate.start_date && (
                 <div>
-                  <dt className="text-sm text-navy-400">Start Date</dt>
-                  <dd className="text-navy-200">
-                    {format(parseISO(candidate.start_date), 'MMM d, yyyy')}
-                  </dd>
+                  <p className="text-sm text-navy-400">Start Date</p>
+                  <p className="text-navy-200">{format(parseISO(candidate.start_date), 'MMM d, yyyy')}</p>
                 </div>
               )}
               {(candidate.hourly_rate || candidate.bill_rate) && (
                 <div>
-                  <dt className="text-sm text-navy-400">Rates</dt>
-                  <dd className="text-navy-200">
+                  <p className="text-sm text-navy-400">Rates</p>
+                  <p className="text-navy-200">
                     {candidate.hourly_rate && `$${candidate.hourly_rate}/hr`}
                     {candidate.hourly_rate && candidate.bill_rate && ' / '}
                     {candidate.bill_rate && `$${candidate.bill_rate} bill`}
-                  </dd>
+                  </p>
                 </div>
               )}
-            </dl>
+            </div>
           </div>
 
-          {/* Next Action */}
+          {/* Next Action Banner */}
           {candidate.next_action && (
-            <div className="card p-6 border-l-4 border-l-amber-500">
-              <h2 className="font-display text-lg text-white mb-2">Next Action</h2>
-              <p className="text-navy-200">{candidate.next_action}</p>
-              {candidate.next_action_date && (
-                <p className="text-sm text-amber-400 mt-2 flex items-center gap-1">
-                  <Calendar className="w-4 h-4" />
-                  {format(parseISO(candidate.next_action_date), 'MMM d, yyyy')}
-                </p>
-              )}
+            <div className="mt-6 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+              <div className="flex items-start gap-3">
+                <Calendar className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-amber-400 font-medium">Next Action</p>
+                  <p className="text-navy-200">{candidate.next_action}</p>
+                  {candidate.next_action_date && (
+                    <p className="text-sm text-amber-400/80 mt-1">
+                      Due: {format(parseISO(candidate.next_action_date), 'MMM d, yyyy')}
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Notes */}
+          {/* Quick Actions */}
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button
+              onClick={() => handleQuickAction('Phone Call')}
+              className="btn-secondary flex items-center gap-2"
+            >
+              <PhoneCall className="w-4 h-4" />
+              Log Call
+            </button>
+            <button
+              onClick={() => handleQuickAction('Email Sent')}
+              className="btn-secondary flex items-center gap-2"
+            >
+              <Mail className="w-4 h-4" />
+              Log Email
+            </button>
+            <button
+              onClick={() => setShowInterviewModal(true)}
+              className="btn-secondary flex items-center gap-2"
+            >
+              <Calendar className="w-4 h-4" />
+              Schedule Interview
+            </button>
+          </div>
+        </div>
+
+        {/* AI Assessment */}
+        {candidate.ai_score && (
           <div className="card p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display text-lg text-white">Notes</h2>
-              {!editingNotes && (
-                <button
-                  onClick={() => {
-                    setNotes(candidate.notes || '');
-                    setEditingNotes(true);
-                  }}
-                  className="text-sm text-coral-400 hover:text-coral-300"
-                >
-                  {candidate.notes ? 'Edit' : 'Add'}
-                </button>
-              )}
-            </div>
-            {editingNotes ? (
-              <div className="space-y-3">
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={4}
-                  className="input w-full resize-none"
-                  placeholder="Add notes about this candidate..."
-                />
-                <div className="flex gap-2">
-                  <button onClick={handleSaveNotes} className="btn-primary text-sm">
-                    Save
-                  </button>
-                  <button
-                    onClick={() => setEditingNotes(false)}
-                    className="btn-secondary text-sm"
-                  >
-                    Cancel
-                  </button>
-                </div>
+            <h2 className="font-display text-lg text-white flex items-center gap-2 mb-4">
+              <Star className="w-5 h-5 text-amber-400" />
+              AI Assessment
+            </h2>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="bg-navy-800/50 rounded-lg p-4">
+                <p className="text-sm text-navy-400">Score</p>
+                <p className="text-3xl font-semibold text-white mt-1">
+                  {candidate.ai_score}
+                  <span className="text-lg text-navy-500">/10</span>
+                </p>
               </div>
-            ) : (
-              <p className="text-navy-300">
-                {candidate.notes || 'No notes yet'}
-              </p>
+              <div className="bg-navy-800/50 rounded-lg p-4">
+                <p className="text-sm text-navy-400">Category</p>
+                <p className="text-xl font-medium text-white mt-1">{candidate.ai_category}</p>
+              </div>
+            </div>
+            {candidate.ai_summary && (
+              <div className="mb-4">
+                <p className="text-sm text-navy-400 mb-1">Summary</p>
+                <p className="text-navy-200">{candidate.ai_summary}</p>
+              </div>
+            )}
+            {candidate.ai_reasoning && (
+              <div>
+                <p className="text-sm text-navy-400 mb-1">Reasoning</p>
+                <p className="text-navy-200">{candidate.ai_reasoning}</p>
+              </div>
             )}
           </div>
+        )}
 
-          {/* Upcoming Interviews */}
-          {interviews.filter(i => i.status === 'Scheduled').length > 0 && (
-            <div className="card p-6">
-              <h2 className="font-display text-lg text-white mb-4">Upcoming Interviews</h2>
-              <div className="space-y-3">
-                {interviews
-                  .filter(i => i.status === 'Scheduled')
-                  .map(interview => (
-                    <div
-                      key={interview.id}
-                      className="p-3 bg-navy-800/50 rounded-lg"
-                    >
-                      <p className="text-white font-medium">{interview.client_company}</p>
-                      <p className="text-sm text-navy-400 mt-1">
-                        {interview.interview_date && format(parseISO(interview.interview_date), 'MMM d')}
-                        {interview.interview_time && ` at ${interview.interview_time}`}
-                      </p>
-                      <p className="text-sm text-navy-500 mt-1">
-                        {interview.interview_type} • {interview.interview_round} Round
-                      </p>
-                    </div>
-                  ))}
+        {/* Notes */}
+        <div className="card p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-display text-lg text-white flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-blue-400" />
+              Notes
+            </h2>
+            {!editingNotes && (
+              <button
+                onClick={() => {
+                  setNotes(candidate.notes || '');
+                  setEditingNotes(true);
+                }}
+                className="text-sm text-coral-400 hover:text-coral-300"
+              >
+                {candidate.notes ? 'Edit' : 'Add'}
+              </button>
+            )}
+          </div>
+          {editingNotes ? (
+            <div className="space-y-3">
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={4}
+                className="input w-full resize-none"
+                placeholder="Add notes about this candidate..."
+              />
+              <div className="flex gap-2">
+                <button onClick={handleSaveNotes} className="btn-primary text-sm">
+                  Save
+                </button>
+                <button
+                  onClick={() => setEditingNotes(false)}
+                  className="btn-secondary text-sm"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
+          ) : (
+            <p className="text-navy-300">
+              {candidate.notes || 'No notes yet'}
+            </p>
           )}
         </div>
+
+        {/* Upcoming Interviews */}
+        {interviews.filter(i => i.status === 'Scheduled').length > 0 && (
+          <div className="card p-6">
+            <h2 className="font-display text-lg text-white mb-4">Upcoming Interviews</h2>
+            <div className="space-y-3">
+              {interviews
+                .filter(i => i.status === 'Scheduled')
+                .map(interview => (
+                  <div
+                    key={interview.id}
+                    className="p-3 bg-navy-800/50 rounded-lg"
+                  >
+                    <p className="text-white font-medium">{interview.client_company}</p>
+                    <p className="text-sm text-navy-400 mt-1">
+                      {interview.interview_date && format(parseISO(interview.interview_date), 'MMM d')}
+                      {interview.interview_time && ` at ${interview.interview_time}`}
+                    </p>
+                    <p className="text-sm text-navy-500 mt-1">
+                      {interview.interview_type} • {interview.interview_round} Round
+                    </p>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* Activity Timeline */}
+        <div className="card p-6">
+          <h2 className="font-display text-lg text-white flex items-center gap-2 mb-4">
+            <Clock className="w-5 h-5 text-blue-400" />
+            Activity Timeline
+          </h2>
+          {activities.length > 0 ? (
+            <div className="space-y-3">
+              {activities.map(activity => (
+                <ActivityItem key={activity.id} activity={activity} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-navy-400 text-center py-8">No activities logged yet</p>
+          )}
         </div>
 
         {/* Schedule Interview Modal */}
@@ -753,46 +726,45 @@ export default function CandidateDetail() {
         )}
       </div>
 
-      {/* Resume Preview Side Panel */}
-      {showResumePreview && candidate.resume_url && (
-        <div className="w-1/2 flex-shrink-0 transition-all duration-300">
-          <div className="bg-navy-900 border border-navy-700 rounded-xl flex flex-col" style={{ height: 'calc(100vh - 10rem)' }}>
-            {/* Panel Header */}
-            <div className="flex items-center justify-between p-4 border-b border-navy-700 flex-shrink-0">
-              <h2 className="font-display text-lg text-white flex items-center gap-2">
-                <FileText className="w-5 h-5 text-coral-400" />
-                Resume Preview
-              </h2>
-              <div className="flex items-center gap-2">
-                <a
-                  href={candidate.resume_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-secondary text-sm flex items-center gap-1"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  Open in New Tab
-                </a>
-                <button
-                  onClick={() => setShowResumePreview(false)}
-                  className="flex items-center gap-1 text-navy-400 hover:text-white transition-colors px-2 py-1 rounded hover:bg-navy-800"
-                  title="Close panel"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            {/* PDF Viewer */}
-            <div className="flex-1 p-4 min-h-0">
+      {/* Right Side - Resume Preview (Always Visible) */}
+      <div className="w-1/2 flex-shrink-0 hidden lg:block">
+        <div className="bg-navy-900 border border-navy-700 rounded-xl flex flex-col sticky top-6" style={{ height: 'calc(100vh - 10rem)' }}>
+          {/* Panel Header */}
+          <div className="flex items-center justify-between p-4 border-b border-navy-700 flex-shrink-0">
+            <h2 className="font-display text-lg text-white flex items-center gap-2">
+              <FileText className="w-5 h-5 text-coral-400" />
+              Resume Preview
+            </h2>
+            {candidate.resume_url && (
+              <a
+                href={candidate.resume_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-secondary text-sm flex items-center gap-1"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Open in New Tab
+              </a>
+            )}
+          </div>
+          {/* PDF Viewer or No Resume Message */}
+          <div className="flex-1 p-4 min-h-0">
+            {candidate.resume_url ? (
               <iframe
                 src={candidate.resume_url}
                 className="w-full h-full rounded-lg border border-navy-700 bg-white"
                 title="Resume Preview"
               />
-            </div>
+            ) : (
+              <div className="w-full h-full rounded-lg border border-navy-700 bg-navy-800/50 flex flex-col items-center justify-center">
+                <FileText className="w-16 h-16 text-navy-600 mb-4" />
+                <p className="text-navy-400 text-lg">No resume available</p>
+                <p className="text-navy-500 text-sm mt-2">Upload a resume to view it here</p>
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
