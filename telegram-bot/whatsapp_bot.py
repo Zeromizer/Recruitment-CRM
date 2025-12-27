@@ -153,18 +153,43 @@ async def send_whatsapp_message(phone: str, message: str) -> bool:
         return False
 
 
-async def download_media(media_url: str) -> bytes:
+async def download_media(media_url: str, message_id: str = None) -> bytes:
     """Download media file from Walichat."""
-    try:
-        response = await http_client.get(media_url)
-        if response.status_code == 200:
-            return response.content
-        else:
-            print(f"Failed to download media: {response.status_code}")
-            return None
-    except Exception as e:
-        print(f"Error downloading media: {e}")
-        return None
+    print(f"Attempting to download media from: {media_url}")
+    print(f"Message ID: {message_id}")
+
+    # If we have a message ID, try to download via Walichat API first
+    if message_id:
+        try:
+            # Walichat API endpoint to download media
+            api_url = f"/messages/{message_id}/download"
+            print(f"Trying Walichat API download: {api_url}")
+            response = await http_client.get(api_url)
+            if response.status_code == 200:
+                print(f"Successfully downloaded media via API ({len(response.content)} bytes)")
+                return response.content
+            else:
+                print(f"Walichat API download failed: {response.status_code} - {response.text}")
+        except Exception as e:
+            print(f"Walichat API download error: {e}")
+
+    # Try direct URL download (for external URLs like WhatsApp servers)
+    if media_url:
+        try:
+            # Use a fresh client without base_url for external URLs
+            async with httpx.AsyncClient(timeout=60.0) as external_client:
+                print(f"Trying direct URL download: {media_url}")
+                response = await external_client.get(media_url)
+                if response.status_code == 200:
+                    print(f"Successfully downloaded media directly ({len(response.content)} bytes)")
+                    return response.content
+                else:
+                    print(f"Direct download failed: {response.status_code}")
+        except Exception as e:
+            print(f"Direct download error: {e}")
+
+    print("All download methods failed")
+    return None
 
 
 async def process_text_message(phone: str, name: str, text: str):
@@ -193,9 +218,10 @@ async def process_text_message(phone: str, name: str, text: str):
     # Note: Only create candidate record when resume is received (not on text messages)
 
 
-async def process_document_message(phone: str, name: str, file_name: str, media_url: str, mime_type: str):
+async def process_document_message(phone: str, name: str, file_name: str, media_url: str, mime_type: str, message_id: str = ""):
     """Process a document message (resume) from WhatsApp."""
     print(f"Document from {name} ({phone}): {file_name} ({mime_type})")
+    print(f"Media URL: {media_url}, Message ID: {message_id}")
 
     # Check spam protection
     allowed, reason = is_user_allowed(phone)
@@ -214,8 +240,8 @@ async def process_document_message(phone: str, name: str, file_name: str, media_
     if is_resume:
         await send_whatsapp_message(phone, "Thank you for your resume! I'm processing it now...")
 
-        # Download the file
-        file_bytes = await download_media(media_url)
+        # Download the file - try with message ID first, then direct URL
+        file_bytes = await download_media(media_url, message_id)
 
         if file_bytes:
             # Extract text from PDF
@@ -334,16 +360,20 @@ async def webhook_handler(request: Request, background_tasks: BackgroundTasks):
                 background_tasks.add_task(process_text_message, phone, name, text)
 
         elif msg_type == "document":
-            # Document message
+            # Document message - extract media info
             media = message.get("media", {})
-            file_name = media.get("filename", "document.pdf")
+            file_name = media.get("filename") or media.get("name", "document.pdf")
             media_url = media.get("url") or media.get("link", "")
-            mime_type = media.get("mimetype", "application/pdf")
+            mime_type = media.get("mimetype") or media.get("mime_type", "application/pdf")
+            message_id = message.get("id", "")
+
+            print(f"Document webhook data - file: {file_name}, url: {media_url}, msg_id: {message_id}")
+            print(f"Full media object: {media}")
 
             if phone:
                 print(f"Document from {phone}: {file_name}")
                 background_tasks.add_task(
-                    process_document_message, phone, name, file_name, media_url, mime_type
+                    process_document_message, phone, name, file_name, media_url, mime_type, message_id
                 )
 
         return JSONResponse({"status": "ok"})
