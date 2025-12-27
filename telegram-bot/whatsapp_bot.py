@@ -155,194 +155,44 @@ async def send_whatsapp_message(phone: str, message: str) -> bool:
 
 async def download_media(media_url: str, file_id: str = None, message_id: str = None) -> bytes:
     """Download media file from Walichat."""
-    print(f"Attempting to download media")
-    print(f"Media URL: {media_url}")
-    print(f"File ID: {file_id}")
-    print(f"Message ID: {message_id}")
-
-    # Method 1: Use file ID with /chat/{device}/files/{id}/download endpoint
+    # Primary method: Use file ID with /chat/{device}/files/{id}/download endpoint
     if file_id:
         try:
-            # Correct endpoint structure from Walichat API
             api_url = f"/chat/{WALICHAT_DEVICE_ID}/files/{file_id}/download"
-            print(f"Trying Walichat chat files API: {api_url}")
             response = await http_client.get(api_url)
             if response.status_code == 200:
-                print(f"Successfully downloaded via chat files API ({len(response.content)} bytes)")
+                print(f"Downloaded file ({len(response.content)} bytes)")
                 return response.content
-            else:
-                print(f"Chat files API failed: {response.status_code} - {response.text[:200]}")
-                # Fallback to /files/{id}/download
-                api_url2 = f"/files/{file_id}/download"
-                print(f"Trying fallback files API: {api_url2}")
-                response2 = await http_client.get(api_url2)
-                if response2.status_code == 200:
-                    print(f"Successfully downloaded via fallback ({len(response2.content)} bytes)")
-                    return response2.content
-                else:
-                    print(f"Fallback files API failed: {response2.status_code}")
-        except Exception as e:
-            print(f"Files API error: {e}")
-
-    # Method 2: Get message details to find file info
-    if message_id:
-        try:
-            msg_url = f"/messages/{message_id}"
-            print(f"Getting message details: {msg_url}")
-            response = await http_client.get(msg_url)
-            if response.status_code == 200:
-                msg_data = response.json()
-                print(f"Message details: {msg_data}")
-                # Look for file info in various locations
-                for key in ["file", "media", "document", "data"]:
-                    if key in msg_data and msg_data[key]:
-                        obj = msg_data[key]
-                        if isinstance(obj, dict):
-                            fid = obj.get("id") or obj.get("fileId") or obj.get("file_id")
-                            if fid:
-                                print(f"Found file ID in message.{key}: {fid}")
-                                dl_response = await http_client.get(f"/files/{fid}/download")
-                                if dl_response.status_code == 200:
-                                    print(f"Downloaded via message details ({len(dl_response.content)} bytes)")
-                                    return dl_response.content
-            else:
-                print(f"Message details failed: {response.status_code}")
-        except Exception as e:
-            print(f"Message details error: {e}")
-
-    # Method 3: Search for files using /files endpoint with query params
-    try:
-        print(f"Searching files with various query params")
-        for params in [
-            {"device": WALICHAT_DEVICE_ID, "type": "received"},
-            {"device": WALICHAT_DEVICE_ID, "flow": "inbound"},
-            {"device": WALICHAT_DEVICE_ID},
-        ]:
-            response = await http_client.get("/files", params=params)
-            print(f"Files search with {params}: {response.status_code}")
-            if response.status_code == 200:
-                files_data = response.json()
-                print(f"Files search response: {str(files_data)[:500]}")
-                files_list = files_data if isinstance(files_data, list) else files_data.get("data", [])
-                if files_list and len(files_list) > 0:
-                    found_file_id = files_list[0].get("id")
-                    if found_file_id:
-                        print(f"Found file ID: {found_file_id}")
-                        dl_response = await http_client.get(f"/files/{found_file_id}/download")
-                        if dl_response.status_code == 200:
-                            print(f"Downloaded via search ({len(dl_response.content)} bytes)")
-                            return dl_response.content
-                        else:
-                            print(f"Download failed: {dl_response.status_code}")
-            else:
-                print(f"Search failed: {response.status_code} - {response.text[:200]}")
-    except Exception as e:
-        print(f"Files search error: {e}")
-        import traceback
-        print(traceback.format_exc())
-
-    # Method 4: Try chat messages endpoint to get media
-    if message_id:
-        try:
-            # Try to get chat files or message with media
-            print(f"Trying to get message {message_id} with full details")
-            response = await http_client.get(f"/messages/{message_id}")
-            if response.status_code == 200:
-                msg_data = response.json()
-                print(f"Full message data: {str(msg_data)[:1000]}")
-                # Look for any file/media reference
-                if "file" in msg_data:
-                    file_info = msg_data["file"]
-                    if isinstance(file_info, str):
-                        # file is a file ID
-                        dl_response = await http_client.get(f"/files/{file_info}/download")
-                        if dl_response.status_code == 200:
-                            return dl_response.content
-                    elif isinstance(file_info, dict) and file_info.get("id"):
-                        dl_response = await http_client.get(f"/files/{file_info['id']}/download")
-                        if dl_response.status_code == 200:
-                            return dl_response.content
-        except Exception as e:
-            print(f"Message fetch error: {e}")
-
-    # Method 5: Try /messages/{id}/media endpoint
-    if message_id:
-        try:
-            api_url = f"/messages/{message_id}/media"
-            print(f"Trying message media endpoint: {api_url}")
-            response = await http_client.get(api_url)
-            if response.status_code == 200:
-                # Check if it's JSON (file info) or binary (file content)
-                content_type = response.headers.get("content-type", "")
-                if "application/json" in content_type:
-                    media_info = response.json()
-                    print(f"Message media info: {media_info}")
-                    # Try to get download URL or file ID from response
-                    dl_url = media_info.get("url") or media_info.get("download") or media_info.get("link")
-                    if dl_url:
-                        async with httpx.AsyncClient(timeout=60.0) as ext_client:
-                            dl_response = await ext_client.get(dl_url)
-                            if dl_response.status_code == 200:
-                                print(f"Downloaded via media info ({len(dl_response.content)} bytes)")
-                                return dl_response.content
-                else:
-                    # Binary content - this is the file
-                    print(f"Successfully got media content ({len(response.content)} bytes)")
-                    return response.content
-            else:
-                print(f"Message media endpoint failed: {response.status_code}")
-        except Exception as e:
-            print(f"Message media endpoint error: {e}")
-
-    # Method 6: Try with message ID as file ID directly
-    if message_id:
-        try:
-            api_url = f"/files/{message_id}/download"
-            print(f"Trying with message ID as file ID: {api_url}")
-            response = await http_client.get(api_url)
-            if response.status_code == 200:
-                print(f"Successfully downloaded ({len(response.content)} bytes)")
-                return response.content
-            else:
-                print(f"Download failed: {response.status_code}")
         except Exception as e:
             print(f"Download error: {e}")
 
-    # Method 7: Try direct URL download (for external URLs like WhatsApp servers)
+    # Fallback: Direct URL download
     if media_url:
         try:
-            async with httpx.AsyncClient(timeout=60.0) as external_client:
-                print(f"Trying direct URL download: {media_url}")
-                response = await external_client.get(media_url)
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.get(media_url)
                 if response.status_code == 200:
-                    print(f"Successfully downloaded directly ({len(response.content)} bytes)")
                     return response.content
-                else:
-                    print(f"Direct download failed: {response.status_code}")
         except Exception as e:
             print(f"Direct download error: {e}")
 
-    print("All download methods failed")
+    print("Failed to download media")
     return None
 
 
 async def process_text_message(phone: str, name: str, text: str):
     """Process a text message from WhatsApp."""
-    print(f"Message from {name} ({phone}): {text}")
 
     # Check spam protection
     allowed, reason = is_user_allowed(phone)
     if not allowed:
-        print(f"Blocked user {phone}: {reason}")
         return
 
     if is_rate_limited(phone):
-        print(f"Rate limited user {phone}")
         await send_whatsapp_message(phone, "You're sending messages too quickly. Please wait a moment.")
         return
 
     if contains_spam(text):
-        print(f"Spam detected from {phone}: {text[:50]}...")
         return
 
     # Get AI response
@@ -354,13 +204,9 @@ async def process_text_message(phone: str, name: str, text: str):
 
 async def process_document_message(phone: str, name: str, file_name: str, media_url: str, mime_type: str, message_id: str = "", file_id: str = ""):
     """Process a document message (resume) from WhatsApp."""
-    print(f"Document from {name} ({phone}): {file_name} ({mime_type})")
-    print(f"Media URL: {media_url}, Message ID: {message_id}, File ID: {file_id}")
-
     # Check spam protection
     allowed, reason = is_user_allowed(phone)
     if not allowed:
-        print(f"Blocked user {phone}: {reason}")
         return
 
     # Check if it's a resume
@@ -385,14 +231,12 @@ async def process_document_message(phone: str, name: str, file_name: str, media_
                 resume_text = f"[Document received: {file_name}]"
 
             if resume_text and len(resume_text) > 100:
-                print(f"Extracted {len(resume_text)} characters from resume")
-
                 # Upload resume to storage
                 resume_url = await upload_resume_to_storage(file_bytes, file_name, phone)
 
                 # Screen the resume
                 screening_result = await screen_resume(resume_text)
-                print(f"Screening result: {screening_result.get('recommendation', 'Unknown')}")
+                print(f"Resume processed: {screening_result.get('candidate_name', 'Unknown')} - {screening_result.get('recommendation', 'Unknown')}")
 
                 # Save candidate with screening results
                 await save_candidate(
@@ -417,7 +261,6 @@ Our recruitment team will review your profile and get back to you soon. In the m
 
                 await send_whatsapp_message(phone, response)
             else:
-                print("Could not extract sufficient text from resume")
                 await send_whatsapp_message(
                     phone,
                     "Thank you for your resume! I received the file but had trouble reading its contents. "
@@ -425,7 +268,6 @@ Our recruitment team will review your profile and get back to you soon. In the m
                 )
                 # Note: Don't create candidate without successful resume processing
         else:
-            print("Failed to download file")
             await send_whatsapp_message(
                 phone,
                 "I had trouble downloading your file. Could you please try sending it again?"
@@ -441,21 +283,17 @@ async def webhook_handler(request: Request, background_tasks: BackgroundTasks):
     """Handle incoming Walichat webhooks."""
     try:
         data = await request.json()
-        print(f"Webhook received: {data}")
 
         # Extract event type - Walichat uses format like "message:in:new"
         event_type = data.get("event", "")
 
         # Only process incoming messages (ignore outbound, status updates, etc.)
         if event_type != "message:in:new":
-            print(f"Ignoring event type: {event_type}")
             return JSONResponse({"status": "ok"})
 
         # Get the message data - Walichat nests it under "data"
         message = data.get("data", {})
-
         if not message:
-            print("No message data found")
             return JSONResponse({"status": "ok"})
 
         # Extract phone number - prefer fromNumber (clean) or strip @c.us from 'from'
@@ -481,16 +319,12 @@ async def webhook_handler(request: Request, background_tasks: BackgroundTasks):
 
         # Only process inbound messages
         if flow != "inbound":
-            print(f"Ignoring outbound message")
             return JSONResponse({"status": "ok"})
 
-        print(f"Processing message - Phone: {phone}, Name: {name}, Type: {msg_type}")
-
         if msg_type == "text":
-            # Text message - content is in "body"
             text = message.get("body", "")
             if text and phone:
-                print(f"Text message from {phone}: {text}")
+                print(f"Message from {phone}: {text[:50]}...")
                 background_tasks.add_task(process_text_message, phone, name, text)
 
         elif msg_type == "document":
@@ -536,19 +370,6 @@ async def webhook_handler(request: Request, background_tasks: BackgroundTasks):
                 message.get("mediaId") or message.get("media_id") or
                 ""
             )
-
-            # Log ALL fields to debug
-            print(f"=== DOCUMENT MESSAGE DEBUG ===")
-            print(f"Message ID: {message_id}")
-            print(f"File ID: {file_id}")
-            print(f"File name: {file_name}")
-            print(f"Media URL: {media_url}")
-            print(f"Mime type: {mime_type}")
-            print(f"Media object: {media}")
-            print(f"File object: {file_obj}")
-            print(f"Document object: {document}")
-            print(f"Full message keys: {list(message.keys())}")
-            print(f"=== END DEBUG ===")
 
             if phone:
                 print(f"Document from {phone}: {file_name}")
