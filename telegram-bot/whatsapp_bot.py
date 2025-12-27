@@ -174,7 +174,33 @@ async def download_media(media_url: str, file_id: str = None, message_id: str = 
         except Exception as e:
             print(f"Files API error: {e}")
 
-    # Method 2: Search for received files using message ID
+    # Method 2: Get message details to find file info
+    if message_id:
+        try:
+            msg_url = f"/messages/{message_id}"
+            print(f"Getting message details: {msg_url}")
+            response = await http_client.get(msg_url)
+            if response.status_code == 200:
+                msg_data = response.json()
+                print(f"Message details: {msg_data}")
+                # Look for file info in various locations
+                for key in ["file", "media", "document", "data"]:
+                    if key in msg_data and msg_data[key]:
+                        obj = msg_data[key]
+                        if isinstance(obj, dict):
+                            fid = obj.get("id") or obj.get("fileId") or obj.get("file_id")
+                            if fid:
+                                print(f"Found file ID in message.{key}: {fid}")
+                                dl_response = await http_client.get(f"/files/{fid}/download")
+                                if dl_response.status_code == 200:
+                                    print(f"Downloaded via message details ({len(dl_response.content)} bytes)")
+                                    return dl_response.content
+            else:
+                print(f"Message details failed: {response.status_code}")
+        except Exception as e:
+            print(f"Message details error: {e}")
+
+    # Method 3: Search for received files using message ID
     if message_id:
         try:
             # Try to find the file in received files endpoint
@@ -213,7 +239,31 @@ async def download_media(media_url: str, file_id: str = None, message_id: str = 
             import traceback
             print(traceback.format_exc())
 
-    # Method 3: Try /messages/{id}/media endpoint
+    # Method 4: Get recent received files and find matching one
+    try:
+        print(f"Fetching recent received files for device {WALICHAT_DEVICE_ID}")
+        response = await http_client.get("/files/received", params={"device": WALICHAT_DEVICE_ID, "limit": 10})
+        if response.status_code == 200:
+            files_data = response.json()
+            print(f"Recent received files: {files_data}")
+            # Get the most recent file
+            files_list = files_data if isinstance(files_data, list) else files_data.get("data", [])
+            if files_list and len(files_list) > 0:
+                # Try the most recent file
+                recent_file = files_list[0]
+                fid = recent_file.get("id")
+                print(f"Trying most recent file: {fid}")
+                if fid:
+                    dl_response = await http_client.get(f"/files/{fid}/download")
+                    if dl_response.status_code == 200:
+                        print(f"Downloaded most recent file ({len(dl_response.content)} bytes)")
+                        return dl_response.content
+        else:
+            print(f"Recent files fetch failed: {response.status_code}")
+    except Exception as e:
+        print(f"Recent files error: {e}")
+
+    # Method 5: Try /messages/{id}/media endpoint
     if message_id:
         try:
             api_url = f"/messages/{message_id}/media"
@@ -242,7 +292,7 @@ async def download_media(media_url: str, file_id: str = None, message_id: str = 
         except Exception as e:
             print(f"Message media endpoint error: {e}")
 
-    # Method 4: Try with message ID as file ID directly
+    # Method 6: Try with message ID as file ID directly
     if message_id:
         try:
             api_url = f"/files/{message_id}/download"
@@ -256,7 +306,7 @@ async def download_media(media_url: str, file_id: str = None, message_id: str = 
         except Exception as e:
             print(f"Download error: {e}")
 
-    # Method 5: Try direct URL download (for external URLs like WhatsApp servers)
+    # Method 7: Try direct URL download (for external URLs like WhatsApp servers)
     if media_url:
         try:
             async with httpx.AsyncClient(timeout=60.0) as external_client:
