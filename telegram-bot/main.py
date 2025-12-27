@@ -519,7 +519,7 @@ def setup_handlers(telegram_client):
         async with telegram_client.action(event.chat_id, 'typing'):
             response = await get_ai_response(user_id, event.text or "")
         await event.respond(response)
-        await save_candidate(user_id, username, full_name)
+        # Note: Only create candidate record when resume is received (not on text messages)
 
     @telegram_client.on(events.NewMessage(incoming=True, func=lambda e: e.file))
     async def handle_file(event):
@@ -597,7 +597,7 @@ Our recruitment team will review your profile and get back to you soon. In the m
                                 "Thank you for your resume! I received the file but had trouble reading its contents. "
                                 "Our team will review it manually. Is there anything else I can help you with?"
                             )
-                            await save_candidate(user_id, username, full_name)
+                            # Note: Don't create candidate without successful resume processing
                     else:
                         print("Failed to download file")
                         await event.respond(
@@ -609,13 +609,12 @@ Our recruitment team will review your profile and get back to you soon. In the m
                         "I encountered an error processing your file. Our team will follow up with you. "
                         "Is there anything else I can help with?"
                     )
-                    await save_candidate(user_id, username, full_name)
+                    # Note: Don't create candidate on processing errors
         else:
-            # Non-resume file
+            # Non-resume file - just respond, don't create candidate
             async with telegram_client.action(event.chat_id, 'typing'):
                 response = await get_ai_response(user_id, f"[User sent a file: {file_name}]")
             await event.respond(response)
-            await save_candidate(user_id, username, full_name)
 
 
 async def main():
