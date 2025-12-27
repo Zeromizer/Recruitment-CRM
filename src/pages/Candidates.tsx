@@ -119,7 +119,7 @@ export default function Candidates() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [hasUsedFilters, setHasUsedFilters] = useState(false);
 
-  // Get unique sources for filter
+  // Get unique sources for filter (dynamic - only shows sources that exist in candidates)
   const sources = useMemo(() => {
     const sourceSet = new Set(candidates.map(c => c.source).filter(Boolean));
     return Array.from(sourceSet).sort();
