@@ -200,68 +200,60 @@ async def download_media(media_url: str, file_id: str = None, message_id: str = 
         except Exception as e:
             print(f"Message details error: {e}")
 
-    # Method 3: Search for received files using message ID
-    if message_id:
-        try:
-            # Try to find the file in received files endpoint
-            search_url = f"/files/received"
-            print(f"Searching received files with message ID: {message_id}")
-            response = await http_client.get(search_url, params={"message": message_id, "device": WALICHAT_DEVICE_ID})
+    # Method 3: Search for files using /files endpoint with query params
+    try:
+        print(f"Searching files with various query params")
+        for params in [
+            {"device": WALICHAT_DEVICE_ID, "type": "received"},
+            {"device": WALICHAT_DEVICE_ID, "flow": "inbound"},
+            {"device": WALICHAT_DEVICE_ID},
+        ]:
+            response = await http_client.get("/files", params=params)
+            print(f"Files search with {params}: {response.status_code}")
             if response.status_code == 200:
                 files_data = response.json()
-                print(f"Received files search response: {files_data}")
-                # Check if we got file data
-                if isinstance(files_data, list) and len(files_data) > 0:
-                    found_file_id = files_data[0].get("id")
+                print(f"Files search response: {str(files_data)[:500]}")
+                files_list = files_data if isinstance(files_data, list) else files_data.get("data", [])
+                if files_list and len(files_list) > 0:
+                    found_file_id = files_list[0].get("id")
                     if found_file_id:
-                        print(f"Found file ID from search: {found_file_id}")
-                        download_url = f"/files/{found_file_id}/download"
-                        dl_response = await http_client.get(download_url)
+                        print(f"Found file ID: {found_file_id}")
+                        dl_response = await http_client.get(f"/files/{found_file_id}/download")
                         if dl_response.status_code == 200:
                             print(f"Downloaded via search ({len(dl_response.content)} bytes)")
                             return dl_response.content
-                elif isinstance(files_data, dict):
-                    # Check for data wrapper
-                    files_list = files_data.get("data", [])
-                    if files_list and len(files_list) > 0:
-                        found_file_id = files_list[0].get("id")
-                        if found_file_id:
-                            print(f"Found file ID from search: {found_file_id}")
-                            download_url = f"/files/{found_file_id}/download"
-                            dl_response = await http_client.get(download_url)
-                            if dl_response.status_code == 200:
-                                print(f"Downloaded via search ({len(dl_response.content)} bytes)")
-                                return dl_response.content
+                        else:
+                            print(f"Download failed: {dl_response.status_code}")
             else:
-                print(f"Received files search failed: {response.status_code} - {response.text[:200]}")
-        except Exception as e:
-            print(f"Received files search error: {e}")
-            import traceback
-            print(traceback.format_exc())
-
-    # Method 4: Get recent received files and find matching one
-    try:
-        print(f"Fetching recent received files for device {WALICHAT_DEVICE_ID}")
-        response = await http_client.get("/files/received", params={"device": WALICHAT_DEVICE_ID, "limit": 10})
-        if response.status_code == 200:
-            files_data = response.json()
-            print(f"Recent received files: {files_data}")
-            # Get the most recent file
-            files_list = files_data if isinstance(files_data, list) else files_data.get("data", [])
-            if files_list and len(files_list) > 0:
-                # Try the most recent file
-                recent_file = files_list[0]
-                fid = recent_file.get("id")
-                print(f"Trying most recent file: {fid}")
-                if fid:
-                    dl_response = await http_client.get(f"/files/{fid}/download")
-                    if dl_response.status_code == 200:
-                        print(f"Downloaded most recent file ({len(dl_response.content)} bytes)")
-                        return dl_response.content
-        else:
-            print(f"Recent files fetch failed: {response.status_code}")
+                print(f"Search failed: {response.status_code} - {response.text[:200]}")
     except Exception as e:
-        print(f"Recent files error: {e}")
+        print(f"Files search error: {e}")
+        import traceback
+        print(traceback.format_exc())
+
+    # Method 4: Try chat messages endpoint to get media
+    if message_id:
+        try:
+            # Try to get chat files or message with media
+            print(f"Trying to get message {message_id} with full details")
+            response = await http_client.get(f"/messages/{message_id}")
+            if response.status_code == 200:
+                msg_data = response.json()
+                print(f"Full message data: {str(msg_data)[:1000]}")
+                # Look for any file/media reference
+                if "file" in msg_data:
+                    file_info = msg_data["file"]
+                    if isinstance(file_info, str):
+                        # file is a file ID
+                        dl_response = await http_client.get(f"/files/{file_info}/download")
+                        if dl_response.status_code == 200:
+                            return dl_response.content
+                    elif isinstance(file_info, dict) and file_info.get("id"):
+                        dl_response = await http_client.get(f"/files/{file_info['id']}/download")
+                        if dl_response.status_code == 200:
+                            return dl_response.content
+        except Exception as e:
+            print(f"Message fetch error: {e}")
 
     # Method 5: Try /messages/{id}/media endpoint
     if message_id:
