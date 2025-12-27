@@ -126,6 +126,48 @@ function replaceInXml(xml: string, oldText: string, newText: string): string {
   return xml.split(oldText).join(escaped);
 }
 
+// Build XML for a single job entry
+function buildJobXml(job: { title: string; period: string; company: string; responsibilities: string[] }): string {
+  let xml = '';
+
+  // Job title (bold)
+  xml += `<w:p><w:pPr><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:b/><w:bCs/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:b/><w:bCs/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>${escapeXml(job.title)}</w:t></w:r></w:p>`;
+
+  // Period
+  xml += `<w:p><w:pPr><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>${escapeXml(job.period)}</w:t></w:r></w:p>`;
+
+  // Company (bold)
+  xml += `<w:p><w:pPr><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:b/><w:bCs/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:b/><w:bCs/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>${escapeXml(job.company)}</w:t></w:r></w:p>`;
+
+  // Responsibilities (bullet points)
+  for (const resp of job.responsibilities) {
+    xml += `<w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="45"/></w:numPr><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>${escapeXml(resp)}</w:t></w:r></w:p>`;
+  }
+
+  // Empty paragraph for spacing
+  xml += `<w:p><w:pPr><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:pPr></w:p>`;
+
+  return xml;
+}
+
+// Build XML for all work experience
+function buildAllWorkExperienceXml(jobs: ParsedResume['workExperience']): string {
+  let xml = '';
+  for (const job of jobs) {
+    xml += buildJobXml(job);
+  }
+  return xml;
+}
+
+// Build XML for languages section
+function buildLanguagesXml(languages: string[]): string {
+  let xml = '';
+  for (const lang of languages) {
+    xml += `<w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="45"/></w:numPr><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>${escapeXml(lang)}</w:t></w:r></w:p>`;
+  }
+  return xml;
+}
+
 
 // Generate CGP formatted Word document using template replacement
 export async function generateCGPDocument(data: ParsedResume, preparedBy: string = 'CGP Personnel'): Promise<Blob> {
@@ -195,43 +237,73 @@ export async function generateCGPDocument(data: ParsedResume, preparedBy: string
     docXml = replaceInXml(docXml, 'Murdoch University', education[0]?.institution || '');
   }
 
-  // ===== REPLACE WORK EXPERIENCE - SIMPLE TEXT REPLACEMENT =====
-  // Replace sample work experience content with actual data
-  if (workExperience.length > 0) {
-    const job1 = workExperience[0];
-    // Replace first job
-    docXml = replaceInXml(docXml, 'Country HR', job1?.title || '');
-    docXml = replaceInXml(docXml, 'May 2023 till Aug 2025', job1?.period || '');
-    docXml = replaceInXml(docXml, 'Eviden Singapore Pte Ltd (separated entity from Atos to Eviden)', job1?.company || '');
+  // ===== REPLACE WORK EXPERIENCE - DYNAMIC INJECTION =====
+  // Find the WORKING EXPERIENCE header table end and LANGUAGE section start
+  // Then replace everything between with dynamically generated content
 
-    // Replace sample responsibilities with first job responsibilities
-    const sampleResponsibilities = [
-      "Main point of contact for employees' queries on HR-related topics. In charge and support SG HR operations and HRBP with approximately 40 over employees",
-      'Manage Singapore and South Korea payroll',
-      "Performance management, liaising with the respective business heads/managers for employee's performance rating, involve in bonus payout, ensuring the accuracy of payout.",
-      'Maintain compliance with labor laws, company policies, and industry regulations',
-      'Support business leaders during periods of change (such as restructuring, mergers, or new technology adoption), helping to guide the organization and employees through transitions.',
-      'As a HRBP work closely with business leaders and managers to offer guidance on various HR issues, such as employee relations, talent management, performance management, and organizational development'
-    ];
+  const workExpHeaderEnd = docXml.indexOf('WORKING EXPERIENCE');
+  const langSectionStart = docXml.indexOf('LANGUAGE');
 
-    const responsibilities = job1?.responsibilities || [];
-    for (let i = 0; i < sampleResponsibilities.length; i++) {
-      const replacement = responsibilities[i] || '';
-      docXml = replaceInXml(docXml, sampleResponsibilities[i], replacement);
-    }
+  if (workExpHeaderEnd > 0 && langSectionStart > workExpHeaderEnd) {
+    // Find the end of the WORKING EXPERIENCE header table (</w:tbl> after the header)
+    const afterWorkExpHeader = docXml.substring(workExpHeaderEnd);
+    const tblEndMatch = afterWorkExpHeader.indexOf('</w:tbl>');
+    if (tblEndMatch > 0) {
+      const workExpContentStart = workExpHeaderEnd + tblEndMatch + 8; // 8 = length of '</w:tbl>'
 
-    // Handle second job if exists
-    if (workExperience.length > 1) {
-      const job2 = workExperience[1];
-      docXml = replaceInXml(docXml, 'HR Generalist', job2?.title || '');
-      docXml = replaceInXml(docXml, 'March 2020 till April 2023', job2?.period || '');
+      // Find the start of the LANGUAGE section table (<w:tbl before LANGUAGE)
+      const beforeLang = docXml.substring(0, langSectionStart);
+      const langTblStart = beforeLang.lastIndexOf('<w:tbl');
+
+      if (langTblStart > workExpContentStart) {
+        // Build the new work experience content
+        const workExpXml = buildAllWorkExperienceXml(workExperience);
+
+        // Replace the content between the sections
+        const beforeContent = docXml.substring(0, workExpContentStart);
+        const afterContent = docXml.substring(langTblStart);
+
+        docXml = beforeContent + workExpXml + afterContent;
+      }
     }
   }
 
-  // ===== REPLACE LANGUAGES - SIMPLE TEXT REPLACEMENT =====
-  // Replace sample language with first language from parsed data
-  if (languages.length > 0) {
-    docXml = replaceInXml(docXml, 'English', languages.join(', '));
+  // ===== REPLACE LANGUAGES - DYNAMIC INJECTION =====
+  // Find and replace the languages section content
+  const langHeaderPos = docXml.indexOf('LANGUAGE');
+  if (langHeaderPos > 0) {
+    // Find the </w:tbl> after LANGUAGE header
+    const afterLangHeader = docXml.substring(langHeaderPos);
+    const langTblEnd = afterLangHeader.indexOf('</w:tbl>');
+
+    if (langTblEnd > 0) {
+      const langContentStart = langHeaderPos + langTblEnd + 8;
+
+      // Find the end of document body or next section
+      const afterLangContent = docXml.substring(langContentStart);
+      // Look for </w:body> or next <w:tbl or <w:sectPr
+      let langContentEnd = afterLangContent.indexOf('</w:body>');
+      const nextTbl = afterLangContent.indexOf('<w:tbl');
+      const sectPr = afterLangContent.indexOf('<w:sectPr');
+
+      if (nextTbl > 0 && (langContentEnd < 0 || nextTbl < langContentEnd)) {
+        langContentEnd = nextTbl;
+      }
+      if (sectPr > 0 && (langContentEnd < 0 || sectPr < langContentEnd)) {
+        langContentEnd = sectPr;
+      }
+
+      if (langContentEnd > 0) {
+        // Build new languages content
+        const languagesXml = buildLanguagesXml(languages);
+
+        // Replace the content
+        const beforeLangContent = docXml.substring(0, langContentStart);
+        const afterLangContentStr = docXml.substring(langContentStart + langContentEnd);
+
+        docXml = beforeLangContent + languagesXml + afterLangContentStr;
+      }
+    }
   }
 
   // Update the document.xml in the zip
