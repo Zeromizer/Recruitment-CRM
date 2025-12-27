@@ -160,17 +160,27 @@ async def download_media(media_url: str, file_id: str = None, message_id: str = 
     print(f"File ID: {file_id}")
     print(f"Message ID: {message_id}")
 
-    # Method 1: Use file ID with /files/{id}/download endpoint
+    # Method 1: Use file ID with /chat/{device}/files/{id}/download endpoint
     if file_id:
         try:
-            api_url = f"/files/{file_id}/download"
-            print(f"Trying Walichat files API: {api_url}")
+            # Correct endpoint structure from Walichat API
+            api_url = f"/chat/{WALICHAT_DEVICE_ID}/files/{file_id}/download"
+            print(f"Trying Walichat chat files API: {api_url}")
             response = await http_client.get(api_url)
             if response.status_code == 200:
-                print(f"Successfully downloaded via files API ({len(response.content)} bytes)")
+                print(f"Successfully downloaded via chat files API ({len(response.content)} bytes)")
                 return response.content
             else:
-                print(f"Files API failed: {response.status_code} - {response.text[:200]}")
+                print(f"Chat files API failed: {response.status_code} - {response.text[:200]}")
+                # Fallback to /files/{id}/download
+                api_url2 = f"/files/{file_id}/download"
+                print(f"Trying fallback files API: {api_url2}")
+                response2 = await http_client.get(api_url2)
+                if response2.status_code == 200:
+                    print(f"Successfully downloaded via fallback ({len(response2.content)} bytes)")
+                    return response2.content
+                else:
+                    print(f"Fallback files API failed: {response2.status_code}")
         except Exception as e:
             print(f"Files API error: {e}")
 
