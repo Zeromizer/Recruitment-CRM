@@ -305,10 +305,12 @@ function buildLanguagesXml(languages: string[]): string {
 export async function generateCGPDocument(data: ParsedResume, preparedBy: string = 'CGP Personnel'): Promise<Blob> {
   const JSZip = (await import('jszip')).default;
 
-  // Fetch the template from public folder
-  const templateResponse = await fetch('/template.docx.b64');
+  // Fetch the template from public folder (use BASE_URL for correct path in production)
+  const baseUrl = import.meta.env.BASE_URL || '/';
+  const templateUrl = `${baseUrl}template.docx.b64`.replace('//', '/');
+  const templateResponse = await fetch(templateUrl);
   if (!templateResponse.ok) {
-    throw new Error('Failed to load CGP template. Please ensure template.docx.b64 is in the public folder.');
+    throw new Error(`Failed to load CGP template from ${templateUrl}. Please ensure template.docx.b64 is in the public folder.`);
   }
 
   const templateBase64 = await templateResponse.text();
