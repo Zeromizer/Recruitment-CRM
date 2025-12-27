@@ -293,61 +293,75 @@ async def webhook_handler(request: Request, background_tasks: BackgroundTasks):
         data = await request.json()
         print(f"Webhook received: {data}")
 
-        # Extract message info from Walichat webhook payload
-        # Walichat webhook format varies - handle common structures
-        event_type = data.get("event", data.get("type", ""))
+        # Extract event type - Walichat uses format like "message:in:new"
+        event_type = data.get("event", "")
 
-        # Handle message events
-        if event_type in ["message", "message.received", "messages.upsert"] or "message" in data:
-            message = data.get("message", data.get("data", data))
+        # Only process incoming messages (ignore outbound, status updates, etc.)
+        if event_type != "message:in:new":
+            print(f"Ignoring event type: {event_type}")
+            return JSONResponse({"status": "ok"})
 
-            # Extract phone number (sender)
-            phone = (
-                message.get("from") or
-                message.get("phone") or
-                message.get("sender") or
-                message.get("chatId", "").replace("@c.us", "")
-            )
+        # Get the message data - Walichat nests it under "data"
+        message = data.get("data", {})
 
-            # Extract sender name
-            name = (
-                message.get("pushName") or
-                message.get("name") or
-                message.get("sender_name") or
-                ""
-            )
+        if not message:
+            print("No message data found")
+            return JSONResponse({"status": "ok"})
 
-            # Extract message type and content
-            msg_type = message.get("type", "text")
+        # Extract phone number - prefer fromNumber (clean) or strip @c.us from 'from'
+        phone = message.get("fromNumber") or message.get("from", "")
+        phone = phone.replace("@c.us", "").replace("@s.whatsapp.net", "")
+        # Ensure phone has + prefix for international format
+        if phone and not phone.startswith("+"):
+            phone = "+" + phone
 
-            if msg_type == "text" or "text" in message or "body" in message:
-                # Text message
-                text = (
-                    message.get("text") or
-                    message.get("body") or
-                    message.get("message", {}).get("text") or
-                    ""
+        # Extract sender name from contact info
+        contact = message.get("contact", {})
+        name = (
+            contact.get("name") or
+            contact.get("shortName") or
+            contact.get("pushName") or
+            message.get("pushName") or
+            ""
+        )
+
+        # Get message type and flow
+        msg_type = message.get("type", "text")
+        flow = message.get("flow", "inbound")
+
+        # Only process inbound messages
+        if flow != "inbound":
+            print(f"Ignoring outbound message")
+            return JSONResponse({"status": "ok"})
+
+        print(f"Processing message - Phone: {phone}, Name: {name}, Type: {msg_type}")
+
+        if msg_type == "text":
+            # Text message - content is in "body"
+            text = message.get("body", "")
+            if text and phone:
+                print(f"Text message from {phone}: {text}")
+                background_tasks.add_task(process_text_message, phone, name, text)
+
+        elif msg_type == "document":
+            # Document message
+            media = message.get("media", {})
+            file_name = media.get("filename", "document.pdf")
+            media_url = media.get("url") or media.get("link", "")
+            mime_type = media.get("mimetype", "application/pdf")
+
+            if phone:
+                print(f"Document from {phone}: {file_name}")
+                background_tasks.add_task(
+                    process_document_message, phone, name, file_name, media_url, mime_type
                 )
-                if text and phone:
-                    # Process in background to respond quickly
-                    background_tasks.add_task(process_text_message, phone, name, text)
-
-            elif msg_type in ["document", "file"] or "document" in message:
-                # Document message
-                doc = message.get("document", message.get("file", {}))
-                file_name = doc.get("filename", doc.get("name", "document.pdf"))
-                media_url = doc.get("url", doc.get("link", message.get("mediaUrl", "")))
-                mime_type = doc.get("mimetype", doc.get("mime_type", "application/pdf"))
-
-                if media_url and phone:
-                    background_tasks.add_task(
-                        process_document_message, phone, name, file_name, media_url, mime_type
-                    )
 
         return JSONResponse({"status": "ok"})
 
     except Exception as e:
+        import traceback
         print(f"Webhook error: {e}")
+        print(traceback.format_exc())
         return JSONResponse({"status": "error", "message": str(e)}, status_code=200)
 
 
