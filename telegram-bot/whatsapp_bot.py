@@ -160,7 +160,7 @@ async def download_media(media_url: str, file_id: str = None, message_id: str = 
     print(f"File ID: {file_id}")
     print(f"Message ID: {message_id}")
 
-    # Primary method: Use file ID with /files/{id}/download endpoint
+    # Method 1: Use file ID with /files/{id}/download endpoint
     if file_id:
         try:
             api_url = f"/files/{file_id}/download"
@@ -174,7 +174,75 @@ async def download_media(media_url: str, file_id: str = None, message_id: str = 
         except Exception as e:
             print(f"Files API error: {e}")
 
-    # Fallback: Try with message ID
+    # Method 2: Search for received files using message ID
+    if message_id:
+        try:
+            # Try to find the file in received files endpoint
+            search_url = f"/files/received"
+            print(f"Searching received files with message ID: {message_id}")
+            response = await http_client.get(search_url, params={"message": message_id, "device": WALICHAT_DEVICE_ID})
+            if response.status_code == 200:
+                files_data = response.json()
+                print(f"Received files search response: {files_data}")
+                # Check if we got file data
+                if isinstance(files_data, list) and len(files_data) > 0:
+                    found_file_id = files_data[0].get("id")
+                    if found_file_id:
+                        print(f"Found file ID from search: {found_file_id}")
+                        download_url = f"/files/{found_file_id}/download"
+                        dl_response = await http_client.get(download_url)
+                        if dl_response.status_code == 200:
+                            print(f"Downloaded via search ({len(dl_response.content)} bytes)")
+                            return dl_response.content
+                elif isinstance(files_data, dict):
+                    # Check for data wrapper
+                    files_list = files_data.get("data", [])
+                    if files_list and len(files_list) > 0:
+                        found_file_id = files_list[0].get("id")
+                        if found_file_id:
+                            print(f"Found file ID from search: {found_file_id}")
+                            download_url = f"/files/{found_file_id}/download"
+                            dl_response = await http_client.get(download_url)
+                            if dl_response.status_code == 200:
+                                print(f"Downloaded via search ({len(dl_response.content)} bytes)")
+                                return dl_response.content
+            else:
+                print(f"Received files search failed: {response.status_code} - {response.text[:200]}")
+        except Exception as e:
+            print(f"Received files search error: {e}")
+            import traceback
+            print(traceback.format_exc())
+
+    # Method 3: Try /messages/{id}/media endpoint
+    if message_id:
+        try:
+            api_url = f"/messages/{message_id}/media"
+            print(f"Trying message media endpoint: {api_url}")
+            response = await http_client.get(api_url)
+            if response.status_code == 200:
+                # Check if it's JSON (file info) or binary (file content)
+                content_type = response.headers.get("content-type", "")
+                if "application/json" in content_type:
+                    media_info = response.json()
+                    print(f"Message media info: {media_info}")
+                    # Try to get download URL or file ID from response
+                    dl_url = media_info.get("url") or media_info.get("download") or media_info.get("link")
+                    if dl_url:
+                        async with httpx.AsyncClient(timeout=60.0) as ext_client:
+                            dl_response = await ext_client.get(dl_url)
+                            if dl_response.status_code == 200:
+                                print(f"Downloaded via media info ({len(dl_response.content)} bytes)")
+                                return dl_response.content
+                else:
+                    # Binary content - this is the file
+                    print(f"Successfully got media content ({len(response.content)} bytes)")
+                    return response.content
+            else:
+                print(f"Message media endpoint failed: {response.status_code}")
+        except Exception as e:
+            print(f"Message media endpoint error: {e}")
+
+    # Method 4: Try with message ID as file ID directly
     if message_id:
         try:
             api_url = f"/files/{message_id}/download"
@@ -188,7 +256,7 @@ async def download_media(media_url: str, file_id: str = None, message_id: str = 
         except Exception as e:
             print(f"Download error: {e}")
 
-    # Try direct URL download (for external URLs like WhatsApp servers)
+    # Method 5: Try direct URL download (for external URLs like WhatsApp servers)
     if media_url:
         try:
             async with httpx.AsyncClient(timeout=60.0) as external_client:
