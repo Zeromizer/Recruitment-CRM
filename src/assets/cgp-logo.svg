@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 60" width="320" height="60">
+  <!-- CGP Angular Arrow Icon -->
+  <g transform="translate(0, 5)">
+    <!-- Main red arrow shape -->
+    <polygon points="0,25 25,0 35,0 35,50 25,50 25,18 8,35" fill="#C41E3A"/>
+    <!-- Shadow/depth element -->
+    <polygon points="25,50 35,50 35,25 25,35" fill="#9A1830"/>
+  </g>
+
+  <!-- CGP Text -->
+  <text x="50" y="42" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="36" fill="#1A1A1A">CGP</text>
+
+  <!-- Personnel Text -->
+  <text x="128" y="42" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="36" fill="#C41E3A">Personnel</text>
+</svg>

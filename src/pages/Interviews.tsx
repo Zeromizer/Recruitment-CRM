@@ -44,38 +44,38 @@ function InterviewCard({
   return (
     <Link
       to={`/candidates/${interview.candidate_id}`}
-      className="card p-5 hover:bg-navy-800/80 transition-colors block"
+      className="card p-5 hover:shadow-md transition-shadow block"
     >
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
-          <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
-            <Icon className="w-6 h-6 text-blue-400" />
+          <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <Icon className="w-6 h-6 text-blue-600" />
           </div>
           <div>
-            <p className="font-medium text-white">{interview.candidate_name}</p>
-            <p className="text-sm text-navy-400 mt-0.5">
+            <p className="font-medium text-slate-800">{interview.candidate_name}</p>
+            <p className="text-sm text-slate-500 mt-0.5">
               {interview.job_role} • {interview.interview_round} Round
             </p>
-            <div className="flex items-center gap-4 mt-3 text-sm text-navy-300">
+            <div className="flex items-center gap-4 mt-3 text-sm text-slate-600">
               <span className="flex items-center gap-1">
-                <Building className="w-4 h-4 text-navy-500" />
+                <Building className="w-4 h-4 text-slate-400" />
                 {interview.client_company}
               </span>
               {showDate && interview.interview_date && (
                 <span className="flex items-center gap-1">
-                  <Calendar className="w-4 h-4 text-navy-500" />
+                  <Calendar className="w-4 h-4 text-slate-400" />
                   {format(parseISO(interview.interview_date), 'MMM d')}
                 </span>
               )}
               {interview.interview_time && (
                 <span className="flex items-center gap-1">
-                  <Clock className="w-4 h-4 text-navy-500" />
+                  <Clock className="w-4 h-4 text-slate-400" />
                   {interview.interview_time}
                 </span>
               )}
             </div>
             {interview.location && (
-              <p className="text-sm text-navy-500 mt-2 flex items-center gap-1">
+              <p className="text-sm text-slate-400 mt-2 flex items-center gap-1">
                 <MapPin className="w-4 h-4" />
                 {interview.location}
               </p>
@@ -114,15 +114,15 @@ function InterviewCard({
         </div>
       </div>
       {interview.interviewer_name && (
-        <div className="mt-4 pt-4 border-t border-navy-800">
-          <p className="text-sm text-navy-400">
-            <span className="text-navy-500">Interviewer:</span> {interview.interviewer_name}
+        <div className="mt-4 pt-4 border-t border-slate-100">
+          <p className="text-sm text-slate-500">
+            <span className="text-slate-400">Interviewer:</span> {interview.interviewer_name}
             {interview.interviewer_title && ` (${interview.interviewer_title})`}
           </p>
         </div>
       )}
       {interview.notes && (
-        <p className="text-sm text-navy-500 mt-2 italic">{interview.notes}</p>
+        <p className="text-sm text-slate-400 mt-2 italic">{interview.notes}</p>
       )}
     </Link>
   );
@@ -141,9 +141,9 @@ function InterviewSection({
 }) {
   return (
     <div>
-      <h2 className="font-display text-lg text-white mb-4 flex items-center gap-2">
+      <h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
         {title}
-        <span className="text-sm font-normal text-navy-500">({interviews.length})</span>
+        <span className="text-sm font-normal text-slate-400">({interviews.length})</span>
       </h2>
       {interviews.length > 0 ? (
         <div className="space-y-4">
@@ -156,7 +156,7 @@ function InterviewSection({
           ))}
         </div>
       ) : (
-        <div className="card p-8 text-center text-navy-500">
+        <div className="card p-8 text-center text-slate-400">
           <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
           <p>{emptyMessage}</p>
         </div>
@@ -171,7 +171,7 @@ export default function Interviews() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-coral-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cgp-red"></div>
       </div>
     );
   }
@@ -189,8 +189,8 @@ export default function Interviews() {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="font-display text-3xl text-white">Interviews</h1>
-        <p className="text-navy-400 mt-1">
+        <h1 className="text-3xl font-bold text-slate-800">Interviews</h1>
+        <p className="text-slate-500 mt-1">
           {totalUpcoming} upcoming interview{totalUpcoming !== 1 ? 's' : ''}
         </p>
       </div>
@@ -198,20 +198,20 @@ export default function Interviews() {
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="card p-4">
-          <p className="text-sm text-navy-400">Today</p>
-          <p className="text-2xl font-semibold text-white mt-1">{groups.today.length}</p>
+          <p className="text-sm text-slate-500">Today</p>
+          <p className="text-2xl font-semibold text-slate-800 mt-1">{groups.today.length}</p>
         </div>
         <div className="card p-4">
-          <p className="text-sm text-navy-400">Tomorrow</p>
-          <p className="text-2xl font-semibold text-white mt-1">{groups.tomorrow.length}</p>
+          <p className="text-sm text-slate-500">Tomorrow</p>
+          <p className="text-2xl font-semibold text-slate-800 mt-1">{groups.tomorrow.length}</p>
         </div>
         <div className="card p-4">
-          <p className="text-sm text-navy-400">This Week</p>
-          <p className="text-2xl font-semibold text-white mt-1">{groups.thisWeek.length}</p>
+          <p className="text-sm text-slate-500">This Week</p>
+          <p className="text-2xl font-semibold text-slate-800 mt-1">{groups.thisWeek.length}</p>
         </div>
         <div className="card p-4">
-          <p className="text-sm text-navy-400">Completed</p>
-          <p className="text-2xl font-semibold text-white mt-1">{groups.past.length}</p>
+          <p className="text-sm text-slate-500">Completed</p>
+          <p className="text-2xl font-semibold text-slate-800 mt-1">{groups.past.length}</p>
         </div>
       </div>
 

@@ -40,28 +40,28 @@ function getStatusBadgeClass(status: CandidateStatus): string {
 }
 
 function getAIScoreColor(score: number | null): string {
-  if (score === null) return 'text-navy-500';
-  if (score >= 8) return 'text-emerald-400';
-  if (score >= 6) return 'text-amber-400';
-  return 'text-red-400';
+  if (score === null) return 'text-slate-400';
+  if (score >= 8) return 'text-emerald-600';
+  if (score >= 6) return 'text-amber-600';
+  return 'text-red-600';
 }
 
 function CandidateRow({ candidate }: { candidate: Candidate }) {
   return (
     <Link
       to={`/candidates/${candidate.id}`}
-      className="grid grid-cols-12 gap-4 items-center p-4 hover:bg-navy-800/50 transition-colors border-b border-navy-800 last:border-b-0"
+      className="grid grid-cols-12 gap-4 items-center p-4 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
     >
       {/* Name & Contact */}
       <div className="col-span-4 flex items-center gap-3">
-        <div className="w-10 h-10 bg-navy-700 rounded-full flex items-center justify-center flex-shrink-0">
+        <div className="w-10 h-10 bg-cgp-red rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
           <span className="text-sm font-medium text-white">
             {candidate.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
           </span>
         </div>
         <div className="min-w-0">
-          <p className="text-white font-medium truncate">{candidate.full_name}</p>
-          <div className="flex items-center gap-3 text-sm text-navy-400">
+          <p className="text-slate-800 font-medium truncate">{candidate.full_name}</p>
+          <div className="flex items-center gap-3 text-sm text-slate-500">
             {candidate.email && (
               <span className="flex items-center gap-1 truncate">
                 <Mail className="w-3 h-3" />
@@ -74,8 +74,8 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
 
       {/* Role */}
       <div className="col-span-2">
-        <p className="text-navy-200 truncate">{candidate.applied_role || '-'}</p>
-        <p className="text-xs text-navy-500">{candidate.source}</p>
+        <p className="text-slate-700 truncate">{candidate.applied_role || '-'}</p>
+        <p className="text-xs text-slate-400">{candidate.source}</p>
       </div>
 
       {/* AI Score */}
@@ -95,14 +95,14 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
 
       {/* Date Applied */}
       <div className="col-span-2">
-        <p className="text-sm text-navy-400">
+        <p className="text-sm text-slate-500">
           {format(parseISO(candidate.date_received), 'MMM d, yyyy')}
         </p>
       </div>
 
       {/* Arrow */}
       <div className="col-span-1 flex justify-end">
-        <ChevronRight className="w-5 h-5 text-navy-500" />
+        <ChevronRight className="w-5 h-5 text-slate-400" />
       </div>
     </Link>
   );
@@ -155,7 +155,7 @@ export default function Candidates() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-coral-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cgp-red"></div>
       </div>
     );
   }
@@ -165,8 +165,8 @@ export default function Candidates() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-3xl text-white">Candidates</h1>
-          <p className="text-navy-400 mt-1">
+          <h1 className="text-3xl font-bold text-slate-800">Candidates</h1>
+          <p className="text-slate-500 mt-1">
             {filteredCandidates.length} candidate{filteredCandidates.length !== 1 ? 's' : ''}
             {hasActiveFilters && ` (filtered from ${candidates.length})`}
           </p>
@@ -185,7 +185,7 @@ export default function Candidates() {
         <div className="flex flex-col sm:flex-row gap-4">
           {/* Search */}
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-navy-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
             <input
               type="text"
               placeholder="Search by name, email, role, or phone..."
@@ -198,12 +198,12 @@ export default function Candidates() {
           {/* Filter Toggle */}
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`btn-secondary flex items-center gap-2 ${hasActiveFilters ? 'border-coral-500 text-coral-400' : ''}`}
+            className={`btn-secondary flex items-center gap-2 ${hasActiveFilters ? 'border-cgp-red text-cgp-red' : ''}`}
           >
             <Filter className="w-4 h-4" />
             Filters
             {hasActiveFilters && (
-              <span className="w-5 h-5 bg-coral-500 text-white text-xs rounded-full flex items-center justify-center">
+              <span className="w-5 h-5 bg-cgp-red text-white text-xs rounded-full flex items-center justify-center">
                 {(statusFilter ? 1 : 0) + (sourceFilter ? 1 : 0)}
               </span>
             )}
@@ -212,11 +212,11 @@ export default function Candidates() {
 
         {/* Filter Options */}
         {showFilters && (
-          <div className="mt-4 pt-4 border-t border-navy-800">
+          <div className="mt-4 pt-4 border-t border-slate-200">
             <div className="flex flex-wrap gap-4">
               {/* Status Filter */}
               <div className="flex-1 min-w-[200px]">
-                <label className="block text-sm text-navy-400 mb-1">Status</label>
+                <label className="block text-sm text-slate-500 mb-1">Status</label>
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as CandidateStatus | '')}
@@ -231,7 +231,7 @@ export default function Candidates() {
 
               {/* Source Filter */}
               <div className="flex-1 min-w-[200px]">
-                <label className="block text-sm text-navy-400 mb-1">Source</label>
+                <label className="block text-sm text-slate-500 mb-1">Source</label>
                 <select
                   value={sourceFilter}
                   onChange={(e) => setSourceFilter(e.target.value)}
@@ -267,7 +267,7 @@ export default function Candidates() {
       {/* Table */}
       <div className="card overflow-hidden">
         {/* Table Header */}
-        <div className="grid grid-cols-12 gap-4 items-center p-4 bg-navy-800/50 text-sm font-medium text-navy-400 border-b border-navy-800">
+        <div className="grid grid-cols-12 gap-4 items-center p-4 bg-slate-50 text-sm font-medium text-slate-500 border-b border-slate-200">
           <div className="col-span-4">Candidate</div>
           <div className="col-span-2">Role</div>
           <div className="col-span-1">Score</div>
@@ -285,8 +285,8 @@ export default function Candidates() {
           </div>
         ) : (
           <div className="p-12 text-center">
-            <Users className="w-12 h-12 mx-auto text-navy-600 mb-4" />
-            <p className="text-navy-400">
+            <Users className="w-12 h-12 mx-auto text-slate-300 mb-4" />
+            <p className="text-slate-500">
               {search || hasActiveFilters
                 ? 'No candidates match your filters'
                 : 'No candidates yet'}
