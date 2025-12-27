@@ -113,6 +113,7 @@ export default function Candidates() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<CandidateStatus | ''>('');
   const [sourceFilter, setSourceFilter] = useState('');
+  const [minScoreFilter, setMinScoreFilter] = useState<number | ''>('');
   const [showFilters, setShowFilters] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
 
@@ -146,11 +147,16 @@ export default function Candidates() {
         return false;
       }
 
+      // Minimum score filter
+      if (minScoreFilter !== '' && (candidate.ai_score === null || candidate.ai_score < minScoreFilter)) {
+        return false;
+      }
+
       return true;
     });
-  }, [candidates, search, statusFilter, sourceFilter]);
+  }, [candidates, search, statusFilter, sourceFilter, minScoreFilter]);
 
-  const hasActiveFilters = statusFilter || sourceFilter;
+  const hasActiveFilters = statusFilter || sourceFilter || minScoreFilter !== '';
 
   if (isLoading) {
     return (
@@ -204,7 +210,7 @@ export default function Candidates() {
             Filters
             {hasActiveFilters && (
               <span className="w-5 h-5 bg-cgp-red text-white text-xs rounded-full flex items-center justify-center">
-                {(statusFilter ? 1 : 0) + (sourceFilter ? 1 : 0)}
+                {(statusFilter ? 1 : 0) + (sourceFilter ? 1 : 0) + (minScoreFilter !== '' ? 1 : 0)}
               </span>
             )}
           </button>
@@ -244,6 +250,24 @@ export default function Candidates() {
                 </select>
               </div>
 
+              {/* Minimum Score Filter */}
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-sm text-slate-500 mb-1">Minimum AI Score</label>
+                <select
+                  value={minScoreFilter}
+                  onChange={(e) => setMinScoreFilter(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="input w-full"
+                >
+                  <option value="">Any Score</option>
+                  <option value="8">8+ (Top Candidates)</option>
+                  <option value="7">7+</option>
+                  <option value="6">6+</option>
+                  <option value="5">5+</option>
+                  <option value="4">4+</option>
+                  <option value="3">3+</option>
+                </select>
+              </div>
+
               {/* Clear Filters */}
               {hasActiveFilters && (
                 <div className="flex items-end">
@@ -251,6 +275,7 @@ export default function Candidates() {
                     onClick={() => {
                       setStatusFilter('');
                       setSourceFilter('');
+                      setMinScoreFilter('');
                     }}
                     className="btn-secondary flex items-center gap-2"
                   >
