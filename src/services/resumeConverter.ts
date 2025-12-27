@@ -159,14 +159,6 @@ function buildAllWorkExperienceXml(jobs: ParsedResume['workExperience']): string
   return xml;
 }
 
-// Build XML for languages section
-function buildLanguagesXml(languages: string[]): string {
-  let xml = '';
-  for (const lang of languages) {
-    xml += `<w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="45"/></w:numPr><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>${escapeXml(lang)}</w:t></w:r></w:p>`;
-  }
-  return xml;
-}
 
 
 // Generate CGP formatted Word document using template replacement
@@ -241,19 +233,24 @@ export async function generateCGPDocument(data: ParsedResume, preparedBy: string
   // Find the WORKING EXPERIENCE header table end and LANGUAGE section start
   // Then replace everything between with dynamically generated content
 
-  const workExpHeaderEnd = docXml.indexOf('WORKING EXPERIENCE');
-  const langSectionStart = docXml.indexOf('LANGUAGE');
+  const workExpHeaderPos = docXml.indexOf('WORKING EXPERIENCE');
+  const langSectionPos = docXml.indexOf('LANGUAGE');
 
-  if (workExpHeaderEnd > 0 && langSectionStart > workExpHeaderEnd) {
+  if (workExpHeaderPos > 0 && langSectionPos > workExpHeaderPos) {
     // Find the end of the WORKING EXPERIENCE header table (</w:tbl> after the header)
-    const afterWorkExpHeader = docXml.substring(workExpHeaderEnd);
-    const tblEndMatch = afterWorkExpHeader.indexOf('</w:tbl>');
-    if (tblEndMatch > 0) {
-      const workExpContentStart = workExpHeaderEnd + tblEndMatch + 8; // 8 = length of '</w:tbl>'
+    const afterWorkExpHeader = docXml.substring(workExpHeaderPos);
+    const tblEndOffset = afterWorkExpHeader.indexOf('</w:tbl>');
 
-      // Find the start of the LANGUAGE section table (<w:tbl before LANGUAGE)
-      const beforeLang = docXml.substring(0, langSectionStart);
-      const langTblStart = beforeLang.lastIndexOf('<w:tbl');
+    if (tblEndOffset > 0) {
+      const workExpContentStart = workExpHeaderPos + tblEndOffset + 8; // 8 = length of '</w:tbl>'
+
+      // Find the start of the LANGUAGE section table (<w:tbl> or <w:tbl  before LANGUAGE)
+      // We need to search in the original string up to langSectionPos
+      // Note: Must not match <w:tblGrid>, so look for <w:tbl> or <w:tbl with space
+      const beforeLangSection = docXml.substring(0, langSectionPos);
+      const tblWithClose = beforeLangSection.lastIndexOf('<w:tbl>');
+      const tblWithSpace = beforeLangSection.lastIndexOf('<w:tbl ');
+      const langTblStart = Math.max(tblWithClose, tblWithSpace);
 
       if (langTblStart > workExpContentStart) {
         // Build the new work experience content
@@ -268,42 +265,10 @@ export async function generateCGPDocument(data: ParsedResume, preparedBy: string
     }
   }
 
-  // ===== REPLACE LANGUAGES - DYNAMIC INJECTION =====
-  // Find and replace the languages section content
-  const langHeaderPos = docXml.indexOf('LANGUAGE');
-  if (langHeaderPos > 0) {
-    // Find the </w:tbl> after LANGUAGE header
-    const afterLangHeader = docXml.substring(langHeaderPos);
-    const langTblEnd = afterLangHeader.indexOf('</w:tbl>');
-
-    if (langTblEnd > 0) {
-      const langContentStart = langHeaderPos + langTblEnd + 8;
-
-      // Find the end of document body or next section
-      const afterLangContent = docXml.substring(langContentStart);
-      // Look for </w:body> or next <w:tbl or <w:sectPr
-      let langContentEnd = afterLangContent.indexOf('</w:body>');
-      const nextTbl = afterLangContent.indexOf('<w:tbl');
-      const sectPr = afterLangContent.indexOf('<w:sectPr');
-
-      if (nextTbl > 0 && (langContentEnd < 0 || nextTbl < langContentEnd)) {
-        langContentEnd = nextTbl;
-      }
-      if (sectPr > 0 && (langContentEnd < 0 || sectPr < langContentEnd)) {
-        langContentEnd = sectPr;
-      }
-
-      if (langContentEnd > 0) {
-        // Build new languages content
-        const languagesXml = buildLanguagesXml(languages);
-
-        // Replace the content
-        const beforeLangContent = docXml.substring(0, langContentStart);
-        const afterLangContentStr = docXml.substring(langContentStart + langContentEnd);
-
-        docXml = beforeLangContent + languagesXml + afterLangContentStr;
-      }
-    }
+  // ===== REPLACE LANGUAGES - SIMPLE TEXT REPLACEMENT =====
+  // Just replace "English" with all languages (safer than XML injection)
+  if (languages.length > 0) {
+    docXml = replaceInXml(docXml, 'English', languages.join(', '));
   }
 
   // Update the document.xml in the zip
