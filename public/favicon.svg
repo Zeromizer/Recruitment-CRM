@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <!-- CGP Personnel Angular Arrow Icon -->
+  <!-- CGP Personnel Chevron Icon pointing right -->
   <g transform="translate(4, 2)">
-    <polygon points="0,14 14,0 20,0 20,28 14,28 14,10 4,20" fill="#C41E3A"/>
-    <polygon points="14,28 20,28 20,14 14,20" fill="#9A1830"/>
+    <polygon points="0,0 12,0 24,14 12,28 0,28 0,21 8,14 0,7" fill="#C41E3A"/>
+    <polygon points="0,21 0,28 12,28 8,21" fill="#9A1830"/>
   </g>
 </svg>

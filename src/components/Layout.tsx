@@ -26,15 +26,15 @@ const navigation = [
 function CGPLogo({ className = '' }: { className?: string }) {
   return (
     <svg viewBox="0 0 200 40" className={className} xmlns="http://www.w3.org/2000/svg">
-      {/* Angular Arrow Icon */}
+      {/* Angular Chevron Icon pointing right */}
       <g transform="translate(0, 3)">
-        <polygon points="0,17 17,0 24,0 24,34 17,34 17,12 5,24" fill="#C41E3A"/>
-        <polygon points="17,34 24,34 24,17 17,24" fill="#9A1830"/>
+        <polygon points="0,0 13,0 29,17 13,34 0,34 0,26 11,17 0,8" fill="#C41E3A"/>
+        <polygon points="0,26 0,34 13,34 11,26" fill="#9A1830"/>
       </g>
       {/* CGP Text */}
-      <text x="32" y="28" fontFamily="Inter, Arial, sans-serif" fontWeight="800" fontSize="22" fill="#1A1A1A">CGP</text>
+      <text x="36" y="28" fontFamily="Inter, Arial, sans-serif" fontWeight="800" fontSize="22" fill="#1A1A1A">CGP</text>
       {/* Personnel Text */}
-      <text x="82" y="28" fontFamily="Inter, Arial, sans-serif" fontWeight="800" fontSize="22" fill="#C41E3A">Personnel</text>
+      <text x="86" y="28" fontFamily="Inter, Arial, sans-serif" fontWeight="800" fontSize="22" fill="#C41E3A">Personnel</text>
     </svg>
   );
 }
@@ -42,10 +42,10 @@ function CGPLogo({ className = '' }: { className?: string }) {
 // Compact logo for mobile
 function CGPLogoCompact({ className = '' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 34 40" className={className} xmlns="http://www.w3.org/2000/svg">
-      <g transform="translate(5, 3)">
-        <polygon points="0,17 17,0 24,0 24,34 17,34 17,12 5,24" fill="#C41E3A"/>
-        <polygon points="17,34 24,34 24,17 17,24" fill="#9A1830"/>
+    <svg viewBox="0 0 32 40" className={className} xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(2, 3)">
+        <polygon points="0,0 13,0 27,17 13,34 0,34 0,26 11,17 0,8" fill="#C41E3A"/>
+        <polygon points="0,26 0,34 13,34 11,26" fill="#9A1830"/>
       </g>
     </svg>
   );
