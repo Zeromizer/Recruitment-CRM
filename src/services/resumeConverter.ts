@@ -30,38 +30,6 @@ export interface ParsedResume {
   languages: string[];
 }
 
-// Logo URL from Supabase storage (optional)
-const TEMPLATE_BUCKET = 'templates';
-const LOGO_FILE = 'cgp-personnel-logos_cgp-personnel-logo-color.png';
-
-// Cache for logo data
-let logoCache: ArrayBuffer | null = null;
-
-// Try to download logo from Supabase storage (optional, won't fail if not available)
-async function downloadLogo(): Promise<ArrayBuffer | null> {
-  if (logoCache) {
-    return logoCache;
-  }
-
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  if (!supabaseUrl) {
-    return null;
-  }
-
-  try {
-    const logoUrl = `${supabaseUrl}/storage/v1/object/public/${TEMPLATE_BUCKET}/${encodeURIComponent(LOGO_FILE)}`;
-    const logoResponse = await fetch(logoUrl);
-    if (logoResponse.ok) {
-      logoCache = await logoResponse.arrayBuffer();
-      return logoCache;
-    }
-  } catch (e) {
-    console.warn('Could not load logo:', e);
-  }
-
-  return null;
-}
-
 // Extract text from PDF using pdf.js
 export async function extractPdfText(file: File): Promise<string> {
   const pdfjsLib = await import('pdfjs-dist');
@@ -141,104 +109,7 @@ export async function parseResumeWithAI(
   return response.json();
 }
 
-// Generate CGP formatted Word document
-export async function generateCGPDocument(data: ParsedResume, preparedBy: string = 'CGP Personnel'): Promise<Blob> {
-  const JSZip = (await import('jszip')).default;
-
-  // Try to download logo (optional, won't fail if not available)
-  const logoData = await downloadLogo();
-
-  // Create new document from scratch
-  const zip = new JSZip();
-
-  // Add required DOCX structure
-  zip.file('[Content_Types].xml', getContentTypesXml(!!logoData));
-  zip.file('_rels/.rels', getRelsXml());
-  zip.file('word/_rels/document.xml.rels', getDocumentRelsXml(!!logoData));
-  zip.file('word/styles.xml', getStylesXml());
-  zip.file('word/numbering.xml', getNumberingXml());
-  zip.file('word/document.xml', generateCGPDocumentXml(data, preparedBy, !!logoData));
-
-  // Add logo if available
-  if (logoData) {
-    zip.file('word/media/image1.png', logoData);
-  }
-
-  return zip.generateAsync({
-    type: 'blob',
-    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-  });
-}
-
-function getContentTypesXml(hasLogo: boolean): string {
-  let xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-<Default Extension="xml" ContentType="application/xml"/>`;
-
-  if (hasLogo) {
-    xml += `<Default Extension="png" ContentType="image/png"/>`;
-  }
-
-  xml += `<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
-<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
-</Types>`;
-  return xml;
-}
-
-function getRelsXml(): string {
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>`;
-}
-
-function getDocumentRelsXml(hasLogo: boolean): string {
-  let xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
-<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>`;
-
-  if (hasLogo) {
-    xml += `<Relationship Id="rId7" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>`;
-  }
-
-  xml += `</Relationships>`;
-  return xml;
-}
-
-function getStylesXml(): string {
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-<w:docDefaults>
-<w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:sz w:val="22"/></w:rPr></w:rPrDefault>
-<w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:pPrDefault>
-</w:docDefaults>
-<w:style w:type="paragraph" w:styleId="ListParagraph">
-<w:name w:val="List Paragraph"/>
-<w:pPr><w:ind w:left="720"/></w:pPr>
-</w:style>
-</w:styles>`;
-}
-
-function getNumberingXml(): string {
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-<w:abstractNum w:abstractNumId="0">
-<w:lvl w:ilvl="0">
-<w:start w:val="1"/>
-<w:numFmt w:val="bullet"/>
-<w:lvlText w:val="●"/>
-<w:lvlJc w:val="left"/>
-<w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr>
-<w:rPr><w:rFonts w:ascii="Symbol" w:hAnsi="Symbol"/></w:rPr>
-</w:lvl>
-</w:abstractNum>
-<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>
-</w:numbering>`;
-}
-
+// Escape special XML characters
 function escapeXml(text: string | null | undefined): string {
   const str = String(text ?? '');
   return str
@@ -249,331 +120,300 @@ function escapeXml(text: string | null | undefined): string {
     .replace(/'/g, '&apos;');
 }
 
-function generateCGPDocumentXml(data: ParsedResume, preparedBy: string, hasLogo: boolean = false): string {
+// Replace text in XML content (handles text that may be split across XML tags)
+function replaceInXml(xml: string, oldText: string, newText: string): string {
+  const escaped = escapeXml(newText);
+  return xml.split(oldText).join(escaped);
+}
+
+// Find the start of a paragraph containing a given position
+function findParagraphStart(xml: string, pos: number): number {
+  let searchPos = pos;
+  while (searchPos > 0) {
+    const pStart = xml.lastIndexOf('<w:p ', searchPos);
+    const pStartSimple = xml.lastIndexOf('<w:p>', searchPos);
+    const found = Math.max(pStart, pStartSimple);
+    if (found >= 0) {
+      return found;
+    }
+    searchPos -= 100;
+  }
+  return 0;
+}
+
+// Find the start of a table containing a given position
+function findTableStart(xml: string, pos: number): number {
+  const tblStart = xml.lastIndexOf('<w:tbl', pos);
+  if (tblStart >= 0) {
+    return tblStart;
+  }
+  // If no table, find paragraph
+  return findParagraphStart(xml, pos);
+}
+
+// Build work experience section XML matching template format
+function buildWorkExperienceXml(jobs: ParsedResume['workExperience']): string {
+  if (!jobs || jobs.length === 0) {
+    return '';
+  }
+
+  let xml = '';
+  jobs.forEach(job => {
+    // Job title paragraph (bold)
+    xml += `<w:p w:rsidR="00C96481" w:rsidRPr="0016745D" w:rsidRDefault="00C96481" w:rsidP="00C96481">
+      <w:pPr>
+        <w:rPr>
+          <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
+          <w:b/>
+          <w:bCs/>
+          <w:sz w:val="22"/>
+          <w:szCs w:val="22"/>
+        </w:rPr>
+      </w:pPr>
+      <w:r w:rsidRPr="0016745D">
+        <w:rPr>
+          <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
+          <w:b/>
+          <w:bCs/>
+          <w:sz w:val="22"/>
+          <w:szCs w:val="22"/>
+        </w:rPr>
+        <w:t>${escapeXml(job.title)}</w:t>
+      </w:r>
+    </w:p>`;
+
+    // Period paragraph
+    xml += `<w:p w:rsidR="00C96481" w:rsidRPr="0016745D" w:rsidRDefault="00C96481" w:rsidP="00C96481">
+      <w:pPr>
+        <w:rPr>
+          <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
+          <w:sz w:val="22"/>
+          <w:szCs w:val="22"/>
+        </w:rPr>
+      </w:pPr>
+      <w:r w:rsidRPr="0016745D">
+        <w:rPr>
+          <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
+          <w:sz w:val="22"/>
+          <w:szCs w:val="22"/>
+        </w:rPr>
+        <w:t>${escapeXml(job.period)}</w:t>
+      </w:r>
+    </w:p>`;
+
+    // Company paragraph (bold)
+    xml += `<w:p w:rsidR="00C96481" w:rsidRPr="0016745D" w:rsidRDefault="00C96481" w:rsidP="00C96481">
+      <w:pPr>
+        <w:rPr>
+          <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
+          <w:b/>
+          <w:bCs/>
+          <w:sz w:val="22"/>
+          <w:szCs w:val="22"/>
+        </w:rPr>
+      </w:pPr>
+      <w:r w:rsidRPr="0016745D">
+        <w:rPr>
+          <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
+          <w:b/>
+          <w:bCs/>
+          <w:sz w:val="22"/>
+          <w:szCs w:val="22"/>
+        </w:rPr>
+        <w:t>${escapeXml(job.company)}</w:t>
+      </w:r>
+    </w:p>`;
+
+    // Responsibilities as bullet points
+    const responsibilities = Array.isArray(job.responsibilities) ? job.responsibilities : [];
+    responsibilities.forEach(resp => {
+      xml += `<w:p w:rsidR="00C96481" w:rsidRPr="0016745D" w:rsidRDefault="00C96481" w:rsidP="00C96481">
+        <w:pPr>
+          <w:pStyle w:val="ListParagraph"/>
+          <w:numPr>
+            <w:ilvl w:val="0"/>
+            <w:numId w:val="45"/>
+          </w:numPr>
+          <w:rPr>
+            <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
+            <w:sz w:val="22"/>
+            <w:szCs w:val="22"/>
+          </w:rPr>
+        </w:pPr>
+        <w:r w:rsidRPr="0016745D">
+          <w:rPr>
+            <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
+            <w:sz w:val="22"/>
+            <w:szCs w:val="22"/>
+          </w:rPr>
+          <w:t>${escapeXml(resp)}</w:t>
+        </w:r>
+      </w:p>`;
+    });
+
+    // Empty paragraph for spacing between jobs
+    xml += `<w:p w:rsidR="00C96481" w:rsidRPr="0016745D" w:rsidRDefault="00C96481" w:rsidP="00C96481">
+      <w:pPr>
+        <w:rPr>
+          <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
+          <w:sz w:val="22"/>
+          <w:szCs w:val="22"/>
+        </w:rPr>
+      </w:pPr>
+    </w:p>`;
+  });
+
+  return xml;
+}
+
+// Build languages section XML matching template format
+function buildLanguagesXml(languages: string[]): string {
+  if (!languages || languages.length === 0) {
+    return '';
+  }
+
+  let xml = '';
+  languages.forEach(lang => {
+    xml += `<w:p w:rsidR="00C96481" w:rsidRPr="0016745D" w:rsidRDefault="00C96481" w:rsidP="00C96481">
+      <w:pPr>
+        <w:pStyle w:val="ListParagraph"/>
+        <w:numPr>
+          <w:ilvl w:val="0"/>
+          <w:numId w:val="45"/>
+        </w:numPr>
+        <w:rPr>
+          <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
+          <w:sz w:val="22"/>
+          <w:szCs w:val="22"/>
+        </w:rPr>
+      </w:pPr>
+      <w:r w:rsidRPr="0016745D">
+        <w:rPr>
+          <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
+          <w:sz w:val="22"/>
+          <w:szCs w:val="22"/>
+        </w:rPr>
+        <w:t>${escapeXml(lang)}</w:t>
+      </w:r>
+    </w:p>`;
+  });
+
+  return xml;
+}
+
+// Generate CGP formatted Word document using template replacement
+export async function generateCGPDocument(data: ParsedResume, preparedBy: string = 'CGP Personnel'): Promise<Blob> {
+  const JSZip = (await import('jszip')).default;
+
+  // Fetch the template from public folder
+  const templateResponse = await fetch('/template.docx.b64');
+  if (!templateResponse.ok) {
+    throw new Error('Failed to load CGP template. Please ensure template.docx.b64 is in the public folder.');
+  }
+
+  const templateBase64 = await templateResponse.text();
+
+  // Decode base64 to binary
+  const binaryString = atob(templateBase64.trim());
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+
+  // Load the template as a zip
+  const zip = await JSZip.loadAsync(bytes);
+
+  // Get the document.xml content
+  const documentXmlFile = zip.file('word/document.xml');
+  if (!documentXmlFile) {
+    throw new Error('Invalid template: document.xml not found');
+  }
+
+  let docXml = await documentXmlFile.async('string');
+
   // Ensure arrays are valid
   const education = Array.isArray(data.education) ? data.education : [];
   const workExperience = Array.isArray(data.workExperience) ? data.workExperience : [];
   const languages = Array.isArray(data.languages) ? data.languages : ['English'];
 
-  // CGP brand color
-  const cgpRed = 'CC3300';
+  // ===== REPLACE PERSONAL INFO PLACEHOLDERS =====
+  // These are the exact placeholders from the CGP template
+  docXml = replaceInXml(docXml, 'Yap Hui Mei, Jovial', data.candidateName || '');
+  docXml = replaceInXml(docXml, 'Singaporean', data.nationality || '');
 
-  let xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
-            xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
-            xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
-            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
-<w:body>`;
-
-  // Logo cell content (only if logo available)
-  const logoCell = hasLogo ? `
-      <w:p>
-        <w:r>
-          <w:drawing>
-            <wp:inline distT="0" distB="0" distL="0" distR="0">
-              <wp:extent cx="2286000" cy="571500"/>
-              <wp:docPr id="1" name="CGP Logo"/>
-              <a:graphic>
-                <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
-                  <pic:pic>
-                    <pic:nvPicPr>
-                      <pic:cNvPr id="1" name="logo.png"/>
-                      <pic:cNvPicPr/>
-                    </pic:nvPicPr>
-                    <pic:blipFill>
-                      <a:blip r:embed="rId7"/>
-                      <a:stretch><a:fillRect/></a:stretch>
-                    </pic:blipFill>
-                    <pic:spPr>
-                      <a:xfrm>
-                        <a:off x="0" y="0"/>
-                        <a:ext cx="2286000" cy="571500"/>
-                      </a:xfrm>
-                      <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
-                    </pic:spPr>
-                  </pic:pic>
-                </a:graphicData>
-              </a:graphic>
-            </wp:inline>
-          </w:drawing>
-        </w:r>
-      </w:p>` : `
-      <w:p>
-        <w:r><w:rPr><w:b/><w:color w:val="${cgpRed}"/><w:sz w:val="36"/></w:rPr><w:t>CGP Personnel</w:t></w:r>
-      </w:p>`;
-
-  // ===== HEADER SECTION WITH LOGO AND COMPANY INFO =====
-  xml += `
-<!-- Header Table with Logo and Company Info -->
-<w:tbl>
-  <w:tblPr>
-    <w:tblW w:w="5000" w:type="pct"/>
-    <w:tblLook w:val="04A0"/>
-  </w:tblPr>
-  <w:tblGrid>
-    <w:gridCol w:w="4500"/>
-    <w:gridCol w:w="5500"/>
-  </w:tblGrid>
-  <w:tr>
-    <w:tc>
-      <w:tcPr><w:tcW w:w="4500" w:type="dxa"/></w:tcPr>
-      ${logoCell}
-    </w:tc>
-    <w:tc>
-      <w:tcPr><w:tcW w:w="5500" w:type="dxa"/></w:tcPr>
-      <w:p><w:pPr><w:jc w:val="right"/></w:pPr>
-        <w:r><w:rPr><w:b/><w:color w:val="${cgpRed}"/><w:sz w:val="22"/></w:rPr><w:t>Cornerstone Global Partners Pte Ltd</w:t></w:r>
-      </w:p>
-      <w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>
-        <w:r><w:rPr><w:color w:val="${cgpRed}"/><w:sz w:val="16"/></w:rPr><w:t>Prepared by: </w:t></w:r>
-        <w:r><w:rPr><w:sz w:val="16"/></w:rPr><w:t>${escapeXml(preparedBy)}</w:t></w:r>
-      </w:p>
-      <w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>
-        <w:r><w:rPr><w:color w:val="${cgpRed}"/><w:sz w:val="16"/></w:rPr><w:t>Company Registration Number: </w:t></w:r>
-        <w:r><w:rPr><w:sz w:val="16"/></w:rPr><w:t>201622755N</w:t></w:r>
-      </w:p>
-      <w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>
-        <w:r><w:rPr><w:color w:val="${cgpRed}"/><w:sz w:val="16"/></w:rPr><w:t>EA Licence: </w:t></w:r>
-        <w:r><w:rPr><w:sz w:val="16"/></w:rPr><w:t>19C9859</w:t></w:r>
-      </w:p>
-      <w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>
-        <w:r><w:rPr><w:color w:val="${cgpRed}"/><w:sz w:val="16"/></w:rPr><w:t>Registration No: </w:t></w:r>
-        <w:r><w:rPr><w:sz w:val="16"/></w:rPr><w:t>R1440661</w:t></w:r>
-      </w:p>
-      <w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>
-        <w:r><w:rPr><w:color w:val="${cgpRed}"/><w:sz w:val="16"/></w:rPr><w:t>Address: </w:t></w:r>
-        <w:r><w:rPr><w:sz w:val="16"/></w:rPr><w:t>79 Anson Road, #17-01</w:t></w:r>
-      </w:p>
-      <w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>
-        <w:r><w:rPr><w:color w:val="${cgpRed}"/><w:sz w:val="16"/></w:rPr><w:t>Telephone: </w:t></w:r>
-        <w:r><w:rPr><w:sz w:val="16"/></w:rPr><w:t>+65 90033765</w:t></w:r>
-      </w:p>
-      <w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>
-        <w:r><w:rPr><w:color w:val="${cgpRed}"/><w:sz w:val="16"/></w:rPr><w:t>Website: </w:t></w:r>
-        <w:r><w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/><w:sz w:val="16"/></w:rPr><w:t>https://www.cgpo2o.com/</w:t></w:r>
-      </w:p>
-    </w:tc>
-  </w:tr>
-</w:tbl>`;
-
-  // ===== HORIZONTAL LINE =====
-  xml += `
-<w:p>
-  <w:pPr>
-    <w:pBdr>
-      <w:bottom w:val="single" w:sz="12" w:space="1" w:color="${cgpRed}"/>
-    </w:pBdr>
-    <w:spacing w:before="200" w:after="200"/>
-  </w:pPr>
-</w:p>`;
-
-  // ===== PERSONAL INFORMATION TABLE =====
-  xml += `
-<w:tbl>
-  <w:tblPr>
-    <w:tblW w:w="5000" w:type="pct"/>
-    <w:tblLook w:val="04A0"/>
-  </w:tblPr>
-  <w:tblGrid>
-    <w:gridCol w:w="2500"/>
-    <w:gridCol w:w="500"/>
-    <w:gridCol w:w="7000"/>
-  </w:tblGrid>`;
-
-  // Personal info rows
-  const personalInfo = [
-    ['Candidate Name', data.candidateName],
-    ['Nationality', data.nationality],
-    ['Gender', data.gender],
-    ['Expected Salary', data.expectedSalary],
-    ['Notice Period', data.noticePeriod]
-  ];
-
-  personalInfo.forEach(([label, value]) => {
-    xml += `
-  <w:tr>
-    <w:tc>
-      <w:tcPr><w:tcW w:w="2500" w:type="dxa"/></w:tcPr>
-      <w:p><w:pPr><w:spacing w:after="60"/></w:pPr>
-        <w:r><w:rPr><w:b/><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(label)}</w:t></w:r>
-      </w:p>
-    </w:tc>
-    <w:tc>
-      <w:tcPr><w:tcW w:w="500" w:type="dxa"/></w:tcPr>
-      <w:p><w:pPr><w:spacing w:after="60"/></w:pPr>
-        <w:r><w:rPr><w:sz w:val="22"/></w:rPr><w:t>:</w:t></w:r>
-      </w:p>
-    </w:tc>
-    <w:tc>
-      <w:tcPr><w:tcW w:w="7000" w:type="dxa"/></w:tcPr>
-      <w:p><w:pPr><w:spacing w:after="60"/></w:pPr>
-        <w:r><w:rPr><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(value)}</w:t></w:r>
-      </w:p>
-    </w:tc>
-  </w:tr>`;
-  });
-
-  xml += `
-</w:tbl>`;
-
-  // ===== EDUCATION SECTION =====
-  xml += generateSectionHeader('EDUCATION', cgpRed);
-
-  // Education table
-  xml += `
-<w:tbl>
-  <w:tblPr>
-    <w:tblW w:w="5000" w:type="pct"/>
-    <w:tblLook w:val="04A0"/>
-  </w:tblPr>
-  <w:tblGrid>
-    <w:gridCol w:w="2000"/>
-    <w:gridCol w:w="8000"/>
-  </w:tblGrid>`;
-
-  education.forEach(edu => {
-    xml += `
-  <w:tr>
-    <w:tc>
-      <w:tcPr><w:tcW w:w="2000" w:type="dxa"/></w:tcPr>
-      <w:p><w:pPr><w:spacing w:after="120"/></w:pPr>
-        <w:r><w:rPr><w:b/><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(edu?.year)}</w:t></w:r>
-      </w:p>
-    </w:tc>
-    <w:tc>
-      <w:tcPr><w:tcW w:w="8000" w:type="dxa"/></w:tcPr>
-      <w:p><w:pPr><w:spacing w:after="0"/></w:pPr>
-        <w:r><w:rPr><w:b/><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(edu?.qualification)}</w:t></w:r>
-      </w:p>
-      <w:p><w:pPr><w:spacing w:after="120"/></w:pPr>
-        <w:r><w:rPr><w:i/><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(edu?.institution)}</w:t></w:r>
-      </w:p>
-    </w:tc>
-  </w:tr>`;
-  });
-
-  xml += `
-</w:tbl>`;
-
-  // ===== WORKING EXPERIENCE SECTION =====
-  xml += generateSectionHeader('WORKING EXPERIENCE', cgpRed);
-
-  workExperience.forEach(job => {
-    // Job title
-    xml += `
-<w:p><w:pPr><w:spacing w:after="0"/></w:pPr>
-  <w:r><w:rPr><w:b/><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(job?.title)}</w:t></w:r>
-</w:p>`;
-
-    // Period
-    xml += `
-<w:p><w:pPr><w:spacing w:after="0"/></w:pPr>
-  <w:r><w:rPr><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(job?.period)}</w:t></w:r>
-</w:p>`;
-
-    // Company
-    xml += `
-<w:p><w:pPr><w:spacing w:after="120"/></w:pPr>
-  <w:r><w:rPr><w:b/><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(job?.company)}</w:t></w:r>
-</w:p>`;
-
-    // Responsibilities as bullet points
-    const responsibilities = Array.isArray(job?.responsibilities) ? job.responsibilities : [];
-    responsibilities.forEach(resp => {
-      xml += `
-<w:p>
-  <w:pPr>
-    <w:pStyle w:val="ListParagraph"/>
-    <w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>
-    <w:spacing w:after="60"/>
-    <w:ind w:left="720" w:hanging="360"/>
-  </w:pPr>
-  <w:r><w:rPr><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(resp)}</w:t></w:r>
-</w:p>`;
-    });
-
-    // Space after each job
-    xml += `<w:p><w:pPr><w:spacing w:after="200"/></w:pPr></w:p>`;
-  });
-
-  // ===== LANGUAGES SECTION (if available) =====
-  if (languages.length > 0) {
-    xml += generateSectionHeader('LANGUAGES', cgpRed);
-
-    languages.forEach(lang => {
-      xml += `
-<w:p>
-  <w:pPr>
-    <w:pStyle w:val="ListParagraph"/>
-    <w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>
-    <w:spacing w:after="60"/>
-    <w:ind w:left="720" w:hanging="360"/>
-  </w:pPr>
-  <w:r><w:rPr><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(lang)}</w:t></w:r>
-</w:p>`;
-    });
+  // Gender might be split across XML tags, handle both cases
+  docXml = replaceInXml(docXml, 'Female', data.gender || '');
+  // Also handle split gender tag like ">Fem<" and ">ale<"
+  if (docXml.includes('>Fem<')) {
+    docXml = docXml.replace(/>Fem<\/w:t><\/w:r><w:r[^>]*><w:t>ale</g, `>${escapeXml(data.gender || '')}`);
   }
 
-  // ===== FOOTER =====
-  xml += `
-<w:p>
-  <w:pPr>
-    <w:pBdr>
-      <w:top w:val="single" w:sz="6" w:space="1" w:color="auto"/>
-    </w:pBdr>
-    <w:spacing w:before="400"/>
-    <w:jc w:val="center"/>
-  </w:pPr>
-</w:p>
-<w:tbl>
-  <w:tblPr>
-    <w:tblW w:w="5000" w:type="pct"/>
-    <w:jc w:val="center"/>
-  </w:tblPr>
-  <w:tr>
-    <w:tc>
-      <w:p><w:pPr><w:jc w:val="left"/></w:pPr>
-        <w:r><w:rPr><w:sz w:val="16"/></w:rPr><w:t>上海任仕人力资源有限公司</w:t></w:r>
-      </w:p>
-    </w:tc>
-    <w:tc>
-      <w:p><w:pPr><w:jc w:val="center"/></w:pPr>
-        <w:r><w:rPr><w:sz w:val="16"/></w:rPr><w:t>www.cgpo2o.com</w:t></w:r>
-      </w:p>
-    </w:tc>
-  </w:tr>
-</w:tbl>`;
+  // Salary and notice period
+  docXml = replaceInXml(docXml, '7,500 (Negotiable)', data.expectedSalary || '');
+  docXml = replaceInXml(docXml, '$X,000', data.expectedSalary || '');
+  docXml = replaceInXml(docXml, 'Immediate', data.noticePeriod || '');
+  docXml = replaceInXml(docXml, 'X months', data.noticePeriod || '');
 
-  // Section properties
-  xml += `
-<w:sectPr>
-  <w:pgSz w:w="11906" w:h="16838"/>
-  <w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="709" w:footer="709"/>
-  <w:cols w:space="708"/>
-</w:sectPr>
-</w:body>
-</w:document>`;
+  // Prepared by
+  docXml = replaceInXml(docXml, 'preparedByXXXX', preparedBy);
 
-  return xml;
-}
+  // ===== REPLACE EDUCATION PLACEHOLDERS =====
+  if (education.length > 0) {
+    // Replace first education entry placeholders
+    docXml = replaceInXml(docXml, '2013', education[0]?.year || '');
+    docXml = replaceInXml(docXml, 'Bachelor of Commerce', education[0]?.qualification || '');
+    // Remove extra text that might be in the template
+    docXml = docXml.replace(/,? ?Double Major in HRM and Tourism and Hospitality ?/g, '');
+    docXml = replaceInXml(docXml, 'Murdoch University', education[0]?.institution || '');
+  }
 
-function generateSectionHeader(title: string, color: string): string {
-  return `
-<w:p>
-  <w:pPr>
-    <w:shd w:val="clear" w:color="auto" w:fill="${color}"/>
-    <w:spacing w:before="300" w:after="120"/>
-  </w:pPr>
-  <w:r>
-    <w:rPr>
-      <w:b/>
-      <w:color w:val="FFFFFF"/>
-      <w:sz w:val="24"/>
-    </w:rPr>
-    <w:t>${escapeXml(title)}</w:t>
-  </w:r>
-</w:p>`;
+  // ===== BUILD AND INSERT WORK EXPERIENCE SECTION =====
+  const workExpXml = buildWorkExperienceXml(workExperience);
+
+  // Find work experience section boundaries
+  // The template uses "Country HR" as a marker in the sample work experience
+  const workExpStart = docXml.indexOf('Country HR');
+  const langStart = docXml.indexOf('LANGUAGE');
+
+  if (workExpStart > 0 && langStart > workExpStart) {
+    // Find paragraph start before "Country HR"
+    const beforeWorkExp = docXml.substring(0, findParagraphStart(docXml, workExpStart));
+    // Find table/paragraph start at LANGUAGE section
+    const afterLang = docXml.substring(findTableStart(docXml, langStart));
+
+    docXml = beforeWorkExp + workExpXml + afterLang;
+  }
+
+  // ===== BUILD AND INSERT LANGUAGES SECTION =====
+  const languagesXml = buildLanguagesXml(languages);
+
+  // Find the LANGUAGE section and replace the English bullet
+  const langSectionMatch = docXml.match(/>LANGUAGE<\/w:t>/);
+  if (langSectionMatch) {
+    const langPos = docXml.indexOf('>LANGUAGE</w:t>');
+    const afterLang = docXml.substring(langPos);
+
+    // Find and replace the "English" bullet point
+    const englishMatch = afterLang.match(
+      /<w:p[^>]*>(?:[^<]*<[^>]*>)*[^<]*>English<\/w:t>[^<]*<\/w:r><\/w:p>/
+    );
+
+    if (englishMatch) {
+      const englishPos = docXml.indexOf(englishMatch[0]);
+      const beforeEnglish = docXml.substring(0, englishPos);
+      const afterEnglish = docXml.substring(englishPos + englishMatch[0].length);
+      docXml = beforeEnglish + languagesXml + afterEnglish;
+    }
+  }
+
+  // Update the document.xml in the zip
+  zip.file('word/document.xml', docXml);
+
+  // Generate the output blob
+  return zip.generateAsync({
+    type: 'blob',
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  });
 }
 
 // Full conversion workflow
