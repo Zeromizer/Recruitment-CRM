@@ -244,10 +244,13 @@ export async function generateCGPDocument(data: ParsedResume, preparedBy: string
     if (tblEndOffset > 0) {
       const workExpContentStart = workExpHeaderPos + tblEndOffset + 8; // 8 = length of '</w:tbl>'
 
-      // Find the start of the LANGUAGE section table (<w:tbl before LANGUAGE)
+      // Find the start of the LANGUAGE section table (<w:tbl> or <w:tbl  before LANGUAGE)
       // We need to search in the original string up to langSectionPos
+      // Note: Must not match <w:tblGrid>, so look for <w:tbl> or <w:tbl with space
       const beforeLangSection = docXml.substring(0, langSectionPos);
-      const langTblStart = beforeLangSection.lastIndexOf('<w:tbl');
+      const tblWithClose = beforeLangSection.lastIndexOf('<w:tbl>');
+      const tblWithSpace = beforeLangSection.lastIndexOf('<w:tbl ');
+      const langTblStart = Math.max(tblWithClose, tblWithSpace);
 
       if (langTblStart > workExpContentStart) {
         // Build the new work experience content
