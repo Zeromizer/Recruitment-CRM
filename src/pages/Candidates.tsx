@@ -13,7 +13,7 @@ import {
 import { format, parseISO } from 'date-fns';
 import { useCandidates } from '../hooks/useData';
 import type { Candidate, CandidateStatus } from '../types';
-import { STATUS_LABELS } from '../types';
+import { STATUS_LABELS, SOURCE_OPTIONS } from '../types';
 import AddCandidateModal from '../components/AddCandidateModal';
 
 function getStatusBadgeClass(status: CandidateStatus): string {
@@ -118,12 +118,6 @@ export default function Candidates() {
   const [showFilters, setShowFilters] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [hasUsedFilters, setHasUsedFilters] = useState(false);
-
-  // Get unique sources for filter
-  const sources = useMemo(() => {
-    const sourceSet = new Set(candidates.map(c => c.source).filter(Boolean));
-    return Array.from(sourceSet).sort();
-  }, [candidates]);
 
   // Get unique roles for filter
   const roles = useMemo(() => {
@@ -260,8 +254,8 @@ export default function Candidates() {
                   className="input w-full"
                 >
                   <option value="">All Sources</option>
-                  {sources.map(source => (
-                    <option key={source} value={source!}>{source}</option>
+                  {SOURCE_OPTIONS.map(source => (
+                    <option key={source} value={source}>{source}</option>
                   ))}
                 </select>
               </div>
