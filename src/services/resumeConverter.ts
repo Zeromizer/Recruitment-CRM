@@ -126,6 +126,48 @@ function replaceInXml(xml: string, oldText: string, newText: string): string {
   return xml.split(oldText).join(escaped);
 }
 
+// Build XML for a single job entry
+function buildJobXml(job: { title: string; period: string; company: string; responsibilities: string[] }): string {
+  let xml = '';
+
+  // Job title (bold)
+  xml += `<w:p><w:pPr><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:b/><w:bCs/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:b/><w:bCs/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>${escapeXml(job.title)}</w:t></w:r></w:p>`;
+
+  // Period
+  xml += `<w:p><w:pPr><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>${escapeXml(job.period)}</w:t></w:r></w:p>`;
+
+  // Company (bold)
+  xml += `<w:p><w:pPr><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:b/><w:bCs/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:b/><w:bCs/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>${escapeXml(job.company)}</w:t></w:r></w:p>`;
+
+  // Responsibilities (bullet points)
+  for (const resp of job.responsibilities) {
+    xml += `<w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="45"/></w:numPr><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>${escapeXml(resp)}</w:t></w:r></w:p>`;
+  }
+
+  // Empty paragraph for spacing
+  xml += `<w:p><w:pPr><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:pPr></w:p>`;
+
+  return xml;
+}
+
+// Build XML for all work experience
+function buildAllWorkExperienceXml(jobs: ParsedResume['workExperience']): string {
+  let xml = '';
+  for (const job of jobs) {
+    xml += buildJobXml(job);
+  }
+  return xml;
+}
+
+// Build XML for languages section
+function buildLanguagesXml(languages: string[]): string {
+  let xml = '';
+  for (const lang of languages) {
+    xml += `<w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="45"/></w:numPr><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>${escapeXml(lang)}</w:t></w:r></w:p>`;
+  }
+  return xml;
+}
+
 
 // Generate CGP formatted Word document using template replacement
 export async function generateCGPDocument(data: ParsedResume, preparedBy: string = 'CGP Personnel'): Promise<Blob> {
@@ -195,140 +237,73 @@ export async function generateCGPDocument(data: ParsedResume, preparedBy: string
     docXml = replaceInXml(docXml, 'Murdoch University', education[0]?.institution || '');
   }
 
-  // ===== REPLACE WORK EXPERIENCE =====
-  // Template has 6 jobs with sample data - we need to replace or clear ALL of them
+  // ===== REPLACE WORK EXPERIENCE - DYNAMIC INJECTION =====
+  // Find the WORKING EXPERIENCE header table end and LANGUAGE section start
+  // Then replace everything between with dynamically generated content
 
-  // Define all sample jobs from the template
-  const templateJobs = [
-    {
-      title: 'Country HR',
-      period: 'May 2023 till Aug 2025',
-      company: 'Eviden Singapore Pte Ltd (separated entity from Atos to Eviden)',
-      responsibilities: [
-        "Main point of contact for employees' queries on HR-related topics. In charge and support SG HR operations and HRBP with approximately 40 over employees",
-        'Manage Singapore and South Korea payroll',
-        "Performance management, liaising with the respective business heads/managers for employee's performance rating, involve in bonus payout, ensuring the accuracy of payout.",
-        'Maintain compliance with labor laws, company policies, and industry regulations',
-        'Support business leaders during periods of change (such as restructuring, mergers, or new technology adoption), helping to guide the organization and employees through transitions.',
-        'As a HRBP work closely with business leaders and managers to offer guidance on various HR issues, such as employee relations, talent management, performance management, and organizational development'
-      ]
-    },
-    {
-      title: 'HR Generalist',
-      period: 'March 2020 till April 2023',
-      company: 'Atos Information Technology (Singapore) Pte Ltd',
-      responsibilities: [
-        'Act as the main point of contact for employee queries regarding HR topics, supporting SG HR operations for approximately 200 employees.',
-        'Provided guidance and led HR peers in the absence of the HR Manager for 4 to 5 months.',
-        'Supported global HR transitions for mandatory and digital training initiatives.',
-        'Coordinated with the global learning and development shared services team on training activities.',
-        'Managed local government training incentives, funding programs, and internship programs.',
-        'Oversaw onsite and virtual training coordination for mandatory and digital programs.',
-        'Managed employee performance assessments and confirmations.',
-        'Assisted the HR Manager with performance management review activities.',
-        'Organized and facilitated onboarding programs and conducted new hire orientation.',
-        'Handled offboarding and employee separation processes.',
-        'Served as the contact point for government matters such as COVID-19 and work pass applications/renewals.',
-        'Managed employee benefits, medical insurance, and conducted briefings on group medical insurance.',
-        'Ensured internal policies were in line with government regulations.',
-        'Acted as the contact point for HR-related audits and supported employee background checks.',
-        'Involved in facilitating GPTW survey and CSAT HR surveys.',
-        'Organized and coordinated employee engagement programs, including Townhalls, Workplace Health Programs, Atos Week Programs, and Awards Presentations.'
-      ]
-    },
-    {
-      title: 'Senior HR Executive',
-      period: 'April 2019 till Mar 2020',
-      company: 'Jardine Engineering Singapore Pte Ltd',
-      responsibilities: [
-        'Identified training and development needs through consultation with business units and job analysis.',
-        'Designed and implemented a training skills framework.',
-        'Collaborated with stakeholders to organize and conduct quarterly staff onboarding programs.',
-        'Managed and coordinated employee orientation for new recruits.',
-        'Initiated and drove graduate recruitment events in collaboration with universities.',
-        'Achieved cost savings by designing in-house recruitment materials.',
-        'Responsible for internship and management trainee programs.',
-        'Acted as liaison with educational institutions for internships and training attachments.',
-        'Handled training-related matters with government agencies, including grants.',
-        'Maintained employees\' training records and calendar, monitored training expenditures, and managed training administration duties.'
-      ]
-    },
-    {
-      title: 'Senior HR Executive',
-      period: 'Feb 2018 till March 2019',
-      company: 'Young Women\'s Christian Association, YWCA',
-      responsibilities: [
-        'Initiated and led recruitment strategies, organizing job fairs in collaboration with WSG and e2i.',
-        'Achieved cost savings by designing in-house recruitment materials.',
-        'Supported 7 departments in manpower hiring and staff matters.',
-        'Reviewed and implemented staff training and development policies.',
-        'Responsible for staff training programs and in-house training facilitation.',
-        'Presented topics on Effective Communication Skills and Customer Service during monthly celebrations.',
-        'Advised department heads on employment laws and staff counseling, conducting multiple counseling sessions.'
-      ]
-    },
-    {
-      title: 'Senior Executive, HR',
-      period: 'Aug 2017 to Feb 2018',
-      company: 'Econ Healthcare Pte Ltd, Specialised in Learning and Development',
-      responsibilities: [
-        'Organized and facilitated orientation programs to align with company objectives.',
-        'Developed and administered training plans to ensure employee skill competency.',
-        'Identified training needs through annual appraisals and collaborated with stakeholders.',
-        'Supported the HR Manager in annual D&D Best Employee Award and Staff Incentive programs.',
-        'Successfully organized staff Christmas celebrations.'
-      ]
-    },
-    {
-      title: 'Senior Executive, HR',
-      period: 'Dec 2016 – Aug 2017',
-      company: '',
-      responsibilities: []
-    },
-    {
-      title: 'Human Resource Executive',
-      period: 'Feb 2012 – Dec 2016',
-      company: '',
-      responsibilities: []
-    }
-  ];
+  const workExpHeaderEnd = docXml.indexOf('WORKING EXPERIENCE');
+  const langSectionStart = docXml.indexOf('LANGUAGE');
 
-  // Replace each template job with actual data or clear it
-  for (let i = 0; i < templateJobs.length; i++) {
-    const templateJob = templateJobs[i];
-    const actualJob = workExperience[i];
+  if (workExpHeaderEnd > 0 && langSectionStart > workExpHeaderEnd) {
+    // Find the end of the WORKING EXPERIENCE header table (</w:tbl> after the header)
+    const afterWorkExpHeader = docXml.substring(workExpHeaderEnd);
+    const tblEndMatch = afterWorkExpHeader.indexOf('</w:tbl>');
+    if (tblEndMatch > 0) {
+      const workExpContentStart = workExpHeaderEnd + tblEndMatch + 8; // 8 = length of '</w:tbl>'
 
-    if (actualJob) {
-      // Replace with actual data
-      docXml = replaceInXml(docXml, templateJob.title, actualJob.title || '');
-      docXml = replaceInXml(docXml, templateJob.period, actualJob.period || '');
-      if (templateJob.company) {
-        docXml = replaceInXml(docXml, templateJob.company, actualJob.company || '');
-      }
+      // Find the start of the LANGUAGE section table (<w:tbl before LANGUAGE)
+      const beforeLang = docXml.substring(0, langSectionStart);
+      const langTblStart = beforeLang.lastIndexOf('<w:tbl');
 
-      // Replace responsibilities
-      const actualResps = actualJob.responsibilities || [];
-      for (let j = 0; j < templateJob.responsibilities.length; j++) {
-        const replacement = actualResps[j] || '';
-        docXml = replaceInXml(docXml, templateJob.responsibilities[j], replacement);
-      }
-    } else {
-      // No actual job for this slot - clear the template data
-      docXml = replaceInXml(docXml, templateJob.title, '');
-      docXml = replaceInXml(docXml, templateJob.period, '');
-      if (templateJob.company) {
-        docXml = replaceInXml(docXml, templateJob.company, '');
-      }
-      for (const resp of templateJob.responsibilities) {
-        docXml = replaceInXml(docXml, resp, '');
+      if (langTblStart > workExpContentStart) {
+        // Build the new work experience content
+        const workExpXml = buildAllWorkExperienceXml(workExperience);
+
+        // Replace the content between the sections
+        const beforeContent = docXml.substring(0, workExpContentStart);
+        const afterContent = docXml.substring(langTblStart);
+
+        docXml = beforeContent + workExpXml + afterContent;
       }
     }
   }
 
-  // ===== REPLACE LANGUAGES - SIMPLE TEXT REPLACEMENT =====
-  // Replace sample language with first language from parsed data
-  if (languages.length > 0) {
-    docXml = replaceInXml(docXml, 'English', languages.join(', '));
+  // ===== REPLACE LANGUAGES - DYNAMIC INJECTION =====
+  // Find and replace the languages section content
+  const langHeaderPos = docXml.indexOf('LANGUAGE');
+  if (langHeaderPos > 0) {
+    // Find the </w:tbl> after LANGUAGE header
+    const afterLangHeader = docXml.substring(langHeaderPos);
+    const langTblEnd = afterLangHeader.indexOf('</w:tbl>');
+
+    if (langTblEnd > 0) {
+      const langContentStart = langHeaderPos + langTblEnd + 8;
+
+      // Find the end of document body or next section
+      const afterLangContent = docXml.substring(langContentStart);
+      // Look for </w:body> or next <w:tbl or <w:sectPr
+      let langContentEnd = afterLangContent.indexOf('</w:body>');
+      const nextTbl = afterLangContent.indexOf('<w:tbl');
+      const sectPr = afterLangContent.indexOf('<w:sectPr');
+
+      if (nextTbl > 0 && (langContentEnd < 0 || nextTbl < langContentEnd)) {
+        langContentEnd = nextTbl;
+      }
+      if (sectPr > 0 && (langContentEnd < 0 || sectPr < langContentEnd)) {
+        langContentEnd = sectPr;
+      }
+
+      if (langContentEnd > 0) {
+        // Build new languages content
+        const languagesXml = buildLanguagesXml(languages);
+
+        // Replace the content
+        const beforeLangContent = docXml.substring(0, langContentStart);
+        const afterLangContentStr = docXml.substring(langContentStart + langContentEnd);
+
+        docXml = beforeLangContent + languagesXml + afterLangContentStr;
+      }
+    }
   }
 
   // Update the document.xml in the zip
