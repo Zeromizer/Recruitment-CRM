@@ -192,6 +192,56 @@ async function markEmailAsRead(accessToken: string, messageId: string): Promise<
   }
 }
 
+// Smart attachment selection: prefer resume over cover letter
+function selectBestAttachment(attachments: EmailAttachment[]): EmailAttachment {
+  if (attachments.length === 1) {
+    return attachments[0];
+  }
+
+  // Keywords that indicate a resume
+  const resumeKeywords = ['resume', 'cv', 'curriculum', 'vitae'];
+  // Keywords that indicate a cover letter (to avoid)
+  const coverLetterKeywords = ['cover', 'letter', 'motivation', 'introduction'];
+
+  // Score each attachment
+  const scored = attachments.map((att) => {
+    const nameLower = att.name.toLowerCase();
+    let score = 0;
+
+    // Check for resume keywords (positive score)
+    for (const keyword of resumeKeywords) {
+      if (nameLower.includes(keyword)) {
+        score += 10;
+        break;
+      }
+    }
+
+    // Check for cover letter keywords (negative score)
+    for (const keyword of coverLetterKeywords) {
+      if (nameLower.includes(keyword)) {
+        score -= 10;
+        break;
+      }
+    }
+
+    // Larger files are more likely to be resumes (add small bonus based on size)
+    // Resumes typically have more content than cover letters
+    score += Math.min(att.size / 100000, 2); // Max 2 points for size
+
+    return { attachment: att, score };
+  });
+
+  // Sort by score (highest first) and return the best one
+  scored.sort((a, b) => b.score - a.score);
+
+  console.log(
+    'Attachment selection:',
+    scored.map((s) => ({ name: s.attachment.name, score: s.score }))
+  );
+
+  return scored[0].attachment;
+}
+
 // Process a single email
 async function processEmail(
   accessToken: string,
@@ -219,8 +269,8 @@ async function processEmail(
     return null;
   }
 
-  // Process the first PDF attachment
-  const pdfAttachment = pdfAttachments[0];
+  // Smart attachment selection: prefer resume over cover letter
+  const pdfAttachment = selectBestAttachment(pdfAttachments);
 
   try {
     // The contentBytes is already base64 encoded from Graph API
