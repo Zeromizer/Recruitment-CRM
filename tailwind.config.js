@@ -52,6 +52,28 @@ export default {
         sans: ['Inter', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
+      animation: {
+        'filter-pulse': 'filter-pulse 2s ease-in-out infinite',
+        'bounce-subtle': 'bounce-subtle 2s ease-in-out infinite',
+      },
+      keyframes: {
+        'filter-pulse': {
+          '0%, 100%': {
+            'box-shadow': '0 0 0 0 rgba(196, 30, 58, 0.4)',
+          },
+          '50%': {
+            'box-shadow': '0 0 0 8px rgba(196, 30, 58, 0)',
+          },
+        },
+        'bounce-subtle': {
+          '0%, 100%': {
+            transform: 'translateY(0)',
+          },
+          '50%': {
+            transform: 'translateY(-2px)',
+          },
+        },
+      },
     },
   },
   plugins: [],

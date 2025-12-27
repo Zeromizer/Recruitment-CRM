@@ -113,14 +113,22 @@ export default function Candidates() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<CandidateStatus | ''>('');
   const [sourceFilter, setSourceFilter] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
   const [minScoreFilter, setMinScoreFilter] = useState<number | ''>('');
   const [showFilters, setShowFilters] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [hasUsedFilters, setHasUsedFilters] = useState(false);
 
   // Get unique sources for filter
   const sources = useMemo(() => {
     const sourceSet = new Set(candidates.map(c => c.source).filter(Boolean));
     return Array.from(sourceSet).sort();
+  }, [candidates]);
+
+  // Get unique roles for filter
+  const roles = useMemo(() => {
+    const roleSet = new Set(candidates.map(c => c.applied_role).filter(Boolean));
+    return Array.from(roleSet).sort() as string[];
   }, [candidates]);
 
   // Filter candidates
@@ -147,6 +155,11 @@ export default function Candidates() {
         return false;
       }
 
+      // Role filter
+      if (roleFilter && candidate.applied_role !== roleFilter) {
+        return false;
+      }
+
       // Minimum score filter
       if (minScoreFilter !== '' && (candidate.ai_score === null || candidate.ai_score < minScoreFilter)) {
         return false;
@@ -154,9 +167,9 @@ export default function Candidates() {
 
       return true;
     });
-  }, [candidates, search, statusFilter, sourceFilter, minScoreFilter]);
+  }, [candidates, search, statusFilter, sourceFilter, roleFilter, minScoreFilter]);
 
-  const hasActiveFilters = statusFilter || sourceFilter || minScoreFilter !== '';
+  const hasActiveFilters = statusFilter || sourceFilter || roleFilter || minScoreFilter !== '';
 
   if (isLoading) {
     return (
@@ -203,14 +216,17 @@ export default function Candidates() {
 
           {/* Filter Toggle */}
           <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`btn-secondary flex items-center gap-2 ${hasActiveFilters ? 'border-cgp-red text-cgp-red' : ''}`}
+            onClick={() => {
+              setShowFilters(!showFilters);
+              setHasUsedFilters(true);
+            }}
+            className={`btn-secondary flex items-center gap-2 ${hasActiveFilters ? 'border-cgp-red text-cgp-red' : ''} ${!hasUsedFilters && !hasActiveFilters ? 'animate-filter-pulse' : ''}`}
           >
-            <Filter className="w-4 h-4" />
+            <Filter className={`w-4 h-4 ${!hasUsedFilters && !hasActiveFilters ? 'animate-bounce-subtle' : ''}`} />
             Filters
             {hasActiveFilters && (
               <span className="w-5 h-5 bg-cgp-red text-white text-xs rounded-full flex items-center justify-center">
-                {(statusFilter ? 1 : 0) + (sourceFilter ? 1 : 0) + (minScoreFilter !== '' ? 1 : 0)}
+                {(statusFilter ? 1 : 0) + (sourceFilter ? 1 : 0) + (roleFilter ? 1 : 0) + (minScoreFilter !== '' ? 1 : 0)}
               </span>
             )}
           </button>
@@ -250,6 +266,21 @@ export default function Candidates() {
                 </select>
               </div>
 
+              {/* Role Filter */}
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-sm text-slate-500 mb-1">Job Role</label>
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="input w-full"
+                >
+                  <option value="">All Roles</option>
+                  {roles.map(role => (
+                    <option key={role} value={role}>{role}</option>
+                  ))}
+                </select>
+              </div>
+
               {/* Minimum Score Filter */}
               <div className="flex-1 min-w-[200px]">
                 <label className="block text-sm text-slate-500 mb-1">Minimum AI Score</label>
@@ -275,6 +306,7 @@ export default function Candidates() {
                     onClick={() => {
                       setStatusFilter('');
                       setSourceFilter('');
+                      setRoleFilter('');
                       setMinScoreFilter('');
                     }}
                     className="btn-secondary flex items-center gap-2"
