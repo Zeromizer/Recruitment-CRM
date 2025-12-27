@@ -102,19 +102,19 @@ function convertManualTask(manualTask: ManualTask, candidates: Candidate[]): Tas
 
 function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: () => void }) {
   const priorityClass = task.isOverdue
-    ? 'border-l-red-500 bg-red-500/5'
+    ? 'border-l-red-500 bg-red-50'
     : task.isDueToday
-      ? 'border-l-amber-500 bg-amber-500/5'
+      ? 'border-l-amber-500 bg-amber-50'
       : task.isDueTomorrow
-        ? 'border-l-blue-500 bg-blue-500/5'
-        : 'border-l-navy-600';
+        ? 'border-l-blue-500 bg-blue-50'
+        : 'border-l-slate-300';
 
   return (
-    <div className={`card p-4 border-l-4 ${priorityClass} hover:bg-navy-800/50 transition-colors`}>
+    <div className={`card p-4 border-l-4 ${priorityClass} hover:shadow-md transition-shadow`}>
       <div className="flex items-start gap-3">
         <button
           onClick={onComplete}
-          className="mt-0.5 text-navy-500 hover:text-green-400 transition-colors"
+          className="mt-0.5 text-slate-400 hover:text-emerald-500 transition-colors"
           title="Mark as complete"
         >
           <Circle className="w-5 h-5" />
@@ -122,9 +122,9 @@ function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: () => void
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className="text-white font-medium">{task.task}</p>
+            <p className="text-slate-800 font-medium">{task.task}</p>
             {task.candidate.ai_score && task.candidate.ai_score >= 8 && (
-              <span className="flex items-center gap-1 text-amber-400 text-sm">
+              <span className="flex items-center gap-1 text-amber-600 text-sm">
                 <Star className="w-4 h-4 fill-amber-400" />
                 {task.candidate.ai_score}/10
               </span>
@@ -134,13 +134,13 @@ function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: () => void
           <div className="flex items-center gap-4 mt-2 text-sm">
             <Link
               to={`/candidates/${task.candidate.id}`}
-              className="flex items-center gap-1 text-coral-400 hover:text-coral-300"
+              className="flex items-center gap-1 text-cgp-red hover:text-cgp-red-dark"
             >
               <User className="w-4 h-4" />
               {task.candidate.full_name}
             </Link>
 
-            <span className="flex items-center gap-1 text-navy-400">
+            <span className="flex items-center gap-1 text-slate-500">
               <Briefcase className="w-4 h-4" />
               {task.candidate.applied_role || 'No role'}
             </span>
@@ -154,9 +154,9 @@ function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: () => void
             )}
 
             <span className={`flex items-center gap-1 text-xs ${
-              task.isOverdue ? 'text-red-400' :
-              task.isDueToday ? 'text-amber-400' :
-              task.isDueTomorrow ? 'text-blue-400' : 'text-navy-400'
+              task.isOverdue ? 'text-red-600' :
+              task.isDueToday ? 'text-amber-600' :
+              task.isDueTomorrow ? 'text-blue-600' : 'text-slate-500'
             }`}>
               <Clock className="w-3 h-3" />
               {task.isOverdue ? 'Overdue' :
@@ -172,7 +172,7 @@ function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: () => void
           {task.candidate.phone && (
             <a
               href={`tel:${task.candidate.phone}`}
-              className="p-2 text-navy-400 hover:text-green-400 hover:bg-navy-700 rounded-lg transition-colors"
+              className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
               title="Call candidate"
             >
               <Phone className="w-4 h-4" />
@@ -181,7 +181,7 @@ function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: () => void
           {task.candidate.email && (
             <a
               href={`mailto:${task.candidate.email}`}
-              className="p-2 text-navy-400 hover:text-white hover:bg-navy-700 rounded-lg transition-colors"
+              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               title="Email candidate"
             >
               <Mail className="w-4 h-4" />
@@ -261,7 +261,7 @@ export default function Tasks() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-coral-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cgp-red"></div>
       </div>
     );
   }
@@ -271,8 +271,8 @@ export default function Tasks() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-3xl text-white">Tasks</h1>
-          <p className="text-navy-400 mt-1">
+          <h1 className="text-3xl font-bold text-slate-800">Tasks</h1>
+          <p className="text-slate-500 mt-1">
             {allTasks.length} task{allTasks.length !== 1 ? 's' : ''} to complete
           </p>
         </div>
@@ -289,60 +289,60 @@ export default function Tasks() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <button
           onClick={() => setFilter('overdue')}
-          className={`card p-4 text-left transition-colors ${filter === 'overdue' ? 'ring-2 ring-red-500' : ''}`}
+          className={`card p-4 text-left transition-all ${filter === 'overdue' ? 'ring-2 ring-red-500 shadow-md' : ''}`}
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center">
-              <AlertCircle className="w-5 h-5 text-red-400" />
+            <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+              <AlertCircle className="w-5 h-5 text-red-600" />
             </div>
             <div>
-              <p className="text-2xl font-semibold text-white">{overdueTasks.length}</p>
-              <p className="text-sm text-navy-400">Overdue</p>
+              <p className="text-2xl font-semibold text-slate-800">{overdueTasks.length}</p>
+              <p className="text-sm text-slate-500">Overdue</p>
             </div>
           </div>
         </button>
 
         <button
           onClick={() => setFilter('today')}
-          className={`card p-4 text-left transition-colors ${filter === 'today' ? 'ring-2 ring-amber-500' : ''}`}
+          className={`card p-4 text-left transition-all ${filter === 'today' ? 'ring-2 ring-amber-500 shadow-md' : ''}`}
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-amber-500/20 rounded-lg flex items-center justify-center">
-              <Clock className="w-5 h-5 text-amber-400" />
+            <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+              <Clock className="w-5 h-5 text-amber-600" />
             </div>
             <div>
-              <p className="text-2xl font-semibold text-white">{todayTasks.length}</p>
-              <p className="text-sm text-navy-400">Due Today</p>
+              <p className="text-2xl font-semibold text-slate-800">{todayTasks.length}</p>
+              <p className="text-sm text-slate-500">Due Today</p>
             </div>
           </div>
         </button>
 
         <button
           onClick={() => setFilter('upcoming')}
-          className={`card p-4 text-left transition-colors ${filter === 'upcoming' ? 'ring-2 ring-blue-500' : ''}`}
+          className={`card p-4 text-left transition-all ${filter === 'upcoming' ? 'ring-2 ring-blue-500 shadow-md' : ''}`}
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
-              <Calendar className="w-5 h-5 text-blue-400" />
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <Calendar className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-2xl font-semibold text-white">{tomorrowTasks.length + upcomingTasks.length}</p>
-              <p className="text-sm text-navy-400">Upcoming</p>
+              <p className="text-2xl font-semibold text-slate-800">{tomorrowTasks.length + upcomingTasks.length}</p>
+              <p className="text-sm text-slate-500">Upcoming</p>
             </div>
           </div>
         </button>
 
         <button
           onClick={() => setFilter('all')}
-          className={`card p-4 text-left transition-colors ${filter === 'all' ? 'ring-2 ring-coral-500' : ''}`}
+          className={`card p-4 text-left transition-all ${filter === 'all' ? 'ring-2 ring-cgp-red shadow-md' : ''}`}
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-coral-500/20 rounded-lg flex items-center justify-center">
-              <FileCheck className="w-5 h-5 text-coral-400" />
+            <div className="w-10 h-10 bg-cgp-red/10 rounded-lg flex items-center justify-center">
+              <FileCheck className="w-5 h-5 text-cgp-red" />
             </div>
             <div>
-              <p className="text-2xl font-semibold text-white">{allTasks.length}</p>
-              <p className="text-sm text-navy-400">All Tasks</p>
+              <p className="text-2xl font-semibold text-slate-800">{allTasks.length}</p>
+              <p className="text-sm text-slate-500">All Tasks</p>
             </div>
           </div>
         </button>
@@ -351,9 +351,9 @@ export default function Tasks() {
       {/* Tasks List */}
       {filteredTasks.length === 0 ? (
         <div className="card p-12 text-center">
-          <CheckCircle2 className="w-12 h-12 text-green-400 mx-auto mb-4" />
-          <p className="text-xl text-white mb-2">All caught up!</p>
-          <p className="text-navy-400">
+          <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
+          <p className="text-xl text-slate-800 mb-2">All caught up!</p>
+          <p className="text-slate-500">
             {filter === 'all'
               ? 'No pending tasks. Click "Add Task" to create one.'
               : `No ${filter} tasks.`}
@@ -373,13 +373,13 @@ export default function Tasks() {
 
       {/* Add Task Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-navy-900 border border-navy-700 rounded-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-6 border-b border-navy-700">
-              <h2 className="font-display text-xl text-white">Add Task</h2>
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-slate-200 rounded-xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+              <h2 className="text-xl font-semibold text-slate-800">Add Task</h2>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="text-navy-400 hover:text-white transition-colors"
+                className="text-slate-400 hover:text-slate-600 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -388,8 +388,8 @@ export default function Tasks() {
             <div className="p-6 space-y-4">
               {/* Candidate Select */}
               <div>
-                <label className="block text-sm text-navy-400 mb-1">
-                  Candidate <span className="text-coral-400">*</span>
+                <label className="block text-sm text-slate-500 mb-1">
+                  Candidate <span className="text-cgp-red">*</span>
                 </label>
                 <select
                   value={newTask.candidateId}
@@ -407,8 +407,8 @@ export default function Tasks() {
 
               {/* Task Description */}
               <div>
-                <label className="block text-sm text-navy-400 mb-1">
-                  Task <span className="text-coral-400">*</span>
+                <label className="block text-sm text-slate-500 mb-1">
+                  Task <span className="text-cgp-red">*</span>
                 </label>
                 <input
                   type="text"
@@ -421,8 +421,8 @@ export default function Tasks() {
 
               {/* Due Date */}
               <div>
-                <label className="block text-sm text-navy-400 mb-1">
-                  Due Date <span className="text-coral-400">*</span>
+                <label className="block text-sm text-slate-500 mb-1">
+                  Due Date <span className="text-cgp-red">*</span>
                 </label>
                 <input
                   type="date"
@@ -434,7 +434,7 @@ export default function Tasks() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 p-6 border-t border-navy-700">
+            <div className="flex justify-end gap-3 p-6 border-t border-slate-200">
               <button
                 onClick={() => setShowAddModal(false)}
                 className="btn-secondary"

@@ -187,9 +187,9 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
   };
 
   const getScoreColor = (score: number): string => {
-    if (score >= 8) return 'text-emerald-400';
-    if (score >= 6) return 'text-amber-400';
-    return 'text-red-400';
+    if (score >= 8) return 'text-emerald-600';
+    if (score >= 6) return 'text-amber-600';
+    return 'text-red-600';
   };
 
   const getRecommendationBadge = (recommendation: string) => {
@@ -204,14 +204,14 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-navy-900 border border-navy-700 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-navy-800">
-          <h2 className="font-display text-xl text-white">Add Candidate</h2>
+        <div className="flex items-center justify-between p-6 border-b border-slate-200">
+          <h2 className="text-xl font-semibold text-slate-800">Add Candidate</h2>
           <button
             onClick={handleClose}
-            className="text-navy-400 hover:text-white transition-colors"
+            className="text-slate-400 hover:text-slate-600 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -221,7 +221,7 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
         <div className="p-6 space-y-6">
           {/* Source Selection */}
           <div>
-            <label className="block text-sm font-medium text-navy-300 mb-2">
+            <label className="block text-sm font-medium text-slate-600 mb-2">
               Source
             </label>
             <select
@@ -240,7 +240,7 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
 
           {/* Email Subject */}
           <div>
-            <label className="block text-sm font-medium text-navy-300 mb-2">
+            <label className="block text-sm font-medium text-slate-600 mb-2">
               Email Subject / Application Title
             </label>
             <input
@@ -251,14 +251,14 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
               className="input w-full"
               disabled={step !== 'idle' && step !== 'error'}
             />
-            <p className="text-xs text-navy-500 mt-1">
+            <p className="text-xs text-slate-400 mt-1">
               This helps the AI match the candidate to the right job role
             </p>
           </div>
 
           {/* File Upload */}
           <div>
-            <label className="block text-sm font-medium text-navy-300 mb-2">
+            <label className="block text-sm font-medium text-slate-600 mb-2">
               Resume (PDF)
             </label>
             <div
@@ -267,8 +267,8 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
               onClick={() => fileInputRef.current?.click()}
               className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
                 file
-                  ? 'border-coral-500 bg-coral-500/10'
-                  : 'border-navy-700 hover:border-navy-500'
+                  ? 'border-cgp-red bg-cgp-red/5'
+                  : 'border-slate-300 hover:border-slate-400'
               }`}
             >
               <input
@@ -281,18 +281,18 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
               />
               {file ? (
                 <div className="flex items-center justify-center gap-3">
-                  <FileText className="w-8 h-8 text-coral-400" />
+                  <FileText className="w-8 h-8 text-cgp-red" />
                   <div className="text-left">
-                    <p className="text-white font-medium">{file.name}</p>
-                    <p className="text-sm text-navy-400">
+                    <p className="text-slate-800 font-medium">{file.name}</p>
+                    <p className="text-sm text-slate-500">
                       {(file.size / 1024).toFixed(1)} KB
                     </p>
                   </div>
                 </div>
               ) : (
                 <>
-                  <Upload className="w-8 h-8 mx-auto text-navy-500 mb-2" />
-                  <p className="text-navy-400">
+                  <Upload className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+                  <p className="text-slate-500">
                     Drop a PDF resume here or click to browse
                   </p>
                 </>
@@ -302,17 +302,17 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
 
           {/* Error Message */}
           {error && (
-            <div className="flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-              <p className="text-red-400 text-sm">{error}</p>
+            <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <p className="text-red-700 text-sm">{error}</p>
             </div>
           )}
 
           {/* Progress Indicator */}
           {step !== 'idle' && step !== 'error' && step !== 'complete' && (
-            <div className="flex items-center gap-3 p-4 bg-navy-800 rounded-lg">
-              <Loader2 className="w-5 h-5 text-coral-400 animate-spin" />
-              <p className="text-navy-300">
+            <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg border border-slate-100">
+              <Loader2 className="w-5 h-5 text-cgp-red animate-spin" />
+              <p className="text-slate-600">
                 {step === 'uploading' && 'Reading PDF...'}
                 {step === 'fetching_roles' && 'Fetching job roles...'}
                 {step === 'screening' && 'AI is analyzing the resume...'}
@@ -323,20 +323,20 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
           {/* Screening Result */}
           {step === 'complete' && result && (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-emerald-400">
+              <div className="flex items-center gap-2 text-emerald-600">
                 <CheckCircle className="w-5 h-5" />
                 <span className="font-medium">Screening Complete</span>
               </div>
 
-              <div className="bg-navy-800 rounded-lg p-4 space-y-4">
+              <div className="bg-slate-50 rounded-lg p-4 space-y-4 border border-slate-100">
                 {/* Candidate Info */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-navy-500 uppercase">Name</p>
-                    <p className="text-white font-medium">{result.candidate_name}</p>
+                    <p className="text-xs text-slate-400 uppercase">Name</p>
+                    <p className="text-slate-800 font-medium">{result.candidate_name}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-navy-500 uppercase">Score</p>
+                    <p className="text-xs text-slate-400 uppercase">Score</p>
                     <div className={`flex items-center gap-1 ${getScoreColor(result.score)}`}>
                       <Star className="w-4 h-4" />
                       <span className="font-bold text-lg">{result.score}/10</span>
@@ -346,36 +346,36 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-navy-500 uppercase">Email</p>
-                    <p className="text-navy-200">{result.candidate_email || 'Not found'}</p>
+                    <p className="text-xs text-slate-400 uppercase">Email</p>
+                    <p className="text-slate-700">{result.candidate_email || 'Not found'}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-navy-500 uppercase">Phone</p>
-                    <p className="text-navy-200">{result.candidate_phone || 'Not found'}</p>
+                    <p className="text-xs text-slate-400 uppercase">Phone</p>
+                    <p className="text-slate-700">{result.candidate_phone || 'Not found'}</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-navy-500 uppercase">Matched Role</p>
-                    <p className="text-navy-200">{result.job_matched}</p>
+                    <p className="text-xs text-slate-400 uppercase">Matched Role</p>
+                    <p className="text-slate-700">{result.job_matched}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-navy-500 uppercase">Citizenship</p>
-                    <p className="text-navy-200">{result.citizenship_status}</p>
+                    <p className="text-xs text-slate-400 uppercase">Citizenship</p>
+                    <p className="text-slate-700">{result.citizenship_status}</p>
                   </div>
                 </div>
 
                 <div>
-                  <p className="text-xs text-navy-500 uppercase mb-1">Recommendation</p>
+                  <p className="text-xs text-slate-400 uppercase mb-1">Recommendation</p>
                   <span className={`badge ${getRecommendationBadge(result.recommendation)}`}>
                     {result.recommendation}
                   </span>
                 </div>
 
                 <div>
-                  <p className="text-xs text-navy-500 uppercase mb-1">Summary</p>
-                  <p className="text-navy-300 text-sm">{result.summary}</p>
+                  <p className="text-xs text-slate-400 uppercase mb-1">Summary</p>
+                  <p className="text-slate-600 text-sm">{result.summary}</p>
                 </div>
               </div>
             </div>
@@ -383,7 +383,7 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-navy-800">
+        <div className="flex items-center justify-end gap-3 p-6 border-t border-slate-200">
           <button
             onClick={handleClose}
             className="btn-secondary"

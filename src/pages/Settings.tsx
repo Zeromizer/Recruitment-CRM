@@ -49,7 +49,7 @@ function CopyButton({ text }: { text: string }) {
     >
       {copied ? (
         <>
-          <CheckCircle className="w-4 h-4 text-emerald-400" />
+          <CheckCircle className="w-4 h-4 text-emerald-600" />
           Copied!
         </>
       ) : (
@@ -219,30 +219,30 @@ export default function Settings() {
     <div className="space-y-8 max-w-4xl">
       {/* Header */}
       <div>
-        <h1 className="font-display text-3xl text-white">Settings</h1>
-        <p className="text-navy-400 mt-1">
+        <h1 className="text-3xl font-bold text-slate-800">Settings</h1>
+        <p className="text-slate-500 mt-1">
           Configure your CRM and view integration details
         </p>
       </div>
 
       {/* Email Monitoring */}
       <div className="card p-6">
-        <h2 className="font-display text-lg text-white flex items-center gap-2 mb-4">
-          <Mail className="w-5 h-5 text-blue-400" />
+        <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2 mb-4">
+          <Mail className="w-5 h-5 text-blue-500" />
           Email Monitoring
         </h2>
-        <p className="text-navy-400 mb-6">
+        <p className="text-slate-500 mb-6">
           Automatically monitor your Outlook inbox for job applications and process them with AI screening.
         </p>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-2">
-            <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-red-400 text-sm">{error}</p>
+              <p className="text-red-700 text-sm">{error}</p>
               <button
                 onClick={() => setError(null)}
-                className="text-xs text-red-400/70 hover:text-red-400 mt-1"
+                className="text-xs text-red-500 hover:text-red-700 mt-1"
               >
                 Dismiss
               </button>
@@ -252,26 +252,26 @@ export default function Settings() {
 
         {/* Connection Status */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-navy-800/50 rounded-lg">
+          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100">
             <div className="flex items-center gap-4">
               {monitoringStatus.isConnected ? (
                 <>
-                  <div className="w-12 h-12 bg-emerald-500/10 rounded-lg flex items-center justify-center">
-                    <CheckCircle className="w-6 h-6 text-emerald-400" />
+                  <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
+                    <CheckCircle className="w-6 h-6 text-emerald-600" />
                   </div>
                   <div>
-                    <p className="text-white font-medium">Connected to Outlook</p>
-                    <p className="text-sm text-navy-400">{tokenInfo?.email}</p>
+                    <p className="text-slate-800 font-medium">Connected to Outlook</p>
+                    <p className="text-sm text-slate-500">{tokenInfo?.email}</p>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="w-12 h-12 bg-navy-700 rounded-lg flex items-center justify-center">
-                    <Mail className="w-6 h-6 text-navy-400" />
+                  <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center">
+                    <Mail className="w-6 h-6 text-slate-400" />
                   </div>
                   <div>
-                    <p className="text-white font-medium">Not Connected</p>
-                    <p className="text-sm text-navy-400">Connect your Outlook account to enable auto-monitoring</p>
+                    <p className="text-slate-800 font-medium">Not Connected</p>
+                    <p className="text-sm text-slate-500">Connect your Outlook account to enable auto-monitoring</p>
                   </div>
                 </>
               )}
@@ -280,7 +280,7 @@ export default function Settings() {
             {monitoringStatus.isConnected ? (
               <button
                 onClick={handleDisconnect}
-                className="btn-secondary text-red-400 border-red-500/30 hover:bg-red-500/10"
+                className="btn-secondary text-red-600 border-red-200 hover:bg-red-50"
               >
                 Disconnect
               </button>
@@ -308,18 +308,18 @@ export default function Settings() {
           {/* Monitoring Toggle */}
           {monitoringStatus.isConnected && (
             <>
-              <div className="flex items-center justify-between p-4 bg-navy-800/50 rounded-lg">
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100">
                 <div className="flex items-center gap-4">
                   <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                    monitoringStatus.isEnabled ? 'bg-emerald-500/10' : 'bg-navy-700'
+                    monitoringStatus.isEnabled ? 'bg-emerald-100' : 'bg-slate-100'
                   }`}>
                     <Power className={`w-6 h-6 ${
-                      monitoringStatus.isEnabled ? 'text-emerald-400' : 'text-navy-400'
+                      monitoringStatus.isEnabled ? 'text-emerald-600' : 'text-slate-400'
                     }`} />
                   </div>
                   <div>
-                    <p className="text-white font-medium">Auto-Monitoring</p>
-                    <p className="text-sm text-navy-400">
+                    <p className="text-slate-800 font-medium">Auto-Monitoring</p>
+                    <p className="text-sm text-slate-500">
                       {monitoringStatus.isEnabled
                         ? 'Checking inbox every 30 seconds'
                         : 'Disabled - emails won\'t be processed automatically'}
@@ -330,11 +330,11 @@ export default function Settings() {
                 <button
                   onClick={handleToggleMonitoring}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    monitoringStatus.isEnabled ? 'bg-emerald-500' : 'bg-navy-600'
+                    monitoringStatus.isEnabled ? 'bg-emerald-500' : 'bg-slate-300'
                   }`}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
                       monitoringStatus.isEnabled ? 'translate-x-6' : 'translate-x-1'
                     }`}
                   />
@@ -343,32 +343,32 @@ export default function Settings() {
 
               {/* Status Info */}
               <div className="grid grid-cols-3 gap-4">
-                <div className="p-4 bg-navy-800/50 rounded-lg text-center">
-                  <p className="text-2xl font-bold text-white">{monitoringStatus.processedCount}</p>
-                  <p className="text-sm text-navy-400">Emails Processed</p>
+                <div className="p-4 bg-slate-50 rounded-lg border border-slate-100 text-center">
+                  <p className="text-2xl font-bold text-slate-800">{monitoringStatus.processedCount}</p>
+                  <p className="text-sm text-slate-500">Emails Processed</p>
                 </div>
-                <div className="p-4 bg-navy-800/50 rounded-lg text-center">
-                  <p className="text-lg font-medium text-white">
+                <div className="p-4 bg-slate-50 rounded-lg border border-slate-100 text-center">
+                  <p className="text-lg font-medium text-slate-800">
                     {monitoringStatus.lastCheck
                       ? formatDistanceToNow(new Date(monitoringStatus.lastCheck), { addSuffix: true })
                       : 'Never'}
                   </p>
-                  <p className="text-sm text-navy-400">Last Check</p>
+                  <p className="text-sm text-slate-500">Last Check</p>
                 </div>
-                <div className="p-4 bg-navy-800/50 rounded-lg text-center">
-                  <p className="text-lg font-medium text-white flex items-center justify-center gap-2">
+                <div className="p-4 bg-slate-50 rounded-lg border border-slate-100 text-center">
+                  <p className="text-lg font-medium text-slate-800 flex items-center justify-center gap-2">
                     {monitoringStatus.isPolling ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin text-coral-400" />
+                        <Loader2 className="w-4 h-4 animate-spin text-cgp-red" />
                         Checking...
                       </>
                     ) : monitoringStatus.isEnabled ? (
-                      <span className="text-emerald-400">Active</span>
+                      <span className="text-emerald-600">Active</span>
                     ) : (
-                      <span className="text-navy-400">Paused</span>
+                      <span className="text-slate-400">Paused</span>
                     )}
                   </p>
-                  <p className="text-sm text-navy-400">Status</p>
+                  <p className="text-sm text-slate-500">Status</p>
                 </div>
               </div>
 
@@ -385,12 +385,12 @@ export default function Settings() {
               {/* Recent Processed Emails */}
               {recentProcessed.length > 0 && (
                 <div className="mt-4">
-                  <p className="text-sm font-medium text-navy-300 mb-2">Recently Processed</p>
+                  <p className="text-sm font-medium text-slate-600 mb-2">Recently Processed</p>
                   <div className="space-y-2">
                     {recentProcessed.map((processed, index) => (
-                      <div key={index} className="p-3 bg-navy-800/30 rounded-lg text-sm">
+                      <div key={index} className="p-3 bg-slate-50 rounded-lg border border-slate-100 text-sm">
                         <div className="flex items-center justify-between">
-                          <p className="text-white font-medium">{processed.screeningResult.candidate_name}</p>
+                          <p className="text-slate-800 font-medium">{processed.screeningResult.candidate_name}</p>
                           <span className={`badge ${
                             processed.screeningResult.recommendation === 'Top Candidate' ? 'badge-success' :
                             processed.screeningResult.recommendation === 'Review' ? 'badge-warning' : 'badge-error'
@@ -398,7 +398,7 @@ export default function Settings() {
                             {processed.screeningResult.score}/10
                           </span>
                         </div>
-                        <p className="text-navy-400 truncate">{processed.subject}</p>
+                        <p className="text-slate-500 truncate">{processed.subject}</p>
                       </div>
                     ))}
                   </div>
@@ -410,27 +410,27 @@ export default function Settings() {
 
         {/* Configuration Note */}
         {!isMicrosoftConfigured() && (
-          <div className="mt-6 p-4 bg-navy-800/50 rounded-lg">
-            <p className="text-sm text-navy-300 mb-3">
-              To enable email monitoring, add Microsoft OAuth credentials to your <code className="text-coral-400">.env</code> file:
+          <div className="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-100">
+            <p className="text-sm text-slate-600 mb-3">
+              To enable email monitoring, add Microsoft OAuth credentials to your <code className="text-cgp-red">.env</code> file:
             </p>
-            <pre className="text-sm font-mono bg-navy-900 p-4 rounded-lg overflow-x-auto">
-              <code className="text-navy-200">
+            <pre className="text-sm font-mono bg-white p-4 rounded-lg overflow-x-auto border border-slate-200">
+              <code className="text-slate-700">
 {`VITE_MICROSOFT_CLIENT_ID=your-client-id
 VITE_MICROSOFT_TENANT_ID=common`}
               </code>
             </pre>
-            <p className="text-xs text-navy-500 mt-3">
+            <p className="text-xs text-slate-400 mt-3">
               Register an app at{' '}
               <a
                 href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-coral-400 hover:underline"
+                className="text-cgp-red hover:underline"
               >
                 Azure Portal
               </a>{' '}
-              with redirect URI: <code className="text-coral-400">{window.location.origin}/auth/callback</code>
+              with redirect URI: <code className="text-cgp-red">{window.location.origin}/auth/callback</code>
             </p>
           </div>
         )}
@@ -438,31 +438,31 @@ VITE_MICROSOFT_TENANT_ID=common`}
 
       {/* Connection Status */}
       <div className="card p-6">
-        <h2 className="font-display text-lg text-white flex items-center gap-2 mb-4">
-          <Database className="w-5 h-5 text-blue-400" />
+        <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2 mb-4">
+          <Database className="w-5 h-5 text-blue-500" />
           Supabase Connection
         </h2>
         <div className="flex items-center gap-4">
           {isSupabaseConfigured ? (
             <>
-              <div className="w-12 h-12 bg-emerald-500/10 rounded-lg flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-emerald-400" />
+              <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-emerald-600" />
               </div>
               <div>
-                <p className="text-white font-medium">Connected</p>
-                <p className="text-sm text-navy-400">
+                <p className="text-slate-800 font-medium">Connected</p>
+                <p className="text-sm text-slate-500">
                   Database is configured and ready
                 </p>
               </div>
             </>
           ) : (
             <>
-              <div className="w-12 h-12 bg-amber-500/10 rounded-lg flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-amber-400" />
+              <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-amber-600" />
               </div>
               <div>
-                <p className="text-white font-medium">Using Demo Data</p>
-                <p className="text-sm text-navy-400">
+                <p className="text-slate-800 font-medium">Using Demo Data</p>
+                <p className="text-sm text-slate-500">
                   Configure environment variables to connect to Supabase
                 </p>
               </div>
@@ -471,13 +471,13 @@ VITE_MICROSOFT_TENANT_ID=common`}
         </div>
 
         {!isSupabaseConfigured && (
-          <div className="mt-6 p-4 bg-navy-800/50 rounded-lg">
-            <p className="text-sm text-navy-300 mb-3">
-              To connect to Supabase, create a <code className="text-coral-400">.env</code> file
+          <div className="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-100">
+            <p className="text-sm text-slate-600 mb-3">
+              To connect to Supabase, create a <code className="text-cgp-red">.env</code> file
               with the following variables:
             </p>
-            <pre className="text-sm font-mono bg-navy-900 p-4 rounded-lg overflow-x-auto">
-              <code className="text-navy-200">
+            <pre className="text-sm font-mono bg-white p-4 rounded-lg overflow-x-auto border border-slate-200">
+              <code className="text-slate-700">
 {`VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key`}
               </code>
@@ -488,21 +488,21 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}
 
       {/* Power Automate Webhook */}
       <div className="card p-6">
-        <h2 className="font-display text-lg text-white flex items-center gap-2 mb-4">
-          <Webhook className="w-5 h-5 text-purple-400" />
+        <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2 mb-4">
+          <Webhook className="w-5 h-5 text-purple-500" />
           Power Automate Integration
         </h2>
-        <p className="text-navy-400 mb-4">
+        <p className="text-slate-500 mb-4">
           Use this endpoint to POST new candidates from your Power Automate workflow:
         </p>
-        <div className="flex items-center gap-3 p-3 bg-navy-800/50 rounded-lg">
-          <code className="text-sm font-mono text-coral-400 flex-1 break-all">
+        <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+          <code className="text-sm font-mono text-cgp-red flex-1 break-all">
             POST {webhookUrl}
           </code>
           {isSupabaseConfigured && (
             <button
               onClick={() => navigator.clipboard.writeText(webhookUrl)}
-              className="text-navy-400 hover:text-white transition-colors"
+              className="text-slate-400 hover:text-slate-600 transition-colors"
             >
               <Copy className="w-4 h-4" />
             </button>
@@ -510,9 +510,9 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}
         </div>
 
         <div className="mt-6">
-          <p className="text-sm text-navy-400 mb-3">Required headers:</p>
-          <pre className="text-sm font-mono bg-navy-900 p-4 rounded-lg overflow-x-auto">
-            <code className="text-navy-200">
+          <p className="text-sm text-slate-500 mb-3">Required headers:</p>
+          <pre className="text-sm font-mono bg-white p-4 rounded-lg overflow-x-auto border border-slate-200">
+            <code className="text-slate-700">
 {`apikey: {your-supabase-anon-key}
 Authorization: Bearer {your-supabase-anon-key}
 Content-Type: application/json
@@ -522,9 +522,9 @@ Prefer: return=representation`}
         </div>
 
         <div className="mt-6">
-          <p className="text-sm text-navy-400 mb-3">Example request body:</p>
-          <pre className="text-sm font-mono bg-navy-900 p-4 rounded-lg overflow-x-auto">
-            <code className="text-navy-200">
+          <p className="text-sm text-slate-500 mb-3">Example request body:</p>
+          <pre className="text-sm font-mono bg-white p-4 rounded-lg overflow-x-auto border border-slate-200">
+            <code className="text-slate-700">
 {`{
   "full_name": "John Doe",
   "email": "john.doe@email.com",
@@ -547,57 +547,57 @@ Prefer: return=representation`}
       {/* Database Schema */}
       <div className="card p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-display text-lg text-white flex items-center gap-2">
-            <Code className="w-5 h-5 text-emerald-400" />
+          <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+            <Code className="w-5 h-5 text-emerald-500" />
             Database Schema
           </h2>
           <CopyButton text={DATABASE_SCHEMA_SQL} />
         </div>
-        <p className="text-navy-400 mb-4">
+        <p className="text-slate-500 mb-4">
           Run this SQL in your Supabase SQL Editor to create the required tables:
         </p>
-        <pre className="text-xs font-mono bg-navy-900 p-4 rounded-lg overflow-x-auto max-h-96">
-          <code className="text-navy-200">{DATABASE_SCHEMA_SQL}</code>
+        <pre className="text-xs font-mono bg-white p-4 rounded-lg overflow-x-auto max-h-96 border border-slate-200">
+          <code className="text-slate-700">{DATABASE_SCHEMA_SQL}</code>
         </pre>
       </div>
 
       {/* User Profile */}
       <div className="card p-6">
-        <h2 className="font-display text-lg text-white flex items-center gap-2 mb-4">
-          <User className="w-5 h-5 text-coral-400" />
+        <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2 mb-4">
+          <User className="w-5 h-5 text-cgp-red" />
           User Profile
         </h2>
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-navy-700 rounded-full flex items-center justify-center">
+          <div className="w-16 h-16 bg-cgp-red rounded-full flex items-center justify-center shadow-md">
             <span className="text-xl font-medium text-white">S</span>
           </div>
           <div>
-            <p className="text-white font-medium text-lg">Shawn</p>
-            <p className="text-navy-400">Cornerstone Global Partners</p>
-            <p className="text-sm text-navy-500 mt-1">Recruiter</p>
+            <p className="text-slate-800 font-medium text-lg">Shawn</p>
+            <p className="text-slate-500">CGP Personnel</p>
+            <p className="text-sm text-slate-400 mt-1">Recruiter</p>
           </div>
         </div>
       </div>
 
       {/* App Info */}
       <div className="card p-6">
-        <h2 className="font-display text-lg text-white mb-4">About</h2>
+        <h2 className="text-lg font-semibold text-slate-800 mb-4">About</h2>
         <dl className="space-y-3 text-sm">
           <div className="flex justify-between">
-            <dt className="text-navy-400">Application</dt>
-            <dd className="text-navy-200">Recruiter CRM</dd>
+            <dt className="text-slate-500">Application</dt>
+            <dd className="text-slate-700">CGP Personnel CRM</dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-navy-400">Version</dt>
-            <dd className="text-navy-200">1.0.0</dd>
+            <dt className="text-slate-500">Version</dt>
+            <dd className="text-slate-700">1.0.0</dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-navy-400">Tech Stack</dt>
-            <dd className="text-navy-200">React + TypeScript + Supabase</dd>
+            <dt className="text-slate-500">Tech Stack</dt>
+            <dd className="text-slate-700">React + TypeScript + Supabase</dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-navy-400">Mode</dt>
-            <dd className="text-navy-200">
+            <dt className="text-slate-500">Mode</dt>
+            <dd className="text-slate-700">
               {isSupabaseConfigured ? 'Production' : 'Demo Mode'}
             </dd>
           </div>

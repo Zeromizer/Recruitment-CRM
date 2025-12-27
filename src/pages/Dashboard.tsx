@@ -19,29 +19,29 @@ function MetricCard({
   value,
   icon: Icon,
   trend,
-  color = 'coral',
+  color = 'red',
 }: {
   title: string;
   value: string | number;
   icon: React.ElementType;
   trend?: string;
-  color?: 'coral' | 'emerald' | 'blue' | 'amber';
+  color?: 'red' | 'emerald' | 'blue' | 'amber';
 }) {
   const colorClasses = {
-    coral: 'bg-coral-500/10 text-coral-400',
-    emerald: 'bg-emerald-500/10 text-emerald-400',
-    blue: 'bg-blue-500/10 text-blue-400',
-    amber: 'bg-amber-500/10 text-amber-400',
+    red: 'bg-cgp-red/10 text-cgp-red',
+    emerald: 'bg-emerald-100 text-emerald-600',
+    blue: 'bg-blue-100 text-blue-600',
+    amber: 'bg-amber-100 text-amber-600',
   };
 
   return (
     <div className="card p-6">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm text-navy-400">{title}</p>
-          <p className="text-3xl font-semibold text-white mt-1">{value}</p>
+          <p className="text-sm text-slate-500">{title}</p>
+          <p className="text-3xl font-semibold text-slate-800 mt-1">{value}</p>
           {trend && (
-            <p className="text-sm text-emerald-400 mt-2 flex items-center gap-1">
+            <p className="text-sm text-emerald-600 mt-2 flex items-center gap-1">
               <TrendingUp className="w-4 h-4" />
               {trend}
             </p>
@@ -59,20 +59,20 @@ function FollowUpCard({ candidate }: { candidate: Candidate }) {
   return (
     <Link
       to={`/candidates/${candidate.id}`}
-      className="flex items-center justify-between p-4 bg-navy-800/50 rounded-lg hover:bg-navy-800 transition-colors"
+      className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors border border-slate-100"
     >
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-navy-700 rounded-full flex items-center justify-center">
+        <div className="w-10 h-10 bg-cgp-red rounded-full flex items-center justify-center shadow-sm">
           <span className="text-sm font-medium text-white">
             {candidate.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
           </span>
         </div>
         <div>
-          <p className="text-white font-medium">{candidate.full_name}</p>
-          <p className="text-sm text-navy-400">{candidate.next_action}</p>
+          <p className="text-slate-800 font-medium">{candidate.full_name}</p>
+          <p className="text-sm text-slate-500">{candidate.next_action}</p>
         </div>
       </div>
-      <ChevronRight className="w-5 h-5 text-navy-500" />
+      <ChevronRight className="w-5 h-5 text-slate-400" />
     </Link>
   );
 }
@@ -81,15 +81,15 @@ function InterviewCard({ interview }: { interview: Interview }) {
   return (
     <Link
       to={`/candidates/${interview.candidate_id}`}
-      className="flex items-center justify-between p-4 bg-navy-800/50 rounded-lg hover:bg-navy-800 transition-colors"
+      className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors border border-slate-100"
     >
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
-          <Calendar className="w-5 h-5 text-blue-400" />
+        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+          <Calendar className="w-5 h-5 text-blue-600" />
         </div>
         <div>
-          <p className="text-white font-medium">{interview.candidate_name}</p>
-          <p className="text-sm text-navy-400">
+          <p className="text-slate-800 font-medium">{interview.candidate_name}</p>
+          <p className="text-sm text-slate-500">
             {interview.client_company} • {interview.interview_time}
           </p>
         </div>
@@ -100,7 +100,7 @@ function InterviewCard({ interview }: { interview: Interview }) {
         ) : (
           <span className="badge badge-warning">Pending</span>
         )}
-        <ChevronRight className="w-5 h-5 text-navy-500" />
+        <ChevronRight className="w-5 h-5 text-slate-400" />
       </div>
     </Link>
   );
@@ -110,15 +110,15 @@ function PlacementCard({ candidate }: { candidate: Candidate }) {
   return (
     <Link
       to={`/candidates/${candidate.id}`}
-      className="flex items-center justify-between p-4 bg-navy-800/50 rounded-lg hover:bg-navy-800 transition-colors"
+      className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors border border-slate-100"
     >
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-emerald-500/10 rounded-lg flex items-center justify-center">
-          <Briefcase className="w-5 h-5 text-emerald-400" />
+        <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+          <Briefcase className="w-5 h-5 text-emerald-600" />
         </div>
         <div>
-          <p className="text-white font-medium">{candidate.full_name}</p>
-          <p className="text-sm text-navy-400">
+          <p className="text-slate-800 font-medium">{candidate.full_name}</p>
+          <p className="text-sm text-slate-500">
             Starting at {candidate.client_submitted_to}
           </p>
         </div>
@@ -131,7 +131,7 @@ function PlacementCard({ candidate }: { candidate: Candidate }) {
 function SourceChart({ data }: { data: { source: string; count: number }[] }) {
   const total = data.reduce((sum, d) => sum + d.count, 0);
   const colors = [
-    'bg-coral-500',
+    'bg-cgp-red',
     'bg-blue-500',
     'bg-emerald-500',
     'bg-amber-500',
@@ -141,15 +141,15 @@ function SourceChart({ data }: { data: { source: string; count: number }[] }) {
 
   return (
     <div className="card p-6">
-      <h3 className="font-display text-lg text-white mb-4">Source Breakdown</h3>
+      <h3 className="text-lg font-semibold text-slate-800 mb-4">Source Breakdown</h3>
       <div className="space-y-4">
         {data.slice(0, 5).map((item, index) => (
           <div key={item.source}>
             <div className="flex items-center justify-between text-sm mb-1">
-              <span className="text-navy-300">{item.source}</span>
-              <span className="text-white">{item.count}</span>
+              <span className="text-slate-600">{item.source}</span>
+              <span className="text-slate-800 font-medium">{item.count}</span>
             </div>
-            <div className="h-2 bg-navy-800 rounded-full overflow-hidden">
+            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
               <div
                 className={`h-full ${colors[index % colors.length]} rounded-full transition-all`}
                 style={{ width: `${(item.count / total) * 100}%` }}
@@ -167,14 +167,14 @@ function PipelineFunnel({ data }: { data: { stage: string; count: number }[] }) 
 
   return (
     <div className="card p-6">
-      <h3 className="font-display text-lg text-white mb-4">Pipeline Funnel</h3>
+      <h3 className="text-lg font-semibold text-slate-800 mb-4">Pipeline Funnel</h3>
       <div className="space-y-3">
         {data.map((item) => (
           <div key={item.stage} className="flex items-center gap-4">
-            <div className="w-24 text-sm text-navy-400 text-right">{item.stage}</div>
-            <div className="flex-1 h-8 bg-navy-800 rounded-lg overflow-hidden flex items-center">
+            <div className="w-24 text-sm text-slate-500 text-right">{item.stage}</div>
+            <div className="flex-1 h-8 bg-slate-100 rounded-lg overflow-hidden flex items-center">
               <div
-                className="h-full bg-gradient-to-r from-coral-500 to-coral-600 rounded-lg flex items-center justify-end pr-3"
+                className="h-full bg-gradient-to-r from-cgp-red to-cgp-red-dark rounded-lg flex items-center justify-end pr-3"
                 style={{
                   width: `${Math.max((item.count / maxCount) * 100, 15)}%`,
                   minWidth: '40px',
@@ -200,7 +200,7 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-coral-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cgp-red"></div>
       </div>
     );
   }
@@ -208,7 +208,7 @@ export default function Dashboard() {
   if (!metrics) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-navy-400">Unable to load dashboard data</p>
+        <p className="text-slate-500">Unable to load dashboard data</p>
       </div>
     );
   }
@@ -217,8 +217,8 @@ export default function Dashboard() {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="font-display text-3xl text-white">Dashboard</h1>
-        <p className="text-navy-400 mt-1">
+        <h1 className="text-3xl font-bold text-slate-800">Dashboard</h1>
+        <p className="text-slate-500 mt-1">
           {format(new Date(), 'EEEE, MMMM d, yyyy')}
         </p>
       </div>
@@ -229,7 +229,7 @@ export default function Dashboard() {
           title="Total Candidates"
           value={metrics.totalCandidates}
           icon={Users}
-          color="coral"
+          color="red"
         />
         <MetricCard
           title="New This Week"
@@ -259,11 +259,11 @@ export default function Dashboard() {
           {/* Today's Interviews */}
           <div className="card p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display text-lg text-white flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-blue-400" />
+              <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-blue-500" />
                 Today's Interviews
               </h3>
-              <Link to="/interviews" className="text-sm text-coral-400 hover:text-coral-300">
+              <Link to="/interviews" className="text-sm text-cgp-red hover:text-cgp-red-dark">
                 View all
               </Link>
             </div>
@@ -274,7 +274,7 @@ export default function Dashboard() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-navy-400">
+              <div className="text-center py-8 text-slate-400">
                 <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p>No interviews scheduled for today</p>
               </div>
@@ -284,11 +284,11 @@ export default function Dashboard() {
           {/* Today's Follow-ups */}
           <div className="card p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display text-lg text-white flex items-center gap-2">
-                <Phone className="w-5 h-5 text-amber-400" />
+              <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                <Phone className="w-5 h-5 text-amber-500" />
                 Today's Follow-ups
               </h3>
-              <Link to="/candidates" className="text-sm text-coral-400 hover:text-coral-300">
+              <Link to="/candidates" className="text-sm text-cgp-red hover:text-cgp-red-dark">
                 View all
               </Link>
             </div>
@@ -299,7 +299,7 @@ export default function Dashboard() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-navy-400">
+              <div className="text-center py-8 text-slate-400">
                 <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p>No follow-ups scheduled for today</p>
               </div>
@@ -310,8 +310,8 @@ export default function Dashboard() {
           {metrics.todaysPlacements.length > 0 && (
             <div className="card p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-display text-lg text-white flex items-center gap-2">
-                  <Briefcase className="w-5 h-5 text-emerald-400" />
+                <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                  <Briefcase className="w-5 h-5 text-emerald-500" />
                   Placements Starting Today
                 </h3>
               </div>

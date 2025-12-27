@@ -21,35 +21,35 @@ const STAGE_COLORS: Record<PipelineStage, string> = {
   interview_completed: 'border-t-indigo-500',
   offer_extended: 'border-t-emerald-500',
   offer_accepted: 'border-t-teal-500',
-  placement_started: 'border-t-coral-500',
+  placement_started: 'border-t-cgp-red',
 };
 
 function getAIScoreColor(score: number | null): string {
-  if (score === null) return 'text-navy-500';
-  if (score >= 8) return 'text-emerald-400';
-  if (score >= 6) return 'text-amber-400';
-  return 'text-red-400';
+  if (score === null) return 'text-slate-400';
+  if (score >= 8) return 'text-emerald-600';
+  if (score >= 6) return 'text-amber-600';
+  return 'text-red-600';
 }
 
 function PipelineCard({ candidate }: { candidate: Candidate }) {
   return (
     <Link
       to={`/candidates/${candidate.id}`}
-      className="block p-3 bg-navy-800/50 rounded-lg hover:bg-navy-800 transition-colors group"
+      className="block p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors group border border-slate-100"
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-navy-700 rounded-full flex items-center justify-center flex-shrink-0">
+          <div className="w-8 h-8 bg-cgp-red rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
             <span className="text-xs font-medium text-white">
               {candidate.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
             </span>
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-white truncate">{candidate.full_name}</p>
-            <p className="text-xs text-navy-400 truncate">{candidate.applied_role}</p>
+            <p className="text-sm font-medium text-slate-800 truncate">{candidate.full_name}</p>
+            <p className="text-xs text-slate-500 truncate">{candidate.applied_role}</p>
           </div>
         </div>
-        <ChevronRight className="w-4 h-4 text-navy-600 group-hover:text-navy-400 transition-colors flex-shrink-0" />
+        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 transition-colors flex-shrink-0" />
       </div>
       <div className="mt-3 flex items-center justify-between">
         <div className={`flex items-center gap-1 ${getAIScoreColor(candidate.ai_score)}`}>
@@ -57,7 +57,7 @@ function PipelineCard({ candidate }: { candidate: Candidate }) {
           <span className="text-xs font-medium">{candidate.ai_score ?? '-'}</span>
         </div>
         {candidate.client_submitted_to && (
-          <span className="text-xs text-navy-500 truncate max-w-[80px]">
+          <span className="text-xs text-slate-400 truncate max-w-[80px]">
             {candidate.client_submitted_to}
           </span>
         )}
@@ -75,10 +75,10 @@ function PipelineColumn({
 }) {
   return (
     <div className={`card border-t-4 ${STAGE_COLORS[stage]} flex flex-col min-w-[280px] max-w-[320px]`}>
-      <div className="p-4 border-b border-navy-800">
+      <div className="p-4 border-b border-slate-200">
         <div className="flex items-center justify-between">
-          <h3 className="font-medium text-white">{PIPELINE_STAGE_LABELS[stage]}</h3>
-          <span className="px-2 py-0.5 bg-navy-800 text-navy-400 text-sm rounded-full">
+          <h3 className="font-medium text-slate-800">{PIPELINE_STAGE_LABELS[stage]}</h3>
+          <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-sm rounded-full">
             {candidates.length}
           </span>
         </div>
@@ -89,7 +89,7 @@ function PipelineColumn({
             <PipelineCard key={candidate.id} candidate={candidate} />
           ))
         ) : (
-          <div className="text-center py-8 text-navy-600">
+          <div className="text-center py-8 text-slate-400">
             <User className="w-8 h-8 mx-auto mb-2" />
             <p className="text-sm">No candidates</p>
           </div>
@@ -105,7 +105,7 @@ export default function Pipeline() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-coral-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cgp-red"></div>
       </div>
     );
   }
@@ -126,8 +126,8 @@ export default function Pipeline() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="font-display text-3xl text-white">Pipeline</h1>
-        <p className="text-navy-400 mt-1">
+        <h1 className="text-3xl font-bold text-slate-800">Pipeline</h1>
+        <p className="text-slate-500 mt-1">
           {totalInPipeline} candidate{totalInPipeline !== 1 ? 's' : ''} in pipeline
         </p>
       </div>
@@ -150,15 +150,15 @@ export default function Pipeline() {
         <div className="flex flex-wrap gap-4 text-sm">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-            <span className="text-navy-400">AI Score 8+</span>
+            <span className="text-slate-500">AI Score 8+</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-            <span className="text-navy-400">AI Score 6-7</span>
+            <span className="text-slate-500">AI Score 6-7</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-red-500"></div>
-            <span className="text-navy-400">AI Score &lt;6</span>
+            <span className="text-slate-500">AI Score &lt;6</span>
           </div>
         </div>
       </div>

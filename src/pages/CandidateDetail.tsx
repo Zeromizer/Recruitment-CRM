@@ -89,30 +89,30 @@ function ActivityItem({ activity }: { activity: Activity }) {
   const Icon = iconMap[activity.activity_type] || MessageSquare;
 
   return (
-    <div className="flex gap-4 p-4 bg-navy-800/30 rounded-lg">
-      <div className="w-10 h-10 bg-navy-700 rounded-lg flex items-center justify-center flex-shrink-0">
-        <Icon className="w-5 h-5 text-navy-300" />
+    <div className="flex gap-4 p-4 bg-slate-50 rounded-lg border border-slate-100">
+      <div className="w-10 h-10 bg-white border border-slate-200 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
+        <Icon className="w-5 h-5 text-slate-600" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
-          <p className="font-medium text-white">{activity.activity_type}</p>
-          <span className="text-xs text-navy-400 whitespace-nowrap">
+          <p className="font-medium text-slate-800">{activity.activity_type}</p>
+          <span className="text-xs text-slate-400 whitespace-nowrap">
             {format(parseISO(activity.activity_date), 'MMM d, h:mm a')}
           </span>
         </div>
         {activity.subject && (
-          <p className="text-sm text-navy-300 mt-1">{activity.subject}</p>
+          <p className="text-sm text-slate-600 mt-1">{activity.subject}</p>
         )}
         {activity.details && (
-          <p className="text-sm text-navy-400 mt-1">{activity.details}</p>
+          <p className="text-sm text-slate-500 mt-1">{activity.details}</p>
         )}
         {activity.outcome && (
-          <p className="text-sm text-navy-400 mt-2">
-            <span className="text-navy-500">Outcome:</span> {activity.outcome}
+          <p className="text-sm text-slate-500 mt-2">
+            <span className="text-slate-400">Outcome:</span> {activity.outcome}
           </p>
         )}
         {activity.follow_up_required && activity.follow_up_action && (
-          <p className="text-sm text-amber-400 mt-2 flex items-center gap-1">
+          <p className="text-sm text-amber-600 mt-2 flex items-center gap-1">
             <Clock className="w-4 h-4" />
             Follow-up: {activity.follow_up_action}
           </p>
@@ -150,7 +150,7 @@ export default function CandidateDetail() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-coral-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cgp-red"></div>
       </div>
     );
   }
@@ -158,8 +158,8 @@ export default function CandidateDetail() {
   if (!candidate) {
     return (
       <div className="text-center py-12">
-        <p className="text-navy-400">Candidate not found</p>
-        <Link to="/candidates" className="text-coral-400 hover:text-coral-300 mt-2 inline-block">
+        <p className="text-slate-500">Candidate not found</p>
+        <Link to="/candidates" className="text-cgp-red hover:text-cgp-red-dark mt-2 inline-block">
           Back to candidates
         </Link>
       </div>
@@ -276,7 +276,7 @@ export default function CandidateDetail() {
         {/* Back Button */}
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-navy-400 hover:text-white transition-colors"
+          className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           Back
@@ -286,14 +286,14 @@ export default function CandidateDetail() {
         <div className="card p-6">
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-4">
-              <div className="w-16 h-16 bg-navy-700 rounded-full flex items-center justify-center">
+              <div className="w-16 h-16 bg-cgp-red rounded-full flex items-center justify-center shadow-md">
                 <span className="text-xl font-medium text-white">
                   {candidate.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                 </span>
               </div>
               <div>
-                <h1 className="font-display text-2xl text-white">{candidate.full_name}</h1>
-                <p className="text-navy-400 mt-1">{candidate.applied_role}</p>
+                <h1 className="text-2xl font-bold text-slate-800">{candidate.full_name}</h1>
+                <p className="text-slate-500 mt-1">{candidate.applied_role}</p>
                 <div className="flex items-center gap-3 mt-3">
                   {getCitizenshipBadge(candidate.citizenship_status)}
                   {getAICategoryBadge(candidate.ai_category)}
@@ -311,13 +311,13 @@ export default function CandidateDetail() {
                 <ChevronDown className="w-3 h-3" />
               </button>
               {showStatusDropdown && (
-                <div className="absolute right-0 mt-2 w-56 bg-navy-800 border border-navy-700 rounded-lg shadow-xl z-10 max-h-80 overflow-y-auto">
+                <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-lg shadow-xl z-10 max-h-80 overflow-y-auto">
                   {Object.entries(STATUS_LABELS).map(([status, label]) => (
                     <button
                       key={status}
                       onClick={() => handleStatusChange(status as CandidateStatus)}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-navy-700 transition-colors ${
-                        status === candidate.current_status ? 'text-coral-400' : 'text-navy-200'
+                      className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors ${
+                        status === candidate.current_status ? 'text-cgp-red font-medium' : 'text-slate-700'
                       }`}
                     >
                       {label}
@@ -333,7 +333,7 @@ export default function CandidateDetail() {
             {candidate.email && (
               <a
                 href={`mailto:${candidate.email}`}
-                className="flex items-center gap-2 text-navy-300 hover:text-white transition-colors"
+                className="flex items-center gap-2 text-slate-600 hover:text-cgp-red transition-colors"
               >
                 <Mail className="w-4 h-4" />
                 {candidate.email}
@@ -342,14 +342,14 @@ export default function CandidateDetail() {
             {candidate.phone && (
               <a
                 href={`tel:${candidate.phone}`}
-                className="flex items-center gap-2 text-navy-300 hover:text-white transition-colors"
+                className="flex items-center gap-2 text-slate-600 hover:text-cgp-red transition-colors"
               >
                 <Phone className="w-4 h-4" />
                 {candidate.phone}
               </a>
             )}
             {candidate.source && (
-              <span className="flex items-center gap-2 text-navy-400">
+              <span className="flex items-center gap-2 text-slate-500">
                 <MapPin className="w-4 h-4" />
                 Source: {candidate.source}
               </span>
@@ -357,34 +357,34 @@ export default function CandidateDetail() {
           </div>
 
           {/* Inline Details */}
-          <div className="mt-6 pt-6 border-t border-navy-700">
+          <div className="mt-6 pt-6 border-t border-slate-200">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <p className="text-sm text-navy-400">Date Received</p>
-                <p className="text-navy-200">{format(parseISO(candidate.date_received), 'MMM d, yyyy')}</p>
+                <p className="text-sm text-slate-400">Date Received</p>
+                <p className="text-slate-700">{format(parseISO(candidate.date_received), 'MMM d, yyyy')}</p>
               </div>
               {candidate.assigned_recruiter && (
                 <div>
-                  <p className="text-sm text-navy-400">Assigned To</p>
-                  <p className="text-navy-200">{candidate.assigned_recruiter}</p>
+                  <p className="text-sm text-slate-400">Assigned To</p>
+                  <p className="text-slate-700">{candidate.assigned_recruiter}</p>
                 </div>
               )}
               {candidate.client_submitted_to && (
                 <div>
-                  <p className="text-sm text-navy-400">Submitted To</p>
-                  <p className="text-navy-200">{candidate.client_submitted_to}</p>
+                  <p className="text-sm text-slate-400">Submitted To</p>
+                  <p className="text-slate-700">{candidate.client_submitted_to}</p>
                 </div>
               )}
               {candidate.submission_date && (
                 <div>
-                  <p className="text-sm text-navy-400">Submission Date</p>
-                  <p className="text-navy-200">{format(parseISO(candidate.submission_date), 'MMM d, yyyy')}</p>
+                  <p className="text-sm text-slate-400">Submission Date</p>
+                  <p className="text-slate-700">{format(parseISO(candidate.submission_date), 'MMM d, yyyy')}</p>
                 </div>
               )}
               {candidate.interview_date && (
                 <div>
-                  <p className="text-sm text-navy-400">Interview Date</p>
-                  <p className="text-navy-200">
+                  <p className="text-sm text-slate-400">Interview Date</p>
+                  <p className="text-slate-700">
                     {format(parseISO(candidate.interview_date), 'MMM d, yyyy')}
                     {candidate.interview_outcome && ` (${candidate.interview_outcome})`}
                   </p>
@@ -392,8 +392,8 @@ export default function CandidateDetail() {
               )}
               {candidate.offer_date && (
                 <div>
-                  <p className="text-sm text-navy-400">Offer Date</p>
-                  <p className="text-navy-200">
+                  <p className="text-sm text-slate-400">Offer Date</p>
+                  <p className="text-slate-700">
                     {format(parseISO(candidate.offer_date), 'MMM d, yyyy')}
                     {candidate.offer_status && ` (${candidate.offer_status})`}
                   </p>
@@ -401,14 +401,14 @@ export default function CandidateDetail() {
               )}
               {candidate.start_date && (
                 <div>
-                  <p className="text-sm text-navy-400">Start Date</p>
-                  <p className="text-navy-200">{format(parseISO(candidate.start_date), 'MMM d, yyyy')}</p>
+                  <p className="text-sm text-slate-400">Start Date</p>
+                  <p className="text-slate-700">{format(parseISO(candidate.start_date), 'MMM d, yyyy')}</p>
                 </div>
               )}
               {(candidate.hourly_rate || candidate.bill_rate) && (
                 <div>
-                  <p className="text-sm text-navy-400">Rates</p>
-                  <p className="text-navy-200">
+                  <p className="text-sm text-slate-400">Rates</p>
+                  <p className="text-slate-700">
                     {candidate.hourly_rate && `$${candidate.hourly_rate}/hr`}
                     {candidate.hourly_rate && candidate.bill_rate && ' / '}
                     {candidate.bill_rate && `$${candidate.bill_rate} bill`}
@@ -420,14 +420,14 @@ export default function CandidateDetail() {
 
           {/* Next Action Banner */}
           {candidate.next_action && (
-            <div className="mt-6 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+            <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
               <div className="flex items-start gap-3">
-                <Calendar className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                <Calendar className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-amber-400 font-medium">Next Action</p>
-                  <p className="text-navy-200">{candidate.next_action}</p>
+                  <p className="text-amber-700 font-medium">Next Action</p>
+                  <p className="text-slate-700">{candidate.next_action}</p>
                   {candidate.next_action_date && (
-                    <p className="text-sm text-amber-400/80 mt-1">
+                    <p className="text-sm text-amber-600 mt-1">
                       Due: {format(parseISO(candidate.next_action_date), 'MMM d, yyyy')}
                     </p>
                   )}
@@ -465,33 +465,33 @@ export default function CandidateDetail() {
         {/* AI Assessment */}
         {candidate.ai_score && (
           <div className="card p-6">
-            <h2 className="font-display text-lg text-white flex items-center gap-2 mb-4">
-              <Star className="w-5 h-5 text-amber-400" />
+            <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2 mb-4">
+              <Star className="w-5 h-5 text-amber-500" />
               AI Assessment
             </h2>
             <div className="grid grid-cols-2 gap-4 mb-4">
-              <div className="bg-navy-800/50 rounded-lg p-4">
-                <p className="text-sm text-navy-400">Score</p>
-                <p className="text-3xl font-semibold text-white mt-1">
+              <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+                <p className="text-sm text-slate-500">Score</p>
+                <p className="text-3xl font-semibold text-slate-800 mt-1">
                   {candidate.ai_score}
-                  <span className="text-lg text-navy-500">/10</span>
+                  <span className="text-lg text-slate-400">/10</span>
                 </p>
               </div>
-              <div className="bg-navy-800/50 rounded-lg p-4">
-                <p className="text-sm text-navy-400">Category</p>
-                <p className="text-xl font-medium text-white mt-1">{candidate.ai_category}</p>
+              <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+                <p className="text-sm text-slate-500">Category</p>
+                <p className="text-xl font-medium text-slate-800 mt-1">{candidate.ai_category}</p>
               </div>
             </div>
             {candidate.ai_summary && (
               <div className="mb-4">
-                <p className="text-sm text-navy-400 mb-1">Summary</p>
-                <p className="text-navy-200">{candidate.ai_summary}</p>
+                <p className="text-sm text-slate-500 mb-1">Summary</p>
+                <p className="text-slate-700">{candidate.ai_summary}</p>
               </div>
             )}
             {candidate.ai_reasoning && (
               <div>
-                <p className="text-sm text-navy-400 mb-1">Reasoning</p>
-                <p className="text-navy-200">{candidate.ai_reasoning}</p>
+                <p className="text-sm text-slate-500 mb-1">Reasoning</p>
+                <p className="text-slate-700">{candidate.ai_reasoning}</p>
               </div>
             )}
           </div>
@@ -500,8 +500,8 @@ export default function CandidateDetail() {
         {/* Notes */}
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display text-lg text-white flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-blue-400" />
+            <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-blue-500" />
               Notes
             </h2>
             {!editingNotes && (
@@ -510,7 +510,7 @@ export default function CandidateDetail() {
                   setNotes(candidate.notes || '');
                   setEditingNotes(true);
                 }}
-                className="text-sm text-coral-400 hover:text-coral-300"
+                className="text-sm text-cgp-red hover:text-cgp-red-dark"
               >
                 {candidate.notes ? 'Edit' : 'Add'}
               </button>
@@ -538,7 +538,7 @@ export default function CandidateDetail() {
               </div>
             </div>
           ) : (
-            <p className="text-navy-300">
+            <p className="text-slate-600">
               {candidate.notes || 'No notes yet'}
             </p>
           )}
@@ -547,21 +547,21 @@ export default function CandidateDetail() {
         {/* Upcoming Interviews */}
         {interviews.filter(i => i.status === 'Scheduled').length > 0 && (
           <div className="card p-6">
-            <h2 className="font-display text-lg text-white mb-4">Upcoming Interviews</h2>
+            <h2 className="text-lg font-semibold text-slate-800 mb-4">Upcoming Interviews</h2>
             <div className="space-y-3">
               {interviews
                 .filter(i => i.status === 'Scheduled')
                 .map(interview => (
                   <div
                     key={interview.id}
-                    className="p-3 bg-navy-800/50 rounded-lg"
+                    className="p-3 bg-slate-50 rounded-lg border border-slate-100"
                   >
-                    <p className="text-white font-medium">{interview.client_company}</p>
-                    <p className="text-sm text-navy-400 mt-1">
+                    <p className="text-slate-800 font-medium">{interview.client_company}</p>
+                    <p className="text-sm text-slate-500 mt-1">
                       {interview.interview_date && format(parseISO(interview.interview_date), 'MMM d')}
                       {interview.interview_time && ` at ${interview.interview_time}`}
                     </p>
-                    <p className="text-sm text-navy-500 mt-1">
+                    <p className="text-sm text-slate-400 mt-1">
                       {interview.interview_type} • {interview.interview_round} Round
                     </p>
                   </div>
@@ -572,8 +572,8 @@ export default function CandidateDetail() {
 
         {/* Activity Timeline */}
         <div className="card p-6">
-          <h2 className="font-display text-lg text-white flex items-center gap-2 mb-4">
-            <Clock className="w-5 h-5 text-blue-400" />
+          <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2 mb-4">
+            <Clock className="w-5 h-5 text-blue-500" />
             Activity Timeline
           </h2>
           {activities.length > 0 ? (
@@ -583,19 +583,19 @@ export default function CandidateDetail() {
               ))}
             </div>
           ) : (
-            <p className="text-navy-400 text-center py-8">No activities logged yet</p>
+            <p className="text-slate-500 text-center py-8">No activities logged yet</p>
           )}
         </div>
 
         {/* Schedule Interview Modal */}
         {showInterviewModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-navy-900 border border-navy-700 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-navy-700">
-              <h2 className="font-display text-xl text-white">Schedule Interview</h2>
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-slate-200 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+              <h2 className="text-xl font-semibold text-slate-800">Schedule Interview</h2>
               <button
                 onClick={() => setShowInterviewModal(false)}
-                className="text-navy-400 hover:text-white transition-colors"
+                className="text-slate-400 hover:text-slate-600 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -605,8 +605,8 @@ export default function CandidateDetail() {
               {/* Date and Time - Required */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-navy-400 mb-1">
-                    Date <span className="text-coral-400">*</span>
+                  <label className="block text-sm text-slate-500 mb-1">
+                    Date <span className="text-cgp-red">*</span>
                   </label>
                   <input
                     type="date"
@@ -617,8 +617,8 @@ export default function CandidateDetail() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-navy-400 mb-1">
-                    Time <span className="text-coral-400">*</span>
+                  <label className="block text-sm text-slate-500 mb-1">
+                    Time <span className="text-cgp-red">*</span>
                   </label>
                   <input
                     type="time"
@@ -632,7 +632,7 @@ export default function CandidateDetail() {
               {/* Interview Type and Round */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-navy-400 mb-1">Interview Type</label>
+                  <label className="block text-sm text-slate-500 mb-1">Interview Type</label>
                   <select
                     value={interviewForm.type}
                     onChange={(e) => setInterviewForm({ ...interviewForm, type: e.target.value })}
@@ -644,7 +644,7 @@ export default function CandidateDetail() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm text-navy-400 mb-1">Round</label>
+                  <label className="block text-sm text-slate-500 mb-1">Round</label>
                   <select
                     value={interviewForm.round}
                     onChange={(e) => setInterviewForm({ ...interviewForm, round: e.target.value })}
@@ -660,7 +660,7 @@ export default function CandidateDetail() {
 
               {/* Company */}
               <div>
-                <label className="block text-sm text-navy-400 mb-1">Company</label>
+                <label className="block text-sm text-slate-500 mb-1">Company</label>
                 <input
                   type="text"
                   value={interviewForm.company}
@@ -672,7 +672,7 @@ export default function CandidateDetail() {
 
               {/* Location / Meeting Link */}
               <div>
-                <label className="block text-sm text-navy-400 mb-1">Location / Meeting Link</label>
+                <label className="block text-sm text-slate-500 mb-1">Location / Meeting Link</label>
                 <input
                   type="text"
                   value={interviewForm.location}
@@ -684,7 +684,7 @@ export default function CandidateDetail() {
 
               {/* Interviewer */}
               <div>
-                <label className="block text-sm text-navy-400 mb-1">Interviewer Name</label>
+                <label className="block text-sm text-slate-500 mb-1">Interviewer Name</label>
                 <input
                   type="text"
                   value={interviewForm.interviewer}
@@ -696,7 +696,7 @@ export default function CandidateDetail() {
 
               {/* Notes */}
               <div>
-                <label className="block text-sm text-navy-400 mb-1">Notes</label>
+                <label className="block text-sm text-slate-500 mb-1">Notes</label>
                 <textarea
                   value={interviewForm.notes}
                   onChange={(e) => setInterviewForm({ ...interviewForm, notes: e.target.value })}
@@ -707,7 +707,7 @@ export default function CandidateDetail() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 p-6 border-t border-navy-700">
+            <div className="flex justify-end gap-3 p-6 border-t border-slate-200">
               <button
                 onClick={() => setShowInterviewModal(false)}
                 className="btn-secondary"
@@ -728,11 +728,11 @@ export default function CandidateDetail() {
 
       {/* Right Side - Resume Preview (Always Visible) */}
       <div className="w-1/2 flex-shrink-0 hidden lg:block">
-        <div className="bg-navy-900 border border-navy-700 rounded-xl flex flex-col sticky top-6" style={{ height: 'calc(100vh - 10rem)' }}>
+        <div className="bg-white border border-slate-200 rounded-xl flex flex-col sticky top-6 shadow-sm" style={{ height: 'calc(100vh - 10rem)' }}>
           {/* Panel Header */}
-          <div className="flex items-center justify-between p-4 border-b border-navy-700 flex-shrink-0">
-            <h2 className="font-display text-lg text-white flex items-center gap-2">
-              <FileText className="w-5 h-5 text-coral-400" />
+          <div className="flex items-center justify-between p-4 border-b border-slate-200 flex-shrink-0">
+            <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-cgp-red" />
               Resume Preview
             </h2>
             {candidate.resume_url && (
@@ -752,14 +752,14 @@ export default function CandidateDetail() {
             {candidate.resume_url ? (
               <iframe
                 src={candidate.resume_url}
-                className="w-full h-full rounded-lg border border-navy-700 bg-white"
+                className="w-full h-full rounded-lg border border-slate-200 bg-white"
                 title="Resume Preview"
               />
             ) : (
-              <div className="w-full h-full rounded-lg border border-navy-700 bg-navy-800/50 flex flex-col items-center justify-center">
-                <FileText className="w-16 h-16 text-navy-600 mb-4" />
-                <p className="text-navy-400 text-lg">No resume available</p>
-                <p className="text-navy-500 text-sm mt-2">Upload a resume to view it here</p>
+              <div className="w-full h-full rounded-lg border border-slate-200 bg-slate-50 flex flex-col items-center justify-center">
+                <FileText className="w-16 h-16 text-slate-300 mb-4" />
+                <p className="text-slate-500 text-lg">No resume available</p>
+                <p className="text-slate-400 text-sm mt-2">Upload a resume to view it here</p>
               </div>
             )}
           </div>
