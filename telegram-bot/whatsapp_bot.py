@@ -155,33 +155,46 @@ async def send_whatsapp_message(phone: str, message: str) -> bool:
 
 async def download_media(media_url: str, message_id: str = None) -> bytes:
     """Download media file from Walichat."""
-    print(f"Attempting to download media from: {media_url}")
+    print(f"Attempting to download media")
+    print(f"Media URL: {media_url}")
     print(f"Message ID: {message_id}")
 
-    # If we have a message ID, try to download via Walichat API first
+    # If we have a message ID, try multiple Walichat API endpoints
     if message_id:
-        try:
-            # Walichat API endpoint to download media
-            api_url = f"/messages/{message_id}/download"
-            print(f"Trying Walichat API download: {api_url}")
-            response = await http_client.get(api_url)
-            if response.status_code == 200:
-                print(f"Successfully downloaded media via API ({len(response.content)} bytes)")
-                return response.content
-            else:
-                print(f"Walichat API download failed: {response.status_code} - {response.text}")
-        except Exception as e:
-            print(f"Walichat API download error: {e}")
+        # List of possible API endpoints to try
+        api_endpoints = [
+            f"/messages/{message_id}/download",
+            f"/messages/{message_id}/media",
+            f"/messages/{message_id}/file",
+            f"/files/{message_id}",
+            f"/media/{message_id}",
+        ]
+
+        for api_url in api_endpoints:
+            try:
+                print(f"Trying Walichat API: {api_url}")
+                response = await http_client.get(api_url)
+                if response.status_code == 200:
+                    content_type = response.headers.get("content-type", "")
+                    # Check if response is actual file content (not JSON error)
+                    if "application/json" not in content_type or len(response.content) > 1000:
+                        print(f"Successfully downloaded via {api_url} ({len(response.content)} bytes)")
+                        return response.content
+                    else:
+                        print(f"API returned JSON (not file): {response.text[:200]}")
+                else:
+                    print(f"API {api_url} failed: {response.status_code}")
+            except Exception as e:
+                print(f"API {api_url} error: {e}")
 
     # Try direct URL download (for external URLs like WhatsApp servers)
     if media_url:
         try:
-            # Use a fresh client without base_url for external URLs
             async with httpx.AsyncClient(timeout=60.0) as external_client:
                 print(f"Trying direct URL download: {media_url}")
                 response = await external_client.get(media_url)
                 if response.status_code == 200:
-                    print(f"Successfully downloaded media directly ({len(response.content)} bytes)")
+                    print(f"Successfully downloaded directly ({len(response.content)} bytes)")
                     return response.content
                 else:
                     print(f"Direct download failed: {response.status_code}")
@@ -361,14 +374,49 @@ async def webhook_handler(request: Request, background_tasks: BackgroundTasks):
 
         elif msg_type == "document":
             # Document message - extract media info
+            # Try multiple possible field locations for media data
             media = message.get("media", {})
-            file_name = media.get("filename") or media.get("name", "document.pdf")
-            media_url = media.get("url") or media.get("link", "")
-            mime_type = media.get("mimetype") or media.get("mime_type", "application/pdf")
+            file_obj = message.get("file", {})
+            document = message.get("document", {})
+
+            # Try to get filename from various locations
+            file_name = (
+                media.get("filename") or media.get("name") or
+                file_obj.get("filename") or file_obj.get("name") or
+                document.get("filename") or document.get("name") or
+                message.get("filename") or message.get("fileName") or
+                "document.pdf"
+            )
+
+            # Try to get media URL from various locations
+            media_url = (
+                media.get("url") or media.get("link") or
+                file_obj.get("url") or file_obj.get("link") or
+                document.get("url") or document.get("link") or
+                message.get("mediaUrl") or message.get("fileUrl") or
+                message.get("url") or ""
+            )
+
+            # Try to get mime type
+            mime_type = (
+                media.get("mimetype") or media.get("mime_type") or
+                file_obj.get("mimetype") or document.get("mimetype") or
+                message.get("mimetype") or "application/pdf"
+            )
+
             message_id = message.get("id", "")
 
-            print(f"Document webhook data - file: {file_name}, url: {media_url}, msg_id: {message_id}")
-            print(f"Full media object: {media}")
+            # Log ALL fields to debug
+            print(f"=== DOCUMENT MESSAGE DEBUG ===")
+            print(f"Message ID: {message_id}")
+            print(f"File name: {file_name}")
+            print(f"Media URL: {media_url}")
+            print(f"Mime type: {mime_type}")
+            print(f"Media object: {media}")
+            print(f"File object: {file_obj}")
+            print(f"Document object: {document}")
+            print(f"Full message keys: {list(message.keys())}")
+            print(f"=== END DEBUG ===")
 
             if phone:
                 print(f"Document from {phone}: {file_name}")
