@@ -190,14 +190,7 @@ async def process_text_message(phone: str, name: str, text: str):
     response = await get_ai_response(phone, text)
     await send_whatsapp_message(phone, response)
 
-    # Save candidate
-    await save_candidate(
-        user_id=phone,
-        username=phone,
-        full_name=name or f"WhatsApp User {phone}",
-        source="whatsapp",
-        conversation_history=get_conversation(phone)
-    )
+    # Note: Only create candidate record when resume is received (not on text messages)
 
 
 async def process_document_message(phone: str, name: str, file_name: str, media_url: str, mime_type: str):
@@ -270,12 +263,7 @@ Our recruitment team will review your profile and get back to you soon. In the m
                     "Thank you for your resume! I received the file but had trouble reading its contents. "
                     "Our team will review it manually. Is there anything else I can help you with?"
                 )
-                await save_candidate(
-                    user_id=phone,
-                    username=phone,
-                    full_name=name or f"WhatsApp User {phone}",
-                    source="whatsapp"
-                )
+                # Note: Don't create candidate without successful resume processing
         else:
             print("Failed to download file")
             await send_whatsapp_message(
@@ -283,15 +271,9 @@ Our recruitment team will review your profile and get back to you soon. In the m
                 "I had trouble downloading your file. Could you please try sending it again?"
             )
     else:
-        # Non-resume file
+        # Non-resume file - just respond, don't create candidate
         response = await get_ai_response(phone, f"[User sent a file: {file_name}]")
         await send_whatsapp_message(phone, response)
-        await save_candidate(
-            user_id=phone,
-            username=phone,
-            full_name=name or f"WhatsApp User {phone}",
-            source="whatsapp"
-        )
 
 
 @app.post("/webhook")
