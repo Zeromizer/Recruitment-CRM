@@ -30,54 +30,36 @@ export interface ParsedResume {
   languages: string[];
 }
 
-// Template and logo file names in Supabase storage
+// Logo URL from Supabase storage (optional)
 const TEMPLATE_BUCKET = 'templates';
-const TEMPLATE_FILE = 'CGP template.docx';
 const LOGO_FILE = 'cgp-personnel-logos_cgp-personnel-logo-color.png';
 
-// Cache for template data
-let templateCache: { zip: any; logoData: ArrayBuffer | null } | null = null;
+// Cache for logo data
+let logoCache: ArrayBuffer | null = null;
 
-// Download template from Supabase storage
-async function downloadTemplate(): Promise<{ zip: any; logoData: ArrayBuffer | null }> {
-  if (templateCache) {
-    return templateCache;
+// Try to download logo from Supabase storage (optional, won't fail if not available)
+async function downloadLogo(): Promise<ArrayBuffer | null> {
+  if (logoCache) {
+    return logoCache;
   }
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error('Supabase configuration missing. Please check your environment variables.');
+  if (!supabaseUrl) {
+    return null;
   }
 
-  const JSZip = (await import('jszip')).default;
-
-  // Download template DOCX
-  const templateUrl = `${supabaseUrl}/storage/v1/object/public/${TEMPLATE_BUCKET}/${encodeURIComponent(TEMPLATE_FILE)}`;
-  const templateResponse = await fetch(templateUrl);
-
-  if (!templateResponse.ok) {
-    throw new Error(`Failed to download template: ${templateResponse.statusText}`);
-  }
-
-  const templateBlob = await templateResponse.blob();
-  const zip = await JSZip.loadAsync(templateBlob);
-
-  // Download logo
-  let logoData: ArrayBuffer | null = null;
   try {
     const logoUrl = `${supabaseUrl}/storage/v1/object/public/${TEMPLATE_BUCKET}/${encodeURIComponent(LOGO_FILE)}`;
     const logoResponse = await fetch(logoUrl);
     if (logoResponse.ok) {
-      logoData = await logoResponse.arrayBuffer();
+      logoCache = await logoResponse.arrayBuffer();
+      return logoCache;
     }
   } catch (e) {
     console.warn('Could not load logo:', e);
   }
 
-  templateCache = { zip, logoData };
-  return templateCache;
+  return null;
 }
 
 // Extract text from PDF using pdf.js
@@ -159,73 +141,102 @@ export async function parseResumeWithAI(
   return response.json();
 }
 
-// Generate CGP formatted Word document using template
+// Generate CGP formatted Word document
 export async function generateCGPDocument(data: ParsedResume, preparedBy: string = 'CGP Personnel'): Promise<Blob> {
   const JSZip = (await import('jszip')).default;
 
-  // Download template from Supabase
-  const { zip: templateZip, logoData } = await downloadTemplate();
+  // Try to download logo (optional, won't fail if not available)
+  const logoData = await downloadLogo();
 
-  // Clone the template zip
-  const newZip = new JSZip();
+  // Create new document from scratch
+  const zip = new JSZip();
 
-  // Copy all files from template except document.xml (we'll generate new content)
-  const files = Object.keys(templateZip.files);
+  // Add required DOCX structure
+  zip.file('[Content_Types].xml', getContentTypesXml(!!logoData));
+  zip.file('_rels/.rels', getRelsXml());
+  zip.file('word/_rels/document.xml.rels', getDocumentRelsXml(!!logoData));
+  zip.file('word/styles.xml', getStylesXml());
+  zip.file('word/numbering.xml', getNumberingXml());
+  zip.file('word/document.xml', generateCGPDocumentXml(data, preparedBy, !!logoData));
 
-  for (const fileName of files) {
-    if (fileName === 'word/document.xml') {
-      // Generate new document content
-      continue;
-    }
-
-    const file = templateZip.files[fileName];
-    if (!file.dir) {
-      const content = await file.async('arraybuffer');
-      newZip.file(fileName, content);
-    }
+  // Add logo if available
+  if (logoData) {
+    zip.file('word/media/image1.png', logoData);
   }
 
-  // Check if template has logo image, if not add it
-  const hasLogo = files.some(f => f.includes('media/image'));
-  if (!hasLogo && logoData) {
-    newZip.file('word/media/image1.png', logoData);
-
-    // Update content types to include PNG
-    const contentTypesFile = templateZip.files['[Content_Types].xml'];
-    if (contentTypesFile) {
-      let contentTypes = await contentTypesFile.async('string');
-      if (!contentTypes.includes('Extension="png"')) {
-        contentTypes = contentTypes.replace(
-          '</Types>',
-          '<Default Extension="png" ContentType="image/png"/></Types>'
-        );
-        newZip.file('[Content_Types].xml', contentTypes);
-      }
-    }
-  }
-
-  // Generate new document.xml with CGP format
-  const documentXml = generateCGPDocumentXml(data, preparedBy);
-  newZip.file('word/document.xml', documentXml);
-
-  // Update document relationships if needed
-  await ensureDocumentRels(newZip, templateZip);
-
-  return newZip.generateAsync({
+  return zip.generateAsync({
     type: 'blob',
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   });
 }
 
-async function ensureDocumentRels(newZip: any, templateZip: any): Promise<void> {
-  const relsPath = 'word/_rels/document.xml.rels';
-  const templateRels = templateZip.files[relsPath];
+function getContentTypesXml(hasLogo: boolean): string {
+  let xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>`;
 
-  if (templateRels) {
-    // Use template's relationships as they include image references
-    const content = await templateRels.async('string');
-    newZip.file(relsPath, content);
+  if (hasLogo) {
+    xml += `<Default Extension="png" ContentType="image/png"/>`;
   }
+
+  xml += `<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
+</Types>`;
+  return xml;
+}
+
+function getRelsXml(): string {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`;
+}
+
+function getDocumentRelsXml(hasLogo: boolean): string {
+  let xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>`;
+
+  if (hasLogo) {
+    xml += `<Relationship Id="rId7" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>`;
+  }
+
+  xml += `</Relationships>`;
+  return xml;
+}
+
+function getStylesXml(): string {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:docDefaults>
+<w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:sz w:val="22"/></w:rPr></w:rPrDefault>
+<w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:pPrDefault>
+</w:docDefaults>
+<w:style w:type="paragraph" w:styleId="ListParagraph">
+<w:name w:val="List Paragraph"/>
+<w:pPr><w:ind w:left="720"/></w:pPr>
+</w:style>
+</w:styles>`;
+}
+
+function getNumberingXml(): string {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:abstractNum w:abstractNumId="0">
+<w:lvl w:ilvl="0">
+<w:start w:val="1"/>
+<w:numFmt w:val="bullet"/>
+<w:lvlText w:val="●"/>
+<w:lvlJc w:val="left"/>
+<w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr>
+<w:rPr><w:rFonts w:ascii="Symbol" w:hAnsi="Symbol"/></w:rPr>
+</w:lvl>
+</w:abstractNum>
+<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>
+</w:numbering>`;
 }
 
 function escapeXml(text: string | null | undefined): string {
@@ -238,7 +249,7 @@ function escapeXml(text: string | null | undefined): string {
     .replace(/'/g, '&apos;');
 }
 
-function generateCGPDocumentXml(data: ParsedResume, preparedBy: string): string {
+function generateCGPDocumentXml(data: ParsedResume, preparedBy: string, hasLogo: boolean = false): string {
   // Ensure arrays are valid
   const education = Array.isArray(data.education) ? data.education : [];
   const workExperience = Array.isArray(data.workExperience) ? data.workExperience : [];
@@ -255,21 +266,8 @@ function generateCGPDocumentXml(data: ParsedResume, preparedBy: string): string 
             xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
 <w:body>`;
 
-  // ===== HEADER SECTION WITH LOGO AND COMPANY INFO =====
-  xml += `
-<!-- Header Table with Logo and Company Info -->
-<w:tbl>
-  <w:tblPr>
-    <w:tblW w:w="5000" w:type="pct"/>
-    <w:tblLook w:val="04A0"/>
-  </w:tblPr>
-  <w:tblGrid>
-    <w:gridCol w:w="4500"/>
-    <w:gridCol w:w="5500"/>
-  </w:tblGrid>
-  <w:tr>
-    <w:tc>
-      <w:tcPr><w:tcW w:w="4500" w:type="dxa"/></w:tcPr>
+  // Logo cell content (only if logo available)
+  const logoCell = hasLogo ? `
       <w:p>
         <w:r>
           <w:drawing>
@@ -300,7 +298,27 @@ function generateCGPDocumentXml(data: ParsedResume, preparedBy: string): string 
             </wp:inline>
           </w:drawing>
         </w:r>
-      </w:p>
+      </w:p>` : `
+      <w:p>
+        <w:r><w:rPr><w:b/><w:color w:val="${cgpRed}"/><w:sz w:val="36"/></w:rPr><w:t>CGP Personnel</w:t></w:r>
+      </w:p>`;
+
+  // ===== HEADER SECTION WITH LOGO AND COMPANY INFO =====
+  xml += `
+<!-- Header Table with Logo and Company Info -->
+<w:tbl>
+  <w:tblPr>
+    <w:tblW w:w="5000" w:type="pct"/>
+    <w:tblLook w:val="04A0"/>
+  </w:tblPr>
+  <w:tblGrid>
+    <w:gridCol w:w="4500"/>
+    <w:gridCol w:w="5500"/>
+  </w:tblGrid>
+  <w:tr>
+    <w:tc>
+      <w:tcPr><w:tcW w:w="4500" w:type="dxa"/></w:tcPr>
+      ${logoCell}
     </w:tc>
     <w:tc>
       <w:tcPr><w:tcW w:w="5500" w:type="dxa"/></w:tcPr>
