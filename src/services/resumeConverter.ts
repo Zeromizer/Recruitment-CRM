@@ -133,8 +133,9 @@ export async function generateCGPDocument(data: ParsedResume): Promise<Blob> {
   });
 }
 
-function escapeXml(text: string): string {
-  return text
+function escapeXml(text: string | null | undefined): string {
+  const str = String(text ?? '');
+  return str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -143,6 +144,11 @@ function escapeXml(text: string): string {
 }
 
 function generateDocumentXml(data: ParsedResume): string {
+  // Ensure arrays are valid
+  const education = Array.isArray(data.education) ? data.education : [];
+  const workExperience = Array.isArray(data.workExperience) ? data.workExperience : [];
+  const languages = Array.isArray(data.languages) ? data.languages : ['English'];
+
   let content = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
 <w:body>`;
@@ -163,29 +169,30 @@ function generateDocumentXml(data: ParsedResume): string {
 
   // Education Section
   content += generateSectionHeader('EDUCATION');
-  data.education.forEach(edu => {
+  education.forEach(edu => {
     content += `<w:p><w:pPr><w:spacing w:after="40"/></w:pPr>
-<w:r><w:rPr><w:b/></w:rPr><w:t>${escapeXml(edu.year)}</w:t></w:r></w:p>`;
+<w:r><w:rPr><w:b/></w:rPr><w:t>${escapeXml(edu?.year)}</w:t></w:r></w:p>`;
     content += `<w:p><w:pPr><w:spacing w:after="40"/></w:pPr>
-<w:r><w:t>${escapeXml(edu.qualification)}</w:t></w:r></w:p>`;
+<w:r><w:t>${escapeXml(edu?.qualification)}</w:t></w:r></w:p>`;
     content += `<w:p><w:pPr><w:spacing w:after="200"/></w:pPr>
-<w:r><w:rPr><w:i/></w:rPr><w:t>${escapeXml(edu.institution)}</w:t></w:r></w:p>`;
+<w:r><w:rPr><w:i/></w:rPr><w:t>${escapeXml(edu?.institution)}</w:t></w:r></w:p>`;
   });
 
   // Work Experience Section
   content += generateSectionHeader('WORK EXPERIENCE');
-  data.workExperience.forEach(job => {
+  workExperience.forEach(job => {
     // Job Title
     content += `<w:p><w:pPr><w:spacing w:after="40"/></w:pPr>
-<w:r><w:rPr><w:b/><w:sz w:val="24"/></w:rPr><w:t>${escapeXml(job.title)}</w:t></w:r></w:p>`;
+<w:r><w:rPr><w:b/><w:sz w:val="24"/></w:rPr><w:t>${escapeXml(job?.title)}</w:t></w:r></w:p>`;
     // Period
     content += `<w:p><w:pPr><w:spacing w:after="40"/></w:pPr>
-<w:r><w:rPr><w:b/></w:rPr><w:t>${escapeXml(job.period)}</w:t></w:r></w:p>`;
+<w:r><w:rPr><w:b/></w:rPr><w:t>${escapeXml(job?.period)}</w:t></w:r></w:p>`;
     // Company
     content += `<w:p><w:pPr><w:spacing w:after="80"/></w:pPr>
-<w:r><w:rPr><w:i/></w:rPr><w:t>${escapeXml(job.company)}</w:t></w:r></w:p>`;
+<w:r><w:rPr><w:i/></w:rPr><w:t>${escapeXml(job?.company)}</w:t></w:r></w:p>`;
     // Responsibilities (bulleted list)
-    job.responsibilities.forEach(resp => {
+    const responsibilities = Array.isArray(job?.responsibilities) ? job.responsibilities : [];
+    responsibilities.forEach(resp => {
       content += `<w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr>
 <w:r><w:t>${escapeXml(resp)}</w:t></w:r></w:p>`;
     });
@@ -194,7 +201,7 @@ function generateDocumentXml(data: ParsedResume): string {
 
   // Languages Section
   content += generateSectionHeader('LANGUAGES');
-  data.languages.forEach(lang => {
+  languages.forEach(lang => {
     content += `<w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr>
 <w:r><w:t>${escapeXml(lang)}</w:t></w:r></w:p>`;
   });
