@@ -9,10 +9,11 @@ import {
   Phone,
   Clock,
   ChevronRight,
+  AlertTriangle,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { useDashboardMetrics, useCandidates, useInterviews } from '../hooks/useData';
-import type { Candidate, Interview } from '../types';
+import { useDashboardMetrics, useCandidates, useInterviews, useActivities } from '../hooks/useData';
+import type { Candidate, Interview, Activity } from '../types';
 
 function MetricCard({
   title,
@@ -128,6 +129,29 @@ function PlacementCard({ candidate }: { candidate: Candidate }) {
   );
 }
 
+function PendingOutcomeCard({ activity }: { activity: Activity }) {
+  return (
+    <Link
+      to={`/candidates/${activity.candidate_id}`}
+      className="flex items-center justify-between p-4 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors border border-amber-200"
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center border border-amber-300">
+          <Phone className="w-5 h-5 text-amber-600" />
+        </div>
+        <div>
+          <p className="text-slate-800 font-medium">{activity.candidate_name}</p>
+          <p className="text-sm text-slate-500">{activity.activity_type} - awaiting outcome</p>
+        </div>
+      </div>
+      <span className="text-xs text-amber-700 bg-amber-200 px-2 py-1 rounded-full flex items-center gap-1">
+        <AlertTriangle className="w-3 h-3" />
+        Log outcome
+      </span>
+    </Link>
+  );
+}
+
 function SourceChart({ data }: { data: { source: string; count: number }[] }) {
   const total = data.reduce((sum, d) => sum + d.count, 0);
   const colors = [
@@ -194,8 +218,17 @@ export default function Dashboard() {
   const { data: metrics, isLoading: metricsLoading } = useDashboardMetrics();
   const { isLoading: candidatesLoading } = useCandidates();
   const { isLoading: interviewsLoading } = useInterviews();
+  const { data: activities = [], isLoading: activitiesLoading } = useActivities();
 
-  const isLoading = metricsLoading || candidatesLoading || interviewsLoading;
+  const isLoading = metricsLoading || candidatesLoading || interviewsLoading || activitiesLoading;
+
+  // Get activities with pending outcomes
+  const pendingOutcomes = activities.filter(a =>
+    a.follow_up_required &&
+    a.follow_up_action === 'Log outcome' &&
+    !a.outcome &&
+    ['Phone Call', 'Phone Screen', 'Email Sent'].includes(a.activity_type)
+  );
 
   if (isLoading) {
     return (
@@ -256,6 +289,40 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Today's Tasks */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Pending Call Outcomes */}
+          {pendingOutcomes.length > 0 && (
+            <div className="card p-6 border-2 border-amber-200 bg-amber-50/30">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-500" />
+                  Calls Awaiting Outcome
+                  <span className="text-sm font-normal text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
+                    {pendingOutcomes.length}
+                  </span>
+                </h3>
+                <Link to="/activities" className="text-sm text-cgp-red hover:text-cgp-red-dark">
+                  View all
+                </Link>
+              </div>
+              <p className="text-sm text-amber-700 mb-4">
+                Log the outcome of these calls to update candidate status and keep your pipeline moving.
+              </p>
+              <div className="space-y-3">
+                {pendingOutcomes.slice(0, 5).map(activity => (
+                  <PendingOutcomeCard key={activity.id} activity={activity} />
+                ))}
+              </div>
+              {pendingOutcomes.length > 5 && (
+                <Link
+                  to="/activities"
+                  className="mt-4 block text-center text-sm text-amber-700 hover:text-amber-800"
+                >
+                  +{pendingOutcomes.length - 5} more pending outcomes
+                </Link>
+              )}
+            </div>
+          )}
+
           {/* Today's Interviews */}
           <div className="card p-6">
             <div className="flex items-center justify-between mb-4">
