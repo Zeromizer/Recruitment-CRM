@@ -19,6 +19,12 @@ Deno.serve(async (req) => {
       throw new Error("ANTHROPIC_API_KEY not configured");
     }
 
+    // Truncate resume text if too long to avoid token limits
+    const maxResumeLength = 15000;
+    const truncatedResume = resumeText.length > maxResumeLength
+      ? resumeText.substring(0, maxResumeLength) + "\n...[truncated]"
+      : resumeText;
+
     const prompt = `You are a resume parser. Extract and structure the following resume into JSON format.
 
 CANDIDATE INFO (use these exact values):
@@ -29,26 +35,34 @@ CANDIDATE INFO (use these exact values):
 - Notice Period: ${candidateInfo.noticePeriod}
 
 RESUME TEXT:
-${resumeText}
+${truncatedResume}
 
-Return ONLY valid JSON (no markdown, no code blocks). Start your response with { and end with }:
+Return ONLY valid JSON with this exact structure. No markdown code blocks, no explanations. Just the JSON object:
+
 {
-    "candidateName": "${candidateInfo.candidateName}",
-    "nationality": "${candidateInfo.nationality}",
-    "gender": "${candidateInfo.gender}",
-    "expectedSalary": "${candidateInfo.expectedSalary}",
-    "noticePeriod": "${candidateInfo.noticePeriod}",
-    "education": [{"year": "2023", "qualification": "Degree Name", "institution": "University Name"}],
-    "workExperience": [{"title": "Job Title", "period": "Jan 2022 - Present", "company": "Company Name", "responsibilities": ["Responsibility 1", "Responsibility 2"]}],
-    "languages": ["English", "Mandarin", "Cantonese"]
+  "candidateName": "${candidateInfo.candidateName}",
+  "nationality": "${candidateInfo.nationality}",
+  "gender": "${candidateInfo.gender}",
+  "expectedSalary": "${candidateInfo.expectedSalary}",
+  "noticePeriod": "${candidateInfo.noticePeriod}",
+  "education": [
+    {"year": "YYYY", "qualification": "Degree Name", "institution": "University Name"}
+  ],
+  "workExperience": [
+    {"title": "Job Title", "period": "Mon YYYY - Mon YYYY", "company": "Company Name", "responsibilities": ["Task 1", "Task 2"]}
+  ],
+  "languages": ["English"]
 }
 
-RULES:
-1. Extract ALL work experiences (most recent first)
+IMPORTANT RULES:
+1. Extract ALL work experiences from the resume (most recent first)
 2. Extract ALL education entries
-3. Each responsibility should be a complete sentence
-4. Extract ALL languages mentioned individually (e.g., "English, Mandarin, Cantonese" should be ["English", "Mandarin", "Cantonese"], not consolidated into "Chinese")
-5. If no languages mentioned, default to ["English"]`;
+3. Each responsibility should be a concise bullet point (max 200 characters)
+4. Keep responsibility descriptions short and clear
+5. Extract languages as separate items: ["English", "Mandarin", "Cantonese"]
+6. If no languages mentioned, use ["English"]
+7. Do NOT include any text before or after the JSON object
+8. Ensure all strings are properly escaped (no unescaped quotes or newlines)`;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -59,7 +73,7 @@ RULES:
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 4096,
+        max_tokens: 8192,
         messages: [
           {
             role: "user",
@@ -81,17 +95,66 @@ RULES:
       throw new Error("No response from Claude API");
     }
 
-    // Clean up response
-    if (jsonStr.startsWith("```json")) jsonStr = jsonStr.slice(7);
-    if (jsonStr.startsWith("```")) jsonStr = jsonStr.slice(3);
-    if (jsonStr.endsWith("```")) jsonStr = jsonStr.slice(0, -3);
+    // Clean up response - remove markdown code blocks if present
+    jsonStr = jsonStr.replace(/^```json\s*/i, '');
+    jsonStr = jsonStr.replace(/^```\s*/i, '');
+    jsonStr = jsonStr.replace(/\s*```$/i, '');
+    jsonStr = jsonStr.trim();
 
-    const parsedResume = JSON.parse(jsonStr.trim());
+    // Try to extract JSON object if there's extra text
+    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[0];
+    }
+
+    // Parse and validate
+    let parsedResume;
+    try {
+      parsedResume = JSON.parse(jsonStr);
+    } catch (parseError) {
+      // Try to fix common JSON issues
+      // Replace unescaped newlines in strings
+      jsonStr = jsonStr.replace(/([^\\])\\n/g, '$1\\\\n');
+      // Try parsing again
+      try {
+        parsedResume = JSON.parse(jsonStr);
+      } catch {
+        console.error("JSON parse error. Raw response:", jsonStr.substring(0, 500));
+        throw new Error(`Failed to parse AI response as JSON: ${parseError.message}`);
+      }
+    }
+
+    // Validate required fields
+    if (!parsedResume.candidateName) {
+      parsedResume.candidateName = candidateInfo.candidateName;
+    }
+    if (!parsedResume.nationality) {
+      parsedResume.nationality = candidateInfo.nationality;
+    }
+    if (!parsedResume.gender) {
+      parsedResume.gender = candidateInfo.gender;
+    }
+    if (!parsedResume.expectedSalary) {
+      parsedResume.expectedSalary = candidateInfo.expectedSalary;
+    }
+    if (!parsedResume.noticePeriod) {
+      parsedResume.noticePeriod = candidateInfo.noticePeriod;
+    }
+    if (!Array.isArray(parsedResume.education)) {
+      parsedResume.education = [];
+    }
+    if (!Array.isArray(parsedResume.workExperience)) {
+      parsedResume.workExperience = [];
+    }
+    if (!Array.isArray(parsedResume.languages)) {
+      parsedResume.languages = ["English"];
+    }
 
     return new Response(JSON.stringify(parsedResume), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
+    console.error("Parse resume error:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       {
