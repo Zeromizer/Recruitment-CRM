@@ -27,6 +27,41 @@ export type CitizenshipStatus = 'SC' | 'PR' | 'Not Identified' | 'Foreign';
 // Interview outcome
 export type InterviewOutcome = 'Passed' | 'Failed' | 'Pending' | 'No Show';
 
+// Call outcome - what happened during the call
+export type CallOutcome =
+  | 'Shortlisted'           // Candidate is good, prepare resume for client
+  | 'Rejected'              // Not suitable for the role
+  | 'Follow-up Required'    // Need to call back (more info needed, candidate busy, etc.)
+  | 'No Answer'             // Didn't pick up
+  | 'Wrong Number'          // Contact details incorrect
+  | 'Not Interested'        // Candidate declined opportunity
+  | 'On Hold'               // Candidate interested but not available now
+  | 'Voicemail Left';       // Left a message
+
+// Call outcome labels for display
+export const CALL_OUTCOME_LABELS: Record<CallOutcome, string> = {
+  'Shortlisted': 'Shortlisted - Prepare Resume',
+  'Rejected': 'Rejected - Not Suitable',
+  'Follow-up Required': 'Follow-up Required',
+  'No Answer': 'No Answer',
+  'Wrong Number': 'Wrong Number',
+  'Not Interested': 'Not Interested',
+  'On Hold': 'On Hold - Call Back Later',
+  'Voicemail Left': 'Voicemail Left',
+};
+
+// Call outcome colors for UI
+export const CALL_OUTCOME_COLORS: Record<CallOutcome, { bg: string; text: string; border: string }> = {
+  'Shortlisted': { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' },
+  'Rejected': { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
+  'Follow-up Required': { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200' },
+  'No Answer': { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200' },
+  'Wrong Number': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
+  'Not Interested': { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+  'On Hold': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
+  'Voicemail Left': { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
+};
+
 // Offer status
 export type OfferStatus = 'Pending' | 'Accepted' | 'Declined' | 'Negotiating';
 

@@ -16,6 +16,10 @@ import {
   Send,
   PhoneCall,
   X,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  ArrowRight,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import {
@@ -26,8 +30,9 @@ import {
   useUpdateCandidate,
   useCreateActivity,
 } from '../hooks/useData';
-import type { CandidateStatus, Activity } from '../types';
-import { STATUS_LABELS } from '../types';
+import type { CandidateStatus, Activity, CallOutcome } from '../types';
+import { STATUS_LABELS, CALL_OUTCOME_COLORS } from '../types';
+import CallOutcomeModal from '../components/CallOutcomeModal';
 
 function getStatusBadgeClass(status: CandidateStatus): string {
   const statusColors: Record<string, string> = {
@@ -73,9 +78,10 @@ function getAICategoryBadge(category: string | null) {
   return <span className={`badge ${colors[category] || 'badge-neutral'}`}>{category}</span>;
 }
 
-function ActivityItem({ activity }: { activity: Activity }) {
+function ActivityItem({ activity, onLogOutcome }: { activity: Activity; onLogOutcome?: (activity: Activity) => void }) {
   const iconMap: Record<string, React.ElementType> = {
     'Phone Screen': PhoneCall,
+    'Phone Call': PhoneCall,
     'Phone Interview': PhoneCall,
     'Email Sent': Mail,
     'WhatsApp Message': MessageSquare,
@@ -85,13 +91,30 @@ function ActivityItem({ activity }: { activity: Activity }) {
     'Offer Extended': Briefcase,
     'AI Screening': Star,
     'Onboarding': Briefcase,
+    'Status Change': ArrowRight,
   };
   const Icon = iconMap[activity.activity_type] || MessageSquare;
 
+  // Check if this is a call/email activity that needs outcome logging
+  const needsOutcome = activity.follow_up_required &&
+    activity.follow_up_action === 'Log outcome' &&
+    !activity.outcome &&
+    ['Phone Call', 'Phone Screen', 'Email Sent'].includes(activity.activity_type);
+
+  // Get outcome badge styling
+  const getOutcomeBadge = (outcome: string) => {
+    const outcomeKey = outcome as CallOutcome;
+    const colors = CALL_OUTCOME_COLORS[outcomeKey];
+    if (colors) {
+      return `inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${colors.bg} ${colors.text} ${colors.border} border`;
+    }
+    return 'inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600';
+  };
+
   return (
-    <div className="flex gap-4 p-4 bg-slate-50 rounded-lg border border-slate-100">
-      <div className="w-10 h-10 bg-white border border-slate-200 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
-        <Icon className="w-5 h-5 text-slate-600" />
+    <div className={`flex gap-4 p-4 rounded-lg border ${needsOutcome ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm ${needsOutcome ? 'bg-amber-100 border border-amber-300' : 'bg-white border border-slate-200'}`}>
+        <Icon className={`w-5 h-5 ${needsOutcome ? 'text-amber-600' : 'text-slate-600'}`} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
@@ -107,11 +130,24 @@ function ActivityItem({ activity }: { activity: Activity }) {
           <p className="text-sm text-slate-500 mt-1">{activity.details}</p>
         )}
         {activity.outcome && (
-          <p className="text-sm text-slate-500 mt-2">
-            <span className="text-slate-400">Outcome:</span> {activity.outcome}
-          </p>
+          <div className="mt-2">
+            <span className={getOutcomeBadge(activity.outcome)}>
+              {activity.outcome === 'Shortlisted' && <CheckCircle className="w-3 h-3" />}
+              {activity.outcome === 'Rejected' && <XCircle className="w-3 h-3" />}
+              {activity.outcome}
+            </span>
+          </div>
         )}
-        {activity.follow_up_required && activity.follow_up_action && (
+        {needsOutcome && onLogOutcome && (
+          <button
+            onClick={() => onLogOutcome(activity)}
+            className="mt-2 text-sm text-amber-700 hover:text-amber-800 font-medium flex items-center gap-1 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            <AlertTriangle className="w-4 h-4" />
+            Log outcome
+          </button>
+        )}
+        {activity.follow_up_required && activity.follow_up_action && activity.follow_up_action !== 'Log outcome' && (
           <p className="text-sm text-amber-600 mt-2 flex items-center gap-1">
             <Clock className="w-4 h-4" />
             Follow-up: {activity.follow_up_action}
@@ -136,6 +172,8 @@ export default function CandidateDetail() {
   const [notes, setNotes] = useState('');
   const [editingNotes, setEditingNotes] = useState(false);
   const [showInterviewModal, setShowInterviewModal] = useState(false);
+  const [showCallOutcomeModal, setShowCallOutcomeModal] = useState(false);
+  const [pendingActivityForOutcome, setPendingActivityForOutcome] = useState<Activity | null>(null);
   const [interviewForm, setInterviewForm] = useState({
     date: '',
     time: '',
@@ -207,7 +245,7 @@ export default function CandidateDetail() {
   };
 
   const handleQuickAction = async (actionType: string) => {
-    await createActivity.mutateAsync({
+    const newActivity = await createActivity.mutateAsync({
       candidate_id: candidate.id,
       candidate_name: candidate.full_name,
       activity_date: new Date().toISOString(),
@@ -224,6 +262,89 @@ export default function CandidateDetail() {
       follow_up_action: 'Log outcome',
       logged_by: 'Shawn',
     });
+
+    // Show outcome modal immediately after logging a call
+    if (actionType === 'Phone Call' && newActivity) {
+      setPendingActivityForOutcome(newActivity as Activity);
+      setShowCallOutcomeModal(true);
+    }
+  };
+
+  // Handle opening outcome modal for an existing activity
+  const handleLogOutcome = (activity: Activity) => {
+    setPendingActivityForOutcome(activity);
+    setShowCallOutcomeModal(true);
+  };
+
+  // Handle submitting call outcome
+  const handleCallOutcomeSubmit = async (
+    outcome: CallOutcome,
+    callNotes: string,
+    followUpDate: string | null,
+    shouldUpdateStatus: boolean,
+    newStatus: string | null
+  ) => {
+    // Update the activity with the outcome
+    if (pendingActivityForOutcome) {
+      await createActivity.mutateAsync({
+        candidate_id: candidate.id,
+        candidate_name: candidate.full_name,
+        activity_date: new Date().toISOString(),
+        activity_type: 'Call Outcome Logged',
+        direction: 'Internal',
+        channel: 'System',
+        subject: `Call outcome: ${outcome}`,
+        details: callNotes || `Outcome logged for call with ${candidate.full_name}`,
+        related_job: candidate.applied_role,
+        related_client: candidate.client_submitted_to,
+        outcome: outcome,
+        follow_up_required: followUpDate ? true : false,
+        follow_up_date: followUpDate,
+        follow_up_action: followUpDate ? 'Follow up call' : null,
+        logged_by: 'Shawn',
+      });
+    }
+
+    // Update candidate status if needed
+    if (shouldUpdateStatus && newStatus) {
+      await updateStatus.mutateAsync({ id: candidate.id, status: newStatus as CandidateStatus });
+
+      // Also update next_action based on the outcome
+      let nextAction = null;
+      let nextActionDate = null;
+
+      if (outcome === 'Shortlisted') {
+        nextAction = 'Prepare resume and submit to client';
+      } else if (followUpDate) {
+        nextAction = 'Follow up with candidate';
+        nextActionDate = followUpDate;
+      }
+
+      if (nextAction) {
+        await updateCandidate.mutateAsync({
+          id: candidate.id,
+          updates: {
+            next_action: nextAction,
+            next_action_date: nextActionDate,
+            last_contact_date: new Date().toISOString().split('T')[0],
+          },
+        });
+      }
+    } else {
+      // Just update last contact date
+      await updateCandidate.mutateAsync({
+        id: candidate.id,
+        updates: {
+          last_contact_date: new Date().toISOString().split('T')[0],
+          ...(followUpDate && {
+            next_action: 'Follow up with candidate',
+            next_action_date: followUpDate,
+          }),
+        },
+      });
+    }
+
+    setPendingActivityForOutcome(null);
   };
 
   const handleScheduleInterview = async () => {
@@ -418,13 +539,93 @@ export default function CandidateDetail() {
             </div>
           </div>
 
+          {/* Workflow Progress Indicator */}
+          <div className="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium text-slate-700">Workflow Progress</h3>
+              <span className={`text-xs px-2 py-1 rounded-full ${
+                ['new_application', 'ai_screened', 'human_reviewed'].includes(candidate.current_status)
+                  ? 'bg-blue-100 text-blue-700'
+                  : ['shortlisted', 'submitted_to_client'].includes(candidate.current_status)
+                  ? 'bg-yellow-100 text-yellow-700'
+                  : ['interview_scheduled', 'interview_completed'].includes(candidate.current_status)
+                  ? 'bg-purple-100 text-purple-700'
+                  : ['offer_extended', 'offer_accepted', 'placement_started'].includes(candidate.current_status)
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-slate-100 text-slate-700'
+              }`}>
+                {STATUS_LABELS[candidate.current_status]}
+              </span>
+            </div>
+            {/* Progress Steps */}
+            <div className="flex items-center gap-1 mb-4">
+              {['Review', 'Call', 'Shortlist', 'Submit', 'Interview', 'Offer', 'Placed'].map((step, idx) => {
+                const statusMap: Record<string, number> = {
+                  'new_application': 0, 'ai_screened': 0, 'human_reviewed': 1,
+                  'shortlisted': 2, 'submitted_to_client': 3,
+                  'interview_scheduled': 4, 'interview_completed': 4,
+                  'offer_extended': 5, 'offer_accepted': 5,
+                  'placement_started': 6, 'placement_completed': 6,
+                };
+                const currentStep = statusMap[candidate.current_status] ?? -1;
+                const isCompleted = idx < currentStep;
+                const isCurrent = idx === currentStep;
+                return (
+                  <div key={step} className="flex-1">
+                    <div className={`h-2 rounded-full ${
+                      isCompleted ? 'bg-green-500' : isCurrent ? 'bg-cgp-red' : 'bg-slate-200'
+                    }`} />
+                    <p className={`text-xs mt-1 text-center ${
+                      isCurrent ? 'text-cgp-red font-medium' : isCompleted ? 'text-green-600' : 'text-slate-400'
+                    }`}>{step}</p>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Recommended Next Action */}
+            <div className={`p-3 rounded-lg border ${
+              ['new_application', 'ai_screened', 'human_reviewed'].includes(candidate.current_status)
+                ? 'bg-blue-50 border-blue-200'
+                : candidate.current_status === 'shortlisted'
+                ? 'bg-yellow-50 border-yellow-200'
+                : 'bg-green-50 border-green-200'
+            }`}>
+              <p className="text-xs text-slate-500 mb-1">Recommended Next Action</p>
+              <p className={`text-sm font-medium ${
+                ['new_application', 'ai_screened', 'human_reviewed'].includes(candidate.current_status)
+                  ? 'text-blue-700'
+                  : candidate.current_status === 'shortlisted'
+                  ? 'text-yellow-700'
+                  : 'text-green-700'
+              }`}>
+                {['new_application', 'ai_screened'].includes(candidate.current_status)
+                  ? 'Review candidate and call to screen'
+                  : candidate.current_status === 'human_reviewed'
+                  ? 'Call candidate to assess fit and shortlist'
+                  : candidate.current_status === 'shortlisted'
+                  ? 'Prepare resume and submit to client'
+                  : candidate.current_status === 'submitted_to_client'
+                  ? 'Follow up with client for feedback'
+                  : candidate.current_status === 'interview_scheduled'
+                  ? 'Prepare candidate for interview'
+                  : candidate.current_status === 'interview_completed'
+                  ? 'Get feedback and proceed to offer'
+                  : candidate.current_status === 'offer_extended'
+                  ? 'Follow up on offer decision'
+                  : candidate.current_status === 'offer_accepted'
+                  ? 'Complete onboarding'
+                  : 'Monitor placement progress'}
+              </p>
+            </div>
+          </div>
+
           {/* Next Action Banner */}
           {candidate.next_action && (
-            <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
               <div className="flex items-start gap-3">
                 <Calendar className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-amber-700 font-medium">Next Action</p>
+                  <p className="text-amber-700 font-medium">Scheduled Action</p>
                   <p className="text-slate-700">{candidate.next_action}</p>
                   {candidate.next_action_date && (
                     <p className="text-sm text-amber-600 mt-1">
@@ -436,29 +637,84 @@ export default function CandidateDetail() {
             </div>
           )}
 
-          {/* Quick Actions */}
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button
-              onClick={() => handleQuickAction('Phone Call')}
-              className="btn-secondary flex items-center gap-2"
-            >
-              <PhoneCall className="w-4 h-4" />
-              Log Call
-            </button>
-            <button
-              onClick={() => handleQuickAction('Email Sent')}
-              className="btn-secondary flex items-center gap-2"
-            >
-              <Mail className="w-4 h-4" />
-              Log Email
-            </button>
-            <button
-              onClick={() => setShowInterviewModal(true)}
-              className="btn-secondary flex items-center gap-2"
-            >
-              <Calendar className="w-4 h-4" />
-              Schedule Interview
-            </button>
+          {/* Quick Actions - Context Aware */}
+          <div className="mt-6">
+            <h3 className="text-sm font-medium text-slate-700 mb-3">Quick Actions</h3>
+            <div className="flex flex-wrap gap-3">
+              {/* Primary CTA based on status */}
+              {['new_application', 'ai_screened', 'human_reviewed'].includes(candidate.current_status) && (
+                <button
+                  onClick={() => handleQuickAction('Phone Call')}
+                  className="btn-primary flex items-center gap-2"
+                >
+                  <PhoneCall className="w-4 h-4" />
+                  Call & Screen
+                </button>
+              )}
+              {candidate.current_status === 'shortlisted' && (
+                <button
+                  onClick={() => handleStatusChange('submitted_to_client')}
+                  className="btn-primary flex items-center gap-2"
+                >
+                  <Send className="w-4 h-4" />
+                  Submit to Client
+                </button>
+              )}
+              {candidate.current_status === 'submitted_to_client' && (
+                <button
+                  onClick={() => setShowInterviewModal(true)}
+                  className="btn-primary flex items-center gap-2"
+                >
+                  <Calendar className="w-4 h-4" />
+                  Schedule Interview
+                </button>
+              )}
+
+              {/* Secondary Actions */}
+              <button
+                onClick={() => handleQuickAction('Phone Call')}
+                className="btn-secondary flex items-center gap-2"
+              >
+                <PhoneCall className="w-4 h-4" />
+                Log Call
+              </button>
+              <button
+                onClick={() => handleQuickAction('Email Sent')}
+                className="btn-secondary flex items-center gap-2"
+              >
+                <Mail className="w-4 h-4" />
+                Log Email
+              </button>
+              {!['new_application', 'ai_screened', 'human_reviewed', 'shortlisted'].includes(candidate.current_status) && (
+                <button
+                  onClick={() => setShowInterviewModal(true)}
+                  className="btn-secondary flex items-center gap-2"
+                >
+                  <Calendar className="w-4 h-4" />
+                  Schedule Interview
+                </button>
+              )}
+
+              {/* Quick Status Actions for early stages */}
+              {['new_application', 'ai_screened', 'human_reviewed'].includes(candidate.current_status) && (
+                <>
+                  <button
+                    onClick={() => handleStatusChange('shortlisted')}
+                    className="btn-secondary flex items-center gap-2 text-green-600 border-green-200 hover:bg-green-50"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Shortlist
+                  </button>
+                  <button
+                    onClick={() => handleStatusChange('rejected_human')}
+                    className="btn-secondary flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    Reject
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -572,14 +828,21 @@ export default function CandidateDetail() {
 
         {/* Activity Timeline */}
         <div className="card p-6">
-          <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2 mb-4">
-            <Clock className="w-5 h-5 text-blue-500" />
-            Activity Timeline
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+              <Clock className="w-5 h-5 text-blue-500" />
+              Activity Timeline
+            </h2>
+            {activities.filter(a => a.follow_up_required && a.follow_up_action === 'Log outcome' && !a.outcome).length > 0 && (
+              <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-200">
+                {activities.filter(a => a.follow_up_required && a.follow_up_action === 'Log outcome' && !a.outcome).length} pending outcome(s)
+              </span>
+            )}
+          </div>
           {activities.length > 0 ? (
             <div className="space-y-3">
               {activities.map(activity => (
-                <ActivityItem key={activity.id} activity={activity} />
+                <ActivityItem key={activity.id} activity={activity} onLogOutcome={handleLogOutcome} />
               ))}
             </div>
           ) : (
@@ -724,6 +987,18 @@ export default function CandidateDetail() {
           </div>
         </div>
         )}
+
+        {/* Call Outcome Modal */}
+        <CallOutcomeModal
+          isOpen={showCallOutcomeModal}
+          onClose={() => {
+            setShowCallOutcomeModal(false);
+            setPendingActivityForOutcome(null);
+          }}
+          candidate={candidate}
+          activity={pendingActivityForOutcome}
+          onSubmit={handleCallOutcomeSubmit}
+        />
       </div>
 
       {/* Right Side - Resume Preview (Always Visible) */}
