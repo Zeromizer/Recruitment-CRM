@@ -20,6 +20,7 @@ import {
   XCircle,
   AlertTriangle,
   ArrowRight,
+  FileOutput,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import {
@@ -33,6 +34,7 @@ import {
 import type { CandidateStatus, Activity, CallOutcome } from '../types';
 import { STATUS_LABELS, CALL_OUTCOME_COLORS } from '../types';
 import CallOutcomeModal from '../components/CallOutcomeModal';
+import ResumeConverterModal from '../components/ResumeConverterModal';
 
 function getStatusBadgeClass(status: CandidateStatus): string {
   const statusColors: Record<string, string> = {
@@ -173,6 +175,7 @@ export default function CandidateDetail() {
   const [editingNotes, setEditingNotes] = useState(false);
   const [showInterviewModal, setShowInterviewModal] = useState(false);
   const [showCallOutcomeModal, setShowCallOutcomeModal] = useState(false);
+  const [showResumeConverterModal, setShowResumeConverterModal] = useState(false);
   const [pendingActivityForOutcome, setPendingActivityForOutcome] = useState<Activity | null>(null);
   const [interviewForm, setInterviewForm] = useState({
     date: '',
@@ -999,6 +1002,13 @@ export default function CandidateDetail() {
           activity={pendingActivityForOutcome}
           onSubmit={handleCallOutcomeSubmit}
         />
+
+        {/* Resume Converter Modal */}
+        <ResumeConverterModal
+          isOpen={showResumeConverterModal}
+          onClose={() => setShowResumeConverterModal(false)}
+          candidate={candidate}
+        />
       </div>
 
       {/* Right Side - Resume Preview (Always Visible) */}
@@ -1010,17 +1020,26 @@ export default function CandidateDetail() {
               <FileText className="w-5 h-5 text-cgp-red" />
               Resume Preview
             </h2>
-            {candidate.resume_url && (
-              <a
-                href={candidate.resume_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-secondary text-sm flex items-center gap-1"
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowResumeConverterModal(true)}
+                className="btn-primary text-sm flex items-center gap-1"
               >
-                <ExternalLink className="w-4 h-4" />
-                Open in New Tab
-              </a>
-            )}
+                <FileOutput className="w-4 h-4" />
+                Convert to CGP
+              </button>
+              {candidate.resume_url && (
+                <a
+                  href={candidate.resume_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-secondary text-sm flex items-center gap-1"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Open in New Tab
+                </a>
+              )}
+            </div>
           </div>
           {/* PDF Viewer or No Resume Message */}
           <div className="flex-1 p-4 min-h-0">
