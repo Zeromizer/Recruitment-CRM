@@ -69,6 +69,7 @@ export default function ResumeConverterModal({
   const [gender, setGender] = useState('');
   const [expectedSalary, setExpectedSalary] = useState('');
   const [noticePeriod, setNoticePeriod] = useState('');
+  const [preparedBy, setPreparedBy] = useState('');
 
   // Reset form when modal opens with candidate data
   useEffect(() => {
@@ -85,6 +86,7 @@ export default function ResumeConverterModal({
       setGender('');
       setExpectedSalary('');
       setNoticePeriod('');
+      setPreparedBy('');
       setFile(null);
       setUseExistingResume(!!candidate.resume_url);
       setStep('form');
@@ -171,6 +173,7 @@ export default function ResumeConverterModal({
         gender,
         expectedSalary: expectedSalary.trim(),
         noticePeriod,
+        preparedBy: preparedBy.trim() || 'CGP Personnel',
       };
 
       let resumeSource: File | string;
@@ -227,6 +230,7 @@ export default function ResumeConverterModal({
     setGender('');
     setExpectedSalary('');
     setNoticePeriod('');
+    setPreparedBy('');
     setStep('form');
     setError(null);
     setParsedResume(null);
@@ -462,6 +466,19 @@ export default function ResumeConverterModal({
                       <option key={n} value={n}>{n}</option>
                     ))}
                   </select>
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-slate-600 mb-2">
+                    Prepared By
+                  </label>
+                  <input
+                    type="text"
+                    value={preparedBy}
+                    onChange={(e) => setPreparedBy(e.target.value)}
+                    placeholder="e.g. Go Ai Wei (defaults to CGP Personnel)"
+                    className="input w-full"
+                  />
                 </div>
               </div>
             </div>
