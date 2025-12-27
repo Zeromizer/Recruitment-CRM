@@ -1,5 +1,5 @@
 // CGP Resume Converter Service
-// Converts candidate resumes to CGP format using Gemini AI
+// Converts candidate resumes to CGP format using Claude AI and company template
 
 export interface CandidateInfo {
   candidateName: string;
@@ -7,6 +7,7 @@ export interface CandidateInfo {
   gender: string;
   expectedSalary: string;
   noticePeriod: string;
+  preparedBy?: string;
 }
 
 export interface ParsedResume {
@@ -29,12 +30,59 @@ export interface ParsedResume {
   languages: string[];
 }
 
+// Template and logo file names in Supabase storage
+const TEMPLATE_BUCKET = 'templates';
+const TEMPLATE_FILE = 'CGP template.docx';
+const LOGO_FILE = 'cgp-personnel-logos_cgp-personnel-logo-color.png';
+
+// Cache for template data
+let templateCache: { zip: any; logoData: ArrayBuffer | null } | null = null;
+
+// Download template from Supabase storage
+async function downloadTemplate(): Promise<{ zip: any; logoData: ArrayBuffer | null }> {
+  if (templateCache) {
+    return templateCache;
+  }
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Supabase configuration missing. Please check your environment variables.');
+  }
+
+  const JSZip = (await import('jszip')).default;
+
+  // Download template DOCX
+  const templateUrl = `${supabaseUrl}/storage/v1/object/public/${TEMPLATE_BUCKET}/${encodeURIComponent(TEMPLATE_FILE)}`;
+  const templateResponse = await fetch(templateUrl);
+
+  if (!templateResponse.ok) {
+    throw new Error(`Failed to download template: ${templateResponse.statusText}`);
+  }
+
+  const templateBlob = await templateResponse.blob();
+  const zip = await JSZip.loadAsync(templateBlob);
+
+  // Download logo
+  let logoData: ArrayBuffer | null = null;
+  try {
+    const logoUrl = `${supabaseUrl}/storage/v1/object/public/${TEMPLATE_BUCKET}/${encodeURIComponent(LOGO_FILE)}`;
+    const logoResponse = await fetch(logoUrl);
+    if (logoResponse.ok) {
+      logoData = await logoResponse.arrayBuffer();
+    }
+  } catch (e) {
+    console.warn('Could not load logo:', e);
+  }
+
+  templateCache = { zip, logoData };
+  return templateCache;
+}
+
 // Extract text from PDF using pdf.js
 export async function extractPdfText(file: File): Promise<string> {
-  // Dynamically load pdf.js
   const pdfjsLib = await import('pdfjs-dist');
-
-  // Use worker from unpkg CDN matching the installed version
   const pdfjsVersion = pdfjsLib.version;
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.min.mjs`;
 
@@ -111,26 +159,73 @@ export async function parseResumeWithAI(
   return response.json();
 }
 
-// Generate CGP formatted Word document
-export async function generateCGPDocument(data: ParsedResume): Promise<Blob> {
+// Generate CGP formatted Word document using template
+export async function generateCGPDocument(data: ParsedResume, preparedBy: string = 'CGP Personnel'): Promise<Blob> {
   const JSZip = (await import('jszip')).default;
 
-  // Create a new DOCX from scratch
-  const zip = new JSZip();
+  // Download template from Supabase
+  const { zip: templateZip, logoData } = await downloadTemplate();
 
-  // Add required DOCX structure
-  zip.file('[Content_Types].xml', getContentTypesXml());
-  zip.file('_rels/.rels', getRelsXml());
-  zip.folder('word');
-  zip.file('word/_rels/document.xml.rels', getDocumentRelsXml());
-  zip.file('word/styles.xml', getStylesXml());
-  zip.file('word/numbering.xml', getNumberingXml());
-  zip.file('word/document.xml', generateDocumentXml(data));
+  // Clone the template zip
+  const newZip = new JSZip();
 
-  return zip.generateAsync({
+  // Copy all files from template except document.xml (we'll generate new content)
+  const files = Object.keys(templateZip.files);
+
+  for (const fileName of files) {
+    if (fileName === 'word/document.xml') {
+      // Generate new document content
+      continue;
+    }
+
+    const file = templateZip.files[fileName];
+    if (!file.dir) {
+      const content = await file.async('arraybuffer');
+      newZip.file(fileName, content);
+    }
+  }
+
+  // Check if template has logo image, if not add it
+  const hasLogo = files.some(f => f.includes('media/image'));
+  if (!hasLogo && logoData) {
+    newZip.file('word/media/image1.png', logoData);
+
+    // Update content types to include PNG
+    const contentTypesFile = templateZip.files['[Content_Types].xml'];
+    if (contentTypesFile) {
+      let contentTypes = await contentTypesFile.async('string');
+      if (!contentTypes.includes('Extension="png"')) {
+        contentTypes = contentTypes.replace(
+          '</Types>',
+          '<Default Extension="png" ContentType="image/png"/></Types>'
+        );
+        newZip.file('[Content_Types].xml', contentTypes);
+      }
+    }
+  }
+
+  // Generate new document.xml with CGP format
+  const documentXml = generateCGPDocumentXml(data, preparedBy);
+  newZip.file('word/document.xml', documentXml);
+
+  // Update document relationships if needed
+  await ensureDocumentRels(newZip, templateZip);
+
+  return newZip.generateAsync({
     type: 'blob',
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   });
+}
+
+async function ensureDocumentRels(newZip: any, templateZip: any): Promise<void> {
+  const relsPath = 'word/_rels/document.xml.rels';
+  const templateRels = templateZip.files[relsPath];
+
+  if (templateRels) {
+    // Use template's relationships as they include image references
+    const content = await templateRels.async('string');
+    newZip.file(relsPath, content);
+  }
 }
 
 function escapeXml(text: string | null | undefined): string {
@@ -143,151 +238,329 @@ function escapeXml(text: string | null | undefined): string {
     .replace(/'/g, '&apos;');
 }
 
-function generateDocumentXml(data: ParsedResume): string {
+function generateCGPDocumentXml(data: ParsedResume, preparedBy: string): string {
   // Ensure arrays are valid
   const education = Array.isArray(data.education) ? data.education : [];
   const workExperience = Array.isArray(data.workExperience) ? data.workExperience : [];
   const languages = Array.isArray(data.languages) ? data.languages : ['English'];
 
-  let content = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  // CGP brand color
+  const cgpRed = 'CC3300';
+
+  let xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+            xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+            xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
 <w:body>`;
 
-  // Title - Candidate Name
-  content += `<w:p><w:pPr><w:jc w:val="center"/><w:pStyle w:val="Title"/></w:pPr>
-<w:r><w:rPr><w:b/><w:sz w:val="44"/></w:rPr><w:t>${escapeXml(data.candidateName)}</w:t></w:r></w:p>`;
+  // ===== HEADER SECTION WITH LOGO AND COMPANY INFO =====
+  xml += `
+<!-- Header Table with Logo and Company Info -->
+<w:tbl>
+  <w:tblPr>
+    <w:tblW w:w="5000" w:type="pct"/>
+    <w:tblLook w:val="04A0"/>
+  </w:tblPr>
+  <w:tblGrid>
+    <w:gridCol w:w="4500"/>
+    <w:gridCol w:w="5500"/>
+  </w:tblGrid>
+  <w:tr>
+    <w:tc>
+      <w:tcPr><w:tcW w:w="4500" w:type="dxa"/></w:tcPr>
+      <w:p>
+        <w:r>
+          <w:drawing>
+            <wp:inline distT="0" distB="0" distL="0" distR="0">
+              <wp:extent cx="2286000" cy="571500"/>
+              <wp:docPr id="1" name="CGP Logo"/>
+              <a:graphic>
+                <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                  <pic:pic>
+                    <pic:nvPicPr>
+                      <pic:cNvPr id="1" name="logo.png"/>
+                      <pic:cNvPicPr/>
+                    </pic:nvPicPr>
+                    <pic:blipFill>
+                      <a:blip r:embed="rId7"/>
+                      <a:stretch><a:fillRect/></a:stretch>
+                    </pic:blipFill>
+                    <pic:spPr>
+                      <a:xfrm>
+                        <a:off x="0" y="0"/>
+                        <a:ext cx="2286000" cy="571500"/>
+                      </a:xfrm>
+                      <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                    </pic:spPr>
+                  </pic:pic>
+                </a:graphicData>
+              </a:graphic>
+            </wp:inline>
+          </w:drawing>
+        </w:r>
+      </w:p>
+    </w:tc>
+    <w:tc>
+      <w:tcPr><w:tcW w:w="5500" w:type="dxa"/></w:tcPr>
+      <w:p><w:pPr><w:jc w:val="right"/></w:pPr>
+        <w:r><w:rPr><w:b/><w:color w:val="${cgpRed}"/><w:sz w:val="22"/></w:rPr><w:t>Cornerstone Global Partners Pte Ltd</w:t></w:r>
+      </w:p>
+      <w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>
+        <w:r><w:rPr><w:color w:val="${cgpRed}"/><w:sz w:val="16"/></w:rPr><w:t>Prepared by: </w:t></w:r>
+        <w:r><w:rPr><w:sz w:val="16"/></w:rPr><w:t>${escapeXml(preparedBy)}</w:t></w:r>
+      </w:p>
+      <w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>
+        <w:r><w:rPr><w:color w:val="${cgpRed}"/><w:sz w:val="16"/></w:rPr><w:t>Company Registration Number: </w:t></w:r>
+        <w:r><w:rPr><w:sz w:val="16"/></w:rPr><w:t>201622755N</w:t></w:r>
+      </w:p>
+      <w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>
+        <w:r><w:rPr><w:color w:val="${cgpRed}"/><w:sz w:val="16"/></w:rPr><w:t>EA Licence: </w:t></w:r>
+        <w:r><w:rPr><w:sz w:val="16"/></w:rPr><w:t>19C9859</w:t></w:r>
+      </w:p>
+      <w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>
+        <w:r><w:rPr><w:color w:val="${cgpRed}"/><w:sz w:val="16"/></w:rPr><w:t>Registration No: </w:t></w:r>
+        <w:r><w:rPr><w:sz w:val="16"/></w:rPr><w:t>R1440661</w:t></w:r>
+      </w:p>
+      <w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>
+        <w:r><w:rPr><w:color w:val="${cgpRed}"/><w:sz w:val="16"/></w:rPr><w:t>Address: </w:t></w:r>
+        <w:r><w:rPr><w:sz w:val="16"/></w:rPr><w:t>79 Anson Road, #17-01</w:t></w:r>
+      </w:p>
+      <w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>
+        <w:r><w:rPr><w:color w:val="${cgpRed}"/><w:sz w:val="16"/></w:rPr><w:t>Telephone: </w:t></w:r>
+        <w:r><w:rPr><w:sz w:val="16"/></w:rPr><w:t>+65 90033765</w:t></w:r>
+      </w:p>
+      <w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>
+        <w:r><w:rPr><w:color w:val="${cgpRed}"/><w:sz w:val="16"/></w:rPr><w:t>Website: </w:t></w:r>
+        <w:r><w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/><w:sz w:val="16"/></w:rPr><w:t>https://www.cgpo2o.com/</w:t></w:r>
+      </w:p>
+    </w:tc>
+  </w:tr>
+</w:tbl>`;
 
-  // Divider line
-  content += `<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="CC3300"/></w:pBdr></w:pPr></w:p>`;
+  // ===== HORIZONTAL LINE =====
+  xml += `
+<w:p>
+  <w:pPr>
+    <w:pBdr>
+      <w:bottom w:val="single" w:sz="12" w:space="1" w:color="${cgpRed}"/>
+    </w:pBdr>
+    <w:spacing w:before="200" w:after="200"/>
+  </w:pPr>
+</w:p>`;
 
-  // Personal Information Section
-  content += generateSectionHeader('PERSONAL INFORMATION');
-  content += generateInfoRow('Nationality', data.nationality);
-  content += generateInfoRow('Gender', data.gender);
-  content += generateInfoRow('Expected Salary', data.expectedSalary);
-  content += generateInfoRow('Notice Period', data.noticePeriod);
+  // ===== PERSONAL INFORMATION TABLE =====
+  xml += `
+<w:tbl>
+  <w:tblPr>
+    <w:tblW w:w="5000" w:type="pct"/>
+    <w:tblLook w:val="04A0"/>
+  </w:tblPr>
+  <w:tblGrid>
+    <w:gridCol w:w="2500"/>
+    <w:gridCol w:w="500"/>
+    <w:gridCol w:w="7000"/>
+  </w:tblGrid>`;
 
-  // Education Section
-  content += generateSectionHeader('EDUCATION');
-  education.forEach(edu => {
-    content += `<w:p><w:pPr><w:spacing w:after="40"/></w:pPr>
-<w:r><w:rPr><w:b/></w:rPr><w:t>${escapeXml(edu?.year)}</w:t></w:r></w:p>`;
-    content += `<w:p><w:pPr><w:spacing w:after="40"/></w:pPr>
-<w:r><w:t>${escapeXml(edu?.qualification)}</w:t></w:r></w:p>`;
-    content += `<w:p><w:pPr><w:spacing w:after="200"/></w:pPr>
-<w:r><w:rPr><w:i/></w:rPr><w:t>${escapeXml(edu?.institution)}</w:t></w:r></w:p>`;
+  // Personal info rows
+  const personalInfo = [
+    ['Candidate Name', data.candidateName],
+    ['Nationality', data.nationality],
+    ['Gender', data.gender],
+    ['Expected Salary', data.expectedSalary],
+    ['Notice Period', data.noticePeriod]
+  ];
+
+  personalInfo.forEach(([label, value]) => {
+    xml += `
+  <w:tr>
+    <w:tc>
+      <w:tcPr><w:tcW w:w="2500" w:type="dxa"/></w:tcPr>
+      <w:p><w:pPr><w:spacing w:after="60"/></w:pPr>
+        <w:r><w:rPr><w:b/><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(label)}</w:t></w:r>
+      </w:p>
+    </w:tc>
+    <w:tc>
+      <w:tcPr><w:tcW w:w="500" w:type="dxa"/></w:tcPr>
+      <w:p><w:pPr><w:spacing w:after="60"/></w:pPr>
+        <w:r><w:rPr><w:sz w:val="22"/></w:rPr><w:t>:</w:t></w:r>
+      </w:p>
+    </w:tc>
+    <w:tc>
+      <w:tcPr><w:tcW w:w="7000" w:type="dxa"/></w:tcPr>
+      <w:p><w:pPr><w:spacing w:after="60"/></w:pPr>
+        <w:r><w:rPr><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(value)}</w:t></w:r>
+      </w:p>
+    </w:tc>
+  </w:tr>`;
   });
 
-  // Work Experience Section
-  content += generateSectionHeader('WORK EXPERIENCE');
+  xml += `
+</w:tbl>`;
+
+  // ===== EDUCATION SECTION =====
+  xml += generateSectionHeader('EDUCATION', cgpRed);
+
+  // Education table
+  xml += `
+<w:tbl>
+  <w:tblPr>
+    <w:tblW w:w="5000" w:type="pct"/>
+    <w:tblLook w:val="04A0"/>
+  </w:tblPr>
+  <w:tblGrid>
+    <w:gridCol w:w="2000"/>
+    <w:gridCol w:w="8000"/>
+  </w:tblGrid>`;
+
+  education.forEach(edu => {
+    xml += `
+  <w:tr>
+    <w:tc>
+      <w:tcPr><w:tcW w:w="2000" w:type="dxa"/></w:tcPr>
+      <w:p><w:pPr><w:spacing w:after="120"/></w:pPr>
+        <w:r><w:rPr><w:b/><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(edu?.year)}</w:t></w:r>
+      </w:p>
+    </w:tc>
+    <w:tc>
+      <w:tcPr><w:tcW w:w="8000" w:type="dxa"/></w:tcPr>
+      <w:p><w:pPr><w:spacing w:after="0"/></w:pPr>
+        <w:r><w:rPr><w:b/><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(edu?.qualification)}</w:t></w:r>
+      </w:p>
+      <w:p><w:pPr><w:spacing w:after="120"/></w:pPr>
+        <w:r><w:rPr><w:i/><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(edu?.institution)}</w:t></w:r>
+      </w:p>
+    </w:tc>
+  </w:tr>`;
+  });
+
+  xml += `
+</w:tbl>`;
+
+  // ===== WORKING EXPERIENCE SECTION =====
+  xml += generateSectionHeader('WORKING EXPERIENCE', cgpRed);
+
   workExperience.forEach(job => {
-    // Job Title
-    content += `<w:p><w:pPr><w:spacing w:after="40"/></w:pPr>
-<w:r><w:rPr><w:b/><w:sz w:val="24"/></w:rPr><w:t>${escapeXml(job?.title)}</w:t></w:r></w:p>`;
+    // Job title
+    xml += `
+<w:p><w:pPr><w:spacing w:after="0"/></w:pPr>
+  <w:r><w:rPr><w:b/><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(job?.title)}</w:t></w:r>
+</w:p>`;
+
     // Period
-    content += `<w:p><w:pPr><w:spacing w:after="40"/></w:pPr>
-<w:r><w:rPr><w:b/></w:rPr><w:t>${escapeXml(job?.period)}</w:t></w:r></w:p>`;
+    xml += `
+<w:p><w:pPr><w:spacing w:after="0"/></w:pPr>
+  <w:r><w:rPr><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(job?.period)}</w:t></w:r>
+</w:p>`;
+
     // Company
-    content += `<w:p><w:pPr><w:spacing w:after="80"/></w:pPr>
-<w:r><w:rPr><w:i/></w:rPr><w:t>${escapeXml(job?.company)}</w:t></w:r></w:p>`;
-    // Responsibilities (bulleted list)
+    xml += `
+<w:p><w:pPr><w:spacing w:after="120"/></w:pPr>
+  <w:r><w:rPr><w:b/><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(job?.company)}</w:t></w:r>
+</w:p>`;
+
+    // Responsibilities as bullet points
     const responsibilities = Array.isArray(job?.responsibilities) ? job.responsibilities : [];
     responsibilities.forEach(resp => {
-      content += `<w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr>
-<w:r><w:t>${escapeXml(resp)}</w:t></w:r></w:p>`;
+      xml += `
+<w:p>
+  <w:pPr>
+    <w:pStyle w:val="ListParagraph"/>
+    <w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>
+    <w:spacing w:after="60"/>
+    <w:ind w:left="720" w:hanging="360"/>
+  </w:pPr>
+  <w:r><w:rPr><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(resp)}</w:t></w:r>
+</w:p>`;
     });
-    content += `<w:p><w:pPr><w:spacing w:after="200"/></w:pPr></w:p>`;
+
+    // Space after each job
+    xml += `<w:p><w:pPr><w:spacing w:after="200"/></w:pPr></w:p>`;
   });
 
-  // Languages Section
-  content += generateSectionHeader('LANGUAGES');
-  languages.forEach(lang => {
-    content += `<w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr>
-<w:r><w:t>${escapeXml(lang)}</w:t></w:r></w:p>`;
-  });
+  // ===== LANGUAGES SECTION (if available) =====
+  if (languages.length > 0) {
+    xml += generateSectionHeader('LANGUAGES', cgpRed);
 
-  content += `<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr>
-</w:body></w:document>`;
+    languages.forEach(lang => {
+      xml += `
+<w:p>
+  <w:pPr>
+    <w:pStyle w:val="ListParagraph"/>
+    <w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>
+    <w:spacing w:after="60"/>
+    <w:ind w:left="720" w:hanging="360"/>
+  </w:pPr>
+  <w:r><w:rPr><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(lang)}</w:t></w:r>
+</w:p>`;
+    });
+  }
 
-  return content;
+  // ===== FOOTER =====
+  xml += `
+<w:p>
+  <w:pPr>
+    <w:pBdr>
+      <w:top w:val="single" w:sz="6" w:space="1" w:color="auto"/>
+    </w:pBdr>
+    <w:spacing w:before="400"/>
+    <w:jc w:val="center"/>
+  </w:pPr>
+</w:p>
+<w:tbl>
+  <w:tblPr>
+    <w:tblW w:w="5000" w:type="pct"/>
+    <w:jc w:val="center"/>
+  </w:tblPr>
+  <w:tr>
+    <w:tc>
+      <w:p><w:pPr><w:jc w:val="left"/></w:pPr>
+        <w:r><w:rPr><w:sz w:val="16"/></w:rPr><w:t>上海任仕人力资源有限公司</w:t></w:r>
+      </w:p>
+    </w:tc>
+    <w:tc>
+      <w:p><w:pPr><w:jc w:val="center"/></w:pPr>
+        <w:r><w:rPr><w:sz w:val="16"/></w:rPr><w:t>www.cgpo2o.com</w:t></w:r>
+      </w:p>
+    </w:tc>
+  </w:tr>
+</w:tbl>`;
+
+  // Section properties
+  xml += `
+<w:sectPr>
+  <w:pgSz w:w="11906" w:h="16838"/>
+  <w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="709" w:footer="709"/>
+  <w:cols w:space="708"/>
+</w:sectPr>
+</w:body>
+</w:document>`;
+
+  return xml;
 }
 
-function generateSectionHeader(title: string): string {
-  return `<w:p><w:pPr><w:spacing w:before="400" w:after="200"/><w:pBdr><w:bottom w:val="single" w:sz="4" w:space="1" w:color="CC3300"/></w:pBdr></w:pPr>
-<w:r><w:rPr><w:b/><w:color w:val="CC3300"/><w:sz w:val="28"/></w:rPr><w:t>${title}</w:t></w:r></w:p>`;
-}
-
-function generateInfoRow(label: string, value: string): string {
-  return `<w:p><w:pPr><w:spacing w:after="80"/></w:pPr>
-<w:r><w:rPr><w:b/></w:rPr><w:t>${label}: </w:t></w:r>
-<w:r><w:t>${escapeXml(value)}</w:t></w:r></w:p>`;
-}
-
-function getContentTypesXml(): string {
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-<Default Extension="xml" ContentType="application/xml"/>
-<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
-<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
-</Types>`;
-}
-
-function getRelsXml(): string {
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>`;
-}
-
-function getDocumentRelsXml(): string {
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
-<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
-</Relationships>`;
-}
-
-function getStylesXml(): string {
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-<w:docDefaults>
-<w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:sz w:val="22"/></w:rPr></w:rPrDefault>
-<w:pPrDefault><w:pPr><w:spacing w:after="160"/></w:pPr></w:pPrDefault>
-</w:docDefaults>
-<w:style w:type="paragraph" w:styleId="Title">
-<w:name w:val="Title"/>
-<w:pPr><w:jc w:val="center"/></w:pPr>
-<w:rPr><w:b/><w:sz w:val="44"/></w:rPr>
-</w:style>
-<w:style w:type="paragraph" w:styleId="ListParagraph">
-<w:name w:val="List Paragraph"/>
-<w:pPr><w:ind w:left="720"/></w:pPr>
-</w:style>
-</w:styles>`;
-}
-
-function getNumberingXml(): string {
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-<w:abstractNum w:abstractNumId="0">
-<w:lvl w:ilvl="0">
-<w:start w:val="1"/>
-<w:numFmt w:val="bullet"/>
-<w:lvlText w:val="•"/>
-<w:lvlJc w:val="left"/>
-<w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr>
-<w:rPr><w:rFonts w:ascii="Symbol" w:hAnsi="Symbol"/></w:rPr>
-</w:lvl>
-</w:abstractNum>
-<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>
-</w:numbering>`;
+function generateSectionHeader(title: string, color: string): string {
+  return `
+<w:p>
+  <w:pPr>
+    <w:shd w:val="clear" w:color="auto" w:fill="${color}"/>
+    <w:spacing w:before="300" w:after="120"/>
+  </w:pPr>
+  <w:r>
+    <w:rPr>
+      <w:b/>
+      <w:color w:val="FFFFFF"/>
+      <w:sz w:val="24"/>
+    </w:rPr>
+    <w:t>${escapeXml(title)}</w:t>
+  </w:r>
+</w:p>`;
 }
 
 // Full conversion workflow
 export async function convertResumeToCGP(
-  resumeSource: File | string, // File object or URL
+  resumeSource: File | string,
   candidateInfo: CandidateInfo
 ): Promise<{ parsedResume: ParsedResume; documentBlob: Blob }> {
   // Step 1: Extract text from resume
@@ -309,8 +582,8 @@ export async function convertResumeToCGP(
   // Step 2: Parse resume with AI
   const parsedResume = await parseResumeWithAI(resumeText, candidateInfo);
 
-  // Step 3: Generate CGP document
-  const documentBlob = await generateCGPDocument(parsedResume);
+  // Step 3: Generate CGP document using template
+  const documentBlob = await generateCGPDocument(parsedResume, candidateInfo.preparedBy || 'CGP Personnel');
 
   return { parsedResume, documentBlob };
 }
