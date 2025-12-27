@@ -126,180 +126,6 @@ function replaceInXml(xml: string, oldText: string, newText: string): string {
   return xml.split(oldText).join(escaped);
 }
 
-// Find the start of a paragraph containing a given position
-function findParagraphStart(xml: string, pos: number): number {
-  let searchPos = pos;
-  while (searchPos > 0) {
-    const pStart = xml.lastIndexOf('<w:p ', searchPos);
-    const pStartSimple = xml.lastIndexOf('<w:p>', searchPos);
-    const found = Math.max(pStart, pStartSimple);
-    if (found >= 0) {
-      return found;
-    }
-    searchPos -= 100;
-  }
-  return 0;
-}
-
-// Find the start of a table containing a given position
-function findTableStart(xml: string, pos: number): number {
-  const tblStart = xml.lastIndexOf('<w:tbl', pos);
-  if (tblStart >= 0) {
-    return tblStart;
-  }
-  // If no table, find paragraph
-  return findParagraphStart(xml, pos);
-}
-
-// Build work experience section XML matching template format
-function buildWorkExperienceXml(jobs: ParsedResume['workExperience']): string {
-  if (!jobs || jobs.length === 0) {
-    return '';
-  }
-
-  let xml = '';
-  jobs.forEach(job => {
-    // Job title paragraph (bold)
-    xml += `<w:p w:rsidR="00C96481" w:rsidRPr="0016745D" w:rsidRDefault="00C96481" w:rsidP="00C96481">
-      <w:pPr>
-        <w:rPr>
-          <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
-          <w:b/>
-          <w:bCs/>
-          <w:sz w:val="22"/>
-          <w:szCs w:val="22"/>
-        </w:rPr>
-      </w:pPr>
-      <w:r w:rsidRPr="0016745D">
-        <w:rPr>
-          <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
-          <w:b/>
-          <w:bCs/>
-          <w:sz w:val="22"/>
-          <w:szCs w:val="22"/>
-        </w:rPr>
-        <w:t>${escapeXml(job.title)}</w:t>
-      </w:r>
-    </w:p>`;
-
-    // Period paragraph
-    xml += `<w:p w:rsidR="00C96481" w:rsidRPr="0016745D" w:rsidRDefault="00C96481" w:rsidP="00C96481">
-      <w:pPr>
-        <w:rPr>
-          <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
-          <w:sz w:val="22"/>
-          <w:szCs w:val="22"/>
-        </w:rPr>
-      </w:pPr>
-      <w:r w:rsidRPr="0016745D">
-        <w:rPr>
-          <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
-          <w:sz w:val="22"/>
-          <w:szCs w:val="22"/>
-        </w:rPr>
-        <w:t>${escapeXml(job.period)}</w:t>
-      </w:r>
-    </w:p>`;
-
-    // Company paragraph (bold)
-    xml += `<w:p w:rsidR="00C96481" w:rsidRPr="0016745D" w:rsidRDefault="00C96481" w:rsidP="00C96481">
-      <w:pPr>
-        <w:rPr>
-          <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
-          <w:b/>
-          <w:bCs/>
-          <w:sz w:val="22"/>
-          <w:szCs w:val="22"/>
-        </w:rPr>
-      </w:pPr>
-      <w:r w:rsidRPr="0016745D">
-        <w:rPr>
-          <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
-          <w:b/>
-          <w:bCs/>
-          <w:sz w:val="22"/>
-          <w:szCs w:val="22"/>
-        </w:rPr>
-        <w:t>${escapeXml(job.company)}</w:t>
-      </w:r>
-    </w:p>`;
-
-    // Responsibilities as bullet points
-    const responsibilities = Array.isArray(job.responsibilities) ? job.responsibilities : [];
-    responsibilities.forEach(resp => {
-      xml += `<w:p w:rsidR="00C96481" w:rsidRPr="0016745D" w:rsidRDefault="00C96481" w:rsidP="00C96481">
-        <w:pPr>
-          <w:pStyle w:val="ListParagraph"/>
-          <w:numPr>
-            <w:ilvl w:val="0"/>
-            <w:numId w:val="45"/>
-          </w:numPr>
-          <w:rPr>
-            <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
-            <w:sz w:val="22"/>
-            <w:szCs w:val="22"/>
-          </w:rPr>
-        </w:pPr>
-        <w:r w:rsidRPr="0016745D">
-          <w:rPr>
-            <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
-            <w:sz w:val="22"/>
-            <w:szCs w:val="22"/>
-          </w:rPr>
-          <w:t>${escapeXml(resp)}</w:t>
-        </w:r>
-      </w:p>`;
-    });
-
-    // Empty paragraph for spacing between jobs
-    xml += `<w:p w:rsidR="00C96481" w:rsidRPr="0016745D" w:rsidRDefault="00C96481" w:rsidP="00C96481">
-      <w:pPr>
-        <w:rPr>
-          <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
-          <w:sz w:val="22"/>
-          <w:szCs w:val="22"/>
-        </w:rPr>
-      </w:pPr>
-    </w:p>`;
-  });
-
-  return xml;
-}
-
-// Build languages section XML matching template format
-function buildLanguagesXml(languages: string[]): string {
-  if (!languages || languages.length === 0) {
-    return '';
-  }
-
-  let xml = '';
-  languages.forEach(lang => {
-    xml += `<w:p w:rsidR="00C96481" w:rsidRPr="0016745D" w:rsidRDefault="00C96481" w:rsidP="00C96481">
-      <w:pPr>
-        <w:pStyle w:val="ListParagraph"/>
-        <w:numPr>
-          <w:ilvl w:val="0"/>
-          <w:numId w:val="45"/>
-        </w:numPr>
-        <w:rPr>
-          <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
-          <w:sz w:val="22"/>
-          <w:szCs w:val="22"/>
-        </w:rPr>
-      </w:pPr>
-      <w:r w:rsidRPr="0016745D">
-        <w:rPr>
-          <w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/>
-          <w:sz w:val="22"/>
-          <w:szCs w:val="22"/>
-        </w:rPr>
-        <w:t>${escapeXml(lang)}</w:t>
-      </w:r>
-    </w:p>`;
-  });
-
-  return xml;
-}
 
 // Generate CGP formatted Word document using template replacement
 export async function generateCGPDocument(data: ParsedResume, preparedBy: string = 'CGP Personnel'): Promise<Blob> {
@@ -365,47 +191,47 @@ export async function generateCGPDocument(data: ParsedResume, preparedBy: string
     docXml = replaceInXml(docXml, '2013', education[0]?.year || '');
     docXml = replaceInXml(docXml, 'Bachelor of Commerce', education[0]?.qualification || '');
     // Remove extra text that might be in the template
-    docXml = docXml.replace(/,? ?Double Major in HRM and Tourism and Hospitality ?/g, '');
+    docXml = docXml.replace(/,? ?Double Major in HRM and Tourism and Hospitality/g, '');
     docXml = replaceInXml(docXml, 'Murdoch University', education[0]?.institution || '');
   }
 
-  // ===== BUILD AND INSERT WORK EXPERIENCE SECTION =====
-  const workExpXml = buildWorkExperienceXml(workExperience);
+  // ===== REPLACE WORK EXPERIENCE - SIMPLE TEXT REPLACEMENT =====
+  // Replace sample work experience content with actual data
+  if (workExperience.length > 0) {
+    const job1 = workExperience[0];
+    // Replace first job
+    docXml = replaceInXml(docXml, 'Country HR', job1?.title || '');
+    docXml = replaceInXml(docXml, 'May 2023 till Aug 2025', job1?.period || '');
+    docXml = replaceInXml(docXml, 'Eviden Singapore Pte Ltd (separated entity from Atos to Eviden)', job1?.company || '');
 
-  // Find work experience section boundaries
-  // The template uses "Country HR" as a marker in the sample work experience
-  const workExpStart = docXml.indexOf('Country HR');
-  const langStart = docXml.indexOf('LANGUAGE');
+    // Replace sample responsibilities with first job responsibilities
+    const sampleResponsibilities = [
+      "Main point of contact for employees' queries on HR-related topics. In charge and support SG HR operations and HRBP with approximately 40 over employees",
+      'Manage Singapore and South Korea payroll',
+      "Performance management, liaising with the respective business heads/managers for employee's performance rating, involve in bonus payout, ensuring the accuracy of payout.",
+      'Maintain compliance with labor laws, company policies, and industry regulations',
+      'Support business leaders during periods of change (such as restructuring, mergers, or new technology adoption), helping to guide the organization and employees through transitions.',
+      'As a HRBP work closely with business leaders and managers to offer guidance on various HR issues, such as employee relations, talent management, performance management, and organizational development'
+    ];
 
-  if (workExpStart > 0 && langStart > workExpStart) {
-    // Find paragraph start before "Country HR"
-    const beforeWorkExp = docXml.substring(0, findParagraphStart(docXml, workExpStart));
-    // Find table/paragraph start at LANGUAGE section
-    const afterLang = docXml.substring(findTableStart(docXml, langStart));
+    const responsibilities = job1?.responsibilities || [];
+    for (let i = 0; i < sampleResponsibilities.length; i++) {
+      const replacement = responsibilities[i] || '';
+      docXml = replaceInXml(docXml, sampleResponsibilities[i], replacement);
+    }
 
-    docXml = beforeWorkExp + workExpXml + afterLang;
+    // Handle second job if exists
+    if (workExperience.length > 1) {
+      const job2 = workExperience[1];
+      docXml = replaceInXml(docXml, 'HR Generalist', job2?.title || '');
+      docXml = replaceInXml(docXml, 'March 2020 till April 2023', job2?.period || '');
+    }
   }
 
-  // ===== BUILD AND INSERT LANGUAGES SECTION =====
-  const languagesXml = buildLanguagesXml(languages);
-
-  // Find the LANGUAGE section and replace the English bullet
-  const langSectionMatch = docXml.match(/>LANGUAGE<\/w:t>/);
-  if (langSectionMatch) {
-    const langPos = docXml.indexOf('>LANGUAGE</w:t>');
-    const afterLang = docXml.substring(langPos);
-
-    // Find and replace the "English" bullet point
-    const englishMatch = afterLang.match(
-      /<w:p[^>]*>(?:[^<]*<[^>]*>)*[^<]*>English<\/w:t>[^<]*<\/w:r><\/w:p>/
-    );
-
-    if (englishMatch) {
-      const englishPos = docXml.indexOf(englishMatch[0]);
-      const beforeEnglish = docXml.substring(0, englishPos);
-      const afterEnglish = docXml.substring(englishPos + englishMatch[0].length);
-      docXml = beforeEnglish + languagesXml + afterEnglish;
-    }
+  // ===== REPLACE LANGUAGES - SIMPLE TEXT REPLACEMENT =====
+  // Replace sample language with first language from parsed data
+  if (languages.length > 0) {
+    docXml = replaceInXml(docXml, 'English', languages.join(', '));
   }
 
   // Update the document.xml in the zip
