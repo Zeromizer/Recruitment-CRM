@@ -33,7 +33,10 @@ export interface ParsedResume {
 export async function extractPdfText(file: File): Promise<string> {
   // Dynamically load pdf.js
   const pdfjsLib = await import('pdfjs-dist');
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  // Use worker from unpkg CDN matching the installed version
+  const pdfjsVersion = pdfjsLib.version;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsVersion}/build/pdf.worker.min.mjs`;
 
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
