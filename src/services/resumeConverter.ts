@@ -195,36 +195,133 @@ export async function generateCGPDocument(data: ParsedResume, preparedBy: string
     docXml = replaceInXml(docXml, 'Murdoch University', education[0]?.institution || '');
   }
 
-  // ===== REPLACE WORK EXPERIENCE - SIMPLE TEXT REPLACEMENT =====
-  // Replace sample work experience content with actual data
-  if (workExperience.length > 0) {
-    const job1 = workExperience[0];
-    // Replace first job
-    docXml = replaceInXml(docXml, 'Country HR', job1?.title || '');
-    docXml = replaceInXml(docXml, 'May 2023 till Aug 2025', job1?.period || '');
-    docXml = replaceInXml(docXml, 'Eviden Singapore Pte Ltd (separated entity from Atos to Eviden)', job1?.company || '');
+  // ===== REPLACE WORK EXPERIENCE =====
+  // Template has 6 jobs with sample data - we need to replace or clear ALL of them
 
-    // Replace sample responsibilities with first job responsibilities
-    const sampleResponsibilities = [
-      "Main point of contact for employees' queries on HR-related topics. In charge and support SG HR operations and HRBP with approximately 40 over employees",
-      'Manage Singapore and South Korea payroll',
-      "Performance management, liaising with the respective business heads/managers for employee's performance rating, involve in bonus payout, ensuring the accuracy of payout.",
-      'Maintain compliance with labor laws, company policies, and industry regulations',
-      'Support business leaders during periods of change (such as restructuring, mergers, or new technology adoption), helping to guide the organization and employees through transitions.',
-      'As a HRBP work closely with business leaders and managers to offer guidance on various HR issues, such as employee relations, talent management, performance management, and organizational development'
-    ];
-
-    const responsibilities = job1?.responsibilities || [];
-    for (let i = 0; i < sampleResponsibilities.length; i++) {
-      const replacement = responsibilities[i] || '';
-      docXml = replaceInXml(docXml, sampleResponsibilities[i], replacement);
+  // Define all sample jobs from the template
+  const templateJobs = [
+    {
+      title: 'Country HR',
+      period: 'May 2023 till Aug 2025',
+      company: 'Eviden Singapore Pte Ltd (separated entity from Atos to Eviden)',
+      responsibilities: [
+        "Main point of contact for employees' queries on HR-related topics. In charge and support SG HR operations and HRBP with approximately 40 over employees",
+        'Manage Singapore and South Korea payroll',
+        "Performance management, liaising with the respective business heads/managers for employee's performance rating, involve in bonus payout, ensuring the accuracy of payout.",
+        'Maintain compliance with labor laws, company policies, and industry regulations',
+        'Support business leaders during periods of change (such as restructuring, mergers, or new technology adoption), helping to guide the organization and employees through transitions.',
+        'As a HRBP work closely with business leaders and managers to offer guidance on various HR issues, such as employee relations, talent management, performance management, and organizational development'
+      ]
+    },
+    {
+      title: 'HR Generalist',
+      period: 'March 2020 till April 2023',
+      company: 'Atos Information Technology (Singapore) Pte Ltd',
+      responsibilities: [
+        'Act as the main point of contact for employee queries regarding HR topics, supporting SG HR operations for approximately 200 employees.',
+        'Provided guidance and led HR peers in the absence of the HR Manager for 4 to 5 months.',
+        'Supported global HR transitions for mandatory and digital training initiatives.',
+        'Coordinated with the global learning and development shared services team on training activities.',
+        'Managed local government training incentives, funding programs, and internship programs.',
+        'Oversaw onsite and virtual training coordination for mandatory and digital programs.',
+        'Managed employee performance assessments and confirmations.',
+        'Assisted the HR Manager with performance management review activities.',
+        'Organized and facilitated onboarding programs and conducted new hire orientation.',
+        'Handled offboarding and employee separation processes.',
+        'Served as the contact point for government matters such as COVID-19 and work pass applications/renewals.',
+        'Managed employee benefits, medical insurance, and conducted briefings on group medical insurance.',
+        'Ensured internal policies were in line with government regulations.',
+        'Acted as the contact point for HR-related audits and supported employee background checks.',
+        'Involved in facilitating GPTW survey and CSAT HR surveys.',
+        'Organized and coordinated employee engagement programs, including Townhalls, Workplace Health Programs, Atos Week Programs, and Awards Presentations.'
+      ]
+    },
+    {
+      title: 'Senior HR Executive',
+      period: 'April 2019 till Mar 2020',
+      company: 'Jardine Engineering Singapore Pte Ltd',
+      responsibilities: [
+        'Identified training and development needs through consultation with business units and job analysis.',
+        'Designed and implemented a training skills framework.',
+        'Collaborated with stakeholders to organize and conduct quarterly staff onboarding programs.',
+        'Managed and coordinated employee orientation for new recruits.',
+        'Initiated and drove graduate recruitment events in collaboration with universities.',
+        'Achieved cost savings by designing in-house recruitment materials.',
+        'Responsible for internship and management trainee programs.',
+        'Acted as liaison with educational institutions for internships and training attachments.',
+        'Handled training-related matters with government agencies, including grants.',
+        'Maintained employees\' training records and calendar, monitored training expenditures, and managed training administration duties.'
+      ]
+    },
+    {
+      title: 'Senior HR Executive',
+      period: 'Feb 2018 till March 2019',
+      company: 'Young Women\'s Christian Association, YWCA',
+      responsibilities: [
+        'Initiated and led recruitment strategies, organizing job fairs in collaboration with WSG and e2i.',
+        'Achieved cost savings by designing in-house recruitment materials.',
+        'Supported 7 departments in manpower hiring and staff matters.',
+        'Reviewed and implemented staff training and development policies.',
+        'Responsible for staff training programs and in-house training facilitation.',
+        'Presented topics on Effective Communication Skills and Customer Service during monthly celebrations.',
+        'Advised department heads on employment laws and staff counseling, conducting multiple counseling sessions.'
+      ]
+    },
+    {
+      title: 'Senior Executive, HR',
+      period: 'Aug 2017 to Feb 2018',
+      company: 'Econ Healthcare Pte Ltd, Specialised in Learning and Development',
+      responsibilities: [
+        'Organized and facilitated orientation programs to align with company objectives.',
+        'Developed and administered training plans to ensure employee skill competency.',
+        'Identified training needs through annual appraisals and collaborated with stakeholders.',
+        'Supported the HR Manager in annual D&D Best Employee Award and Staff Incentive programs.',
+        'Successfully organized staff Christmas celebrations.'
+      ]
+    },
+    {
+      title: 'Senior Executive, HR',
+      period: 'Dec 2016 – Aug 2017',
+      company: '',
+      responsibilities: []
+    },
+    {
+      title: 'Human Resource Executive',
+      period: 'Feb 2012 – Dec 2016',
+      company: '',
+      responsibilities: []
     }
+  ];
 
-    // Handle second job if exists
-    if (workExperience.length > 1) {
-      const job2 = workExperience[1];
-      docXml = replaceInXml(docXml, 'HR Generalist', job2?.title || '');
-      docXml = replaceInXml(docXml, 'March 2020 till April 2023', job2?.period || '');
+  // Replace each template job with actual data or clear it
+  for (let i = 0; i < templateJobs.length; i++) {
+    const templateJob = templateJobs[i];
+    const actualJob = workExperience[i];
+
+    if (actualJob) {
+      // Replace with actual data
+      docXml = replaceInXml(docXml, templateJob.title, actualJob.title || '');
+      docXml = replaceInXml(docXml, templateJob.period, actualJob.period || '');
+      if (templateJob.company) {
+        docXml = replaceInXml(docXml, templateJob.company, actualJob.company || '');
+      }
+
+      // Replace responsibilities
+      const actualResps = actualJob.responsibilities || [];
+      for (let j = 0; j < templateJob.responsibilities.length; j++) {
+        const replacement = actualResps[j] || '';
+        docXml = replaceInXml(docXml, templateJob.responsibilities[j], replacement);
+      }
+    } else {
+      // No actual job for this slot - clear the template data
+      docXml = replaceInXml(docXml, templateJob.title, '');
+      docXml = replaceInXml(docXml, templateJob.period, '');
+      if (templateJob.company) {
+        docXml = replaceInXml(docXml, templateJob.company, '');
+      }
+      for (const resp of templateJob.responsibilities) {
+        docXml = replaceInXml(docXml, resp, '');
+      }
     }
   }
 
