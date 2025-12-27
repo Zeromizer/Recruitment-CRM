@@ -24,6 +24,9 @@ WALICHAT_API_BASE = "https://api.wali.chat/v1"
 WALICHAT_API_TOKEN = os.environ.get('WALICHAT_API_TOKEN')
 WALICHAT_DEVICE_ID = os.environ.get('WALICHAT_DEVICE_ID')
 
+# Debug: print device ID at module load
+print(f"WALICHAT_DEVICE_ID loaded: '{WALICHAT_DEVICE_ID}' (length: {len(WALICHAT_DEVICE_ID) if WALICHAT_DEVICE_ID else 0})")
+
 # HTTP client for Walichat API
 http_client: httpx.AsyncClient = None
 
@@ -123,25 +126,30 @@ app = FastAPI(
 async def send_whatsapp_message(phone: str, message: str) -> bool:
     """Send a WhatsApp message via Walichat API."""
     try:
+        # Clean phone number - remove any non-numeric chars except +
+        clean_phone = phone.strip()
+
         payload = {
-            "phone": phone,
+            "phone": clean_phone,
             "message": message,
+            "device": WALICHAT_DEVICE_ID,  # Always include device ID
         }
 
-        # Add device ID if configured
-        if WALICHAT_DEVICE_ID:
-            payload["device"] = WALICHAT_DEVICE_ID
+        print(f"Sending message to {clean_phone} via device {WALICHAT_DEVICE_ID}")
+        print(f"Payload: {payload}")
 
         response = await http_client.post("/messages", json=payload)
 
         if response.status_code == 200 or response.status_code == 201:
-            print(f"Message sent to {phone}")
+            print(f"Message sent to {clean_phone}")
             return True
         else:
             print(f"Failed to send message: {response.status_code} - {response.text}")
             return False
     except Exception as e:
         print(f"Error sending WhatsApp message: {e}")
+        import traceback
+        print(traceback.format_exc())
         return False
 
 
