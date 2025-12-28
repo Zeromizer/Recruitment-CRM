@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import asyncio
+import random
 import tempfile
 import re
 from io import BytesIO
@@ -548,16 +549,26 @@ async def send_telegram_messages(event, telegram_client, message: str):
     parts = [part.strip() for part in message.split('---') if part.strip()]
 
     for i, part in enumerate(parts):
-        # Show typing action before each message
+        # Show typing action while "thinking" and "typing"
         async with telegram_client.action(event.chat_id, 'typing'):
-            # Typing delay based on message length
-            delay = min(max(len(part) * 0.03, 0.5), 2.0)
-            await asyncio.sleep(delay)
+            # Natural "thinking" delay: 3-6 seconds randomly
+            thinking_delay = random.uniform(3.0, 6.0)
+            # Typing delay: ~0.05s per character (simulates typing speed)
+            typing_delay = len(part) * 0.05
+            # Total delay, capped at 15 seconds
+            total_delay = min(thinking_delay + typing_delay, 15.0)
+            await asyncio.sleep(total_delay)
         await event.respond(part)
 
-        # Small pause between messages
+        # Add delay before next message (except for last one)
         if i < len(parts) - 1:
-            await asyncio.sleep(0.5)
+            # Natural "thinking" delay: 3-6 seconds randomly
+            thinking_delay = random.uniform(3.0, 6.0)
+            # Typing delay: ~0.05s per character (simulates typing speed)
+            typing_delay = len(parts[i + 1]) * 0.05
+            # Total delay, capped at 15 seconds
+            total_delay = min(thinking_delay + typing_delay, 15.0)
+            await asyncio.sleep(total_delay)
 
 
 def setup_handlers(telegram_client):

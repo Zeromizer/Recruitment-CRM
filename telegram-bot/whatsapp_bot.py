@@ -5,6 +5,7 @@ Handles incoming messages via webhooks and sends responses via Walichat REST API
 import os
 import sys
 import asyncio
+import random
 import httpx
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
@@ -163,9 +164,13 @@ async def send_whatsapp_message(phone: str, message: str) -> bool:
 
         # Add delay before next message (except for last one)
         if i < len(parts) - 1:
-            # Delay based on message length: ~50ms per character, min 1s, max 3s
-            delay = min(max(len(part) * 0.05, 1.0), 3.0)
-            await asyncio.sleep(delay)
+            # Natural "thinking" delay: 3-6 seconds randomly
+            thinking_delay = random.uniform(3.0, 6.0)
+            # Typing delay: ~0.05s per character (simulates typing speed)
+            typing_delay = len(parts[i + 1]) * 0.05
+            # Total delay, capped at 15 seconds
+            total_delay = min(thinking_delay + typing_delay, 15.0)
+            await asyncio.sleep(total_delay)
 
     return True
 
