@@ -425,30 +425,36 @@ export default function CandidateDetail() {
               </div>
             </div>
 
-            {/* Status Dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => setShowStatusDropdown(!showStatusDropdown)}
-                className={`badge ${getStatusBadgeClass(candidate.current_status)} flex items-center gap-1 cursor-pointer hover:opacity-80`}
-              >
-                {STATUS_LABELS[candidate.current_status]}
-                <ChevronDown className="w-3 h-3" />
-              </button>
-              {showStatusDropdown && (
-                <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-lg shadow-xl z-10 max-h-80 overflow-y-auto">
-                  {Object.entries(STATUS_LABELS).map(([status, label]) => (
-                    <button
-                      key={status}
-                      onClick={() => handleStatusChange(status as CandidateStatus)}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors ${
-                        status === candidate.current_status ? 'text-cgp-red font-medium' : 'text-slate-700'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              )}
+            {/* Status Dropdown & Date Received */}
+            <div className="flex flex-col items-end gap-2">
+              <div className="relative">
+                <button
+                  onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                  className={`badge ${getStatusBadgeClass(candidate.current_status)} flex items-center gap-1 cursor-pointer hover:opacity-80`}
+                >
+                  {STATUS_LABELS[candidate.current_status]}
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                {showStatusDropdown && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-lg shadow-xl z-10 max-h-80 overflow-y-auto">
+                    {Object.entries(STATUS_LABELS).map(([status, label]) => (
+                      <button
+                        key={status}
+                        onClick={() => handleStatusChange(status as CandidateStatus)}
+                        className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors ${
+                          status === candidate.current_status ? 'text-cgp-red font-medium' : 'text-slate-700'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-slate-400">Date Received</p>
+                <p className="text-sm text-slate-600">{format(parseISO(candidate.date_received), 'MMM d, yyyy')}</p>
+              </div>
             </div>
           </div>
 
@@ -483,10 +489,6 @@ export default function CandidateDetail() {
           {/* Inline Details */}
           <div className="mt-6 pt-6 border-t border-slate-200">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-sm text-slate-400">Date Received</p>
-                <p className="text-slate-700">{format(parseISO(candidate.date_received), 'MMM d, yyyy')}</p>
-              </div>
               {candidate.assigned_recruiter && (
                 <div>
                   <p className="text-sm text-slate-400">Assigned To</p>
@@ -724,33 +726,38 @@ export default function CandidateDetail() {
         {/* AI Assessment */}
         {candidate.ai_score && (
           <div className="card p-6">
-            <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2 mb-4">
-              <Star className="w-5 h-5 text-amber-500" />
-              AI Assessment
-            </h2>
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-                <p className="text-sm text-slate-500">Score</p>
-                <p className="text-3xl font-semibold text-slate-800 mt-1">
-                  {candidate.ai_score}
-                  <span className="text-lg text-slate-400">/10</span>
-                </p>
-              </div>
-              <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-                <p className="text-sm text-slate-500">Category</p>
-                <p className="text-xl font-medium text-slate-800 mt-1">{candidate.ai_category}</p>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                <Star className="w-5 h-5 text-amber-500" />
+                AI Assessment
+              </h2>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 bg-slate-100 px-3 py-1.5 rounded-lg">
+                  <span className="text-xs text-slate-500">Score</span>
+                  <span className="text-lg font-bold text-slate-800">{candidate.ai_score}</span>
+                  <span className="text-sm text-slate-400">/10</span>
+                </div>
+                {candidate.ai_category && (
+                  <span className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                    candidate.ai_category === 'Top Candidate' ? 'bg-green-100 text-green-700' :
+                    candidate.ai_category === 'Review' ? 'bg-amber-100 text-amber-700' :
+                    'bg-red-100 text-red-700'
+                  }`}>
+                    {candidate.ai_category}
+                  </span>
+                )}
               </div>
             </div>
             {candidate.ai_summary && (
-              <div className="mb-4">
+              <div className="mb-3">
                 <p className="text-sm text-slate-500 mb-1">Summary</p>
-                <p className="text-slate-700">{candidate.ai_summary}</p>
+                <p className="text-slate-700 text-sm">{candidate.ai_summary}</p>
               </div>
             )}
             {candidate.ai_reasoning && (
               <div>
                 <p className="text-sm text-slate-500 mb-1">Reasoning</p>
-                <p className="text-slate-700">{candidate.ai_reasoning}</p>
+                <p className="text-slate-700 text-sm">{candidate.ai_reasoning}</p>
               </div>
             )}
           </div>
@@ -1012,7 +1019,7 @@ export default function CandidateDetail() {
       </div>
 
       {/* Right Side - Resume Preview (Always Visible) */}
-      <div className="w-1/2 flex-shrink-0 hidden lg:block mt-[3.25rem]">
+      <div className="w-1/2 flex-shrink-0 hidden lg:block mt-[3rem]">
         <div className="bg-white border border-slate-200 rounded-xl flex flex-col sticky top-6 shadow-sm" style={{ height: 'calc(100vh - 7rem)' }}>
           {/* Panel Header */}
           <div className="flex items-center justify-between p-4 border-b border-slate-200 flex-shrink-0">
