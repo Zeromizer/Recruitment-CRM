@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   CheckCircle2,
@@ -14,60 +14,30 @@ import {
   Star,
   Plus,
   X,
+  Trash2,
 } from 'lucide-react';
 import { format, parseISO, isToday, isTomorrow, isPast } from 'date-fns';
-import { useCandidates } from '../hooks/useData';
-import type { Candidate } from '../types';
+import { useCandidates, useTasks, useCreateTask, useCompleteTask, useCompleteAutoTask, useDeleteTask } from '../hooks/useData';
+import type { Candidate, Task } from '../types';
 
 interface TaskItem {
   id: string;
   candidate: Candidate;
+  candidateId: string;
   task: string;
   dueDate: string;
   isOverdue: boolean;
   isDueToday: boolean;
   isDueTomorrow: boolean;
-  isManual?: boolean;
+  isAuto: boolean;
+  dbTaskId?: string; // ID of the task in the database (for manual tasks)
 }
 
-interface ManualTask {
-  id: string;
-  candidateId: string;
-  task: string;
-  dueDate: string;
+function generateAutoTaskId(candidateId: string): string {
+  return `auto-${candidateId}-review-call`;
 }
 
-// Load manual tasks from localStorage
-function loadManualTasks(): ManualTask[] {
-  try {
-    const saved = localStorage.getItem('recruiter-crm-tasks');
-    return saved ? JSON.parse(saved) : [];
-  } catch {
-    return [];
-  }
-}
-
-// Save manual tasks to localStorage
-function saveManualTasks(tasks: ManualTask[]) {
-  localStorage.setItem('recruiter-crm-tasks', JSON.stringify(tasks));
-}
-
-// Load completed task IDs from localStorage
-function loadCompletedTasks(): Set<string> {
-  try {
-    const saved = localStorage.getItem('recruiter-crm-completed-tasks');
-    return saved ? new Set(JSON.parse(saved)) : new Set();
-  } catch {
-    return new Set();
-  }
-}
-
-// Save completed task IDs to localStorage
-function saveCompletedTasks(tasks: Set<string>) {
-  localStorage.setItem('recruiter-crm-completed-tasks', JSON.stringify([...tasks]));
-}
-
-function generateAutoTasks(candidate: Candidate): TaskItem[] {
+function generateAutoTasks(candidate: Candidate, completedAutoTaskIds: Set<string>): TaskItem[] {
   // Only create tasks for Top Candidates (based on AI screening category)
   if (candidate.ai_category !== 'Top Candidate') {
     return [];
@@ -75,6 +45,13 @@ function generateAutoTasks(candidate: Candidate): TaskItem[] {
 
   // Skip if already beyond initial review stage
   if (!['new_application', 'ai_screened'].includes(candidate.current_status)) {
+    return [];
+  }
+
+  const autoTaskId = generateAutoTaskId(candidate.id);
+
+  // Skip if this auto-task has been completed
+  if (completedAutoTaskIds.has(autoTaskId)) {
     return [];
   }
 
@@ -87,35 +64,51 @@ function generateAutoTasks(candidate: Candidate): TaskItem[] {
   const dueDateStr = format(dueDate, 'yyyy-MM-dd');
 
   return [{
-    id: `${candidate.id}-review-call`,
+    id: autoTaskId,
     candidate,
+    candidateId: candidate.id,
     task: 'Review and call',
     dueDate: dueDateStr,
     isOverdue: isPast(dueDate) && !isToday(dueDate),
     isDueToday: isToday(dueDate),
     isDueTomorrow: isTomorrow(dueDate),
+    isAuto: true,
   }];
 }
 
-function convertManualTask(manualTask: ManualTask, candidates: Candidate[]): TaskItem | null {
-  const candidate = candidates.find(c => c.id === manualTask.candidateId);
+function convertDbTaskToTaskItem(dbTask: Task, candidates: Candidate[]): TaskItem | null {
+  const candidate = candidates.find(c => c.id === dbTask.candidate_id);
   if (!candidate) return null;
 
-  const dueDate = parseISO(manualTask.dueDate);
+  const dueDate = parseISO(dbTask.due_date);
 
   return {
-    id: manualTask.id,
+    id: dbTask.id,
     candidate,
-    task: manualTask.task,
-    dueDate: manualTask.dueDate,
+    candidateId: dbTask.candidate_id,
+    task: dbTask.task,
+    dueDate: dbTask.due_date,
     isOverdue: isPast(dueDate) && !isToday(dueDate),
     isDueToday: isToday(dueDate),
     isDueTomorrow: isTomorrow(dueDate),
-    isManual: true,
+    isAuto: dbTask.is_auto,
+    dbTaskId: dbTask.id,
   };
 }
 
-function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: () => void }) {
+function TaskCard({
+  task,
+  onComplete,
+  onDelete,
+  isCompleting,
+  isDeleting,
+}: {
+  task: TaskItem;
+  onComplete: () => void;
+  onDelete?: () => void;
+  isCompleting: boolean;
+  isDeleting: boolean;
+}) {
   const priorityClass = task.isOverdue
     ? 'border-l-red-500 bg-red-50'
     : task.isDueToday
@@ -124,12 +117,15 @@ function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: () => void
         ? 'border-l-blue-500 bg-blue-50'
         : 'border-l-slate-300';
 
+  const isDisabled = isCompleting || isDeleting;
+
   return (
-    <div className={`card p-4 border-l-4 ${priorityClass} hover:shadow-md transition-shadow`}>
+    <div className={`card p-4 border-l-4 ${priorityClass} hover:shadow-md transition-shadow ${isDisabled ? 'opacity-50' : ''}`}>
       <div className="flex items-start gap-3">
         <button
           onClick={onComplete}
-          className="mt-0.5 text-slate-400 hover:text-emerald-500 transition-colors"
+          disabled={isDisabled}
+          className="mt-0.5 text-slate-400 hover:text-emerald-500 transition-colors disabled:cursor-not-allowed"
           title="Mark as complete"
         >
           <Circle className="w-5 h-5" />
@@ -162,10 +158,10 @@ function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: () => void
           </div>
 
           <div className="flex items-center gap-3 mt-2">
-            {task.isManual ? (
-              <span className="badge badge-info text-xs">Manual Task</span>
-            ) : (
+            {task.isAuto ? (
               <span className="badge badge-success text-xs">Top Candidate</span>
+            ) : (
+              <span className="badge badge-info text-xs">Manual Task</span>
             )}
 
             <span className={`flex items-center gap-1 text-xs ${
@@ -202,6 +198,16 @@ function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: () => void
               <Mail className="w-4 h-4" />
             </a>
           )}
+          {!task.isAuto && onDelete && (
+            <button
+              onClick={onDelete}
+              disabled={isDisabled}
+              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:cursor-not-allowed"
+              title="Delete task"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -209,24 +215,47 @@ function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: () => void
 }
 
 export default function Tasks() {
-  const { data: candidates = [], isLoading } = useCandidates();
+  const { data: candidates = [], isLoading: candidatesLoading } = useCandidates();
+  const { data: dbTasks = [], isLoading: tasksLoading } = useTasks();
+  const createTask = useCreateTask();
+  const completeTask = useCompleteTask();
+  const completeAutoTask = useCompleteAutoTask();
+  const deleteTask = useDeleteTask();
+
   const [filter, setFilter] = useState<'all' | 'overdue' | 'today' | 'upcoming'>('all');
-  const [completedTasks, setCompletedTasks] = useState<Set<string>>(loadCompletedTasks);
-  const [manualTasks, setManualTasks] = useState<ManualTask[]>(loadManualTasks);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTask, setNewTask] = useState({ candidateId: '', task: '', dueDate: '' });
+  const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+
+  // Get completed auto-task IDs from the database
+  const completedAutoTaskIds = useMemo(() => {
+    const ids = new Set<string>();
+    dbTasks.forEach(t => {
+      if (t.is_auto && t.completed) {
+        ids.add(t.id);
+      }
+    });
+    return ids;
+  }, [dbTasks]);
 
   // Generate auto tasks for top candidates
-  const autoTasks = candidates.flatMap(generateAutoTasks);
+  const autoTasks = useMemo(() => {
+    return candidates.flatMap(c => generateAutoTasks(c, completedAutoTaskIds));
+  }, [candidates, completedAutoTaskIds]);
 
-  // Convert manual tasks to TaskItems
-  const manualTaskItems = manualTasks
-    .map(mt => convertManualTask(mt, candidates))
-    .filter((t): t is TaskItem => t !== null);
+  // Convert manual tasks from database to TaskItems
+  const manualTaskItems = useMemo(() => {
+    return dbTasks
+      .filter(t => !t.is_auto && !t.completed)
+      .map(t => convertDbTaskToTaskItem(t, candidates))
+      .filter((t): t is TaskItem => t !== null);
+  }, [dbTasks, candidates]);
 
-  // Combine all tasks and filter completed
-  const allTasks = [...autoTasks, ...manualTaskItems]
-    .filter(task => !completedTasks.has(task.id));
+  // Combine all tasks
+  const allTasks = useMemo(() => {
+    return [...autoTasks, ...manualTaskItems];
+  }, [autoTasks, manualTaskItems]);
 
   // Group tasks by priority
   const overdueTasks = allTasks.filter(t => t.isOverdue);
@@ -245,35 +274,60 @@ export default function Tasks() {
 
   const filteredTasks = getFilteredTasks();
 
-  const handleCompleteTask = (taskId: string) => {
-    const newCompletedTasks = new Set([...completedTasks, taskId]);
-    setCompletedTasks(newCompletedTasks);
-    saveCompletedTasks(newCompletedTasks);
-    // Also remove from manual tasks if it's a manual task
-    const updatedManualTasks = manualTasks.filter(t => t.id !== taskId);
-    setManualTasks(updatedManualTasks);
-    saveManualTasks(updatedManualTasks);
+  const handleCompleteTask = async (task: TaskItem) => {
+    setCompletingTaskId(task.id);
+    try {
+      if (task.isAuto) {
+        // For auto-tasks, create a completed record in the database
+        const candidate = candidates.find(c => c.id === task.candidateId);
+        await completeAutoTask.mutateAsync({
+          id: task.id,
+          candidate_id: task.candidateId,
+          candidate_name: candidate?.full_name || '',
+          task: task.task,
+          due_date: task.dueDate,
+        });
+      } else if (task.dbTaskId) {
+        // For manual tasks, mark as completed in the database
+        await completeTask.mutateAsync(task.dbTaskId);
+      }
+    } finally {
+      setCompletingTaskId(null);
+    }
   };
 
-  const handleAddTask = () => {
+  const handleDeleteTask = async (task: TaskItem) => {
+    if (!task.dbTaskId) return;
+    setDeletingTaskId(task.id);
+    try {
+      await deleteTask.mutateAsync(task.dbTaskId);
+    } finally {
+      setDeletingTaskId(null);
+    }
+  };
+
+  const handleAddTask = async () => {
     if (!newTask.candidateId || !newTask.task || !newTask.dueDate) {
       alert('Please fill in all fields');
       return;
     }
 
-    const task: ManualTask = {
-      id: `manual-${Date.now()}`,
-      candidateId: newTask.candidateId,
-      task: newTask.task,
-      dueDate: newTask.dueDate,
-    };
+    const candidate = candidates.find(c => c.id === newTask.candidateId);
+    if (!candidate) return;
 
-    const updatedTasks = [...manualTasks, task];
-    setManualTasks(updatedTasks);
-    saveManualTasks(updatedTasks);
+    await createTask.mutateAsync({
+      candidate_id: newTask.candidateId,
+      candidate_name: candidate.full_name,
+      task: newTask.task,
+      due_date: newTask.dueDate,
+      is_auto: false,
+    });
+
     setNewTask({ candidateId: '', task: '', dueDate: '' });
     setShowAddModal(false);
   };
+
+  const isLoading = candidatesLoading || tasksLoading;
 
   if (isLoading) {
     return (
@@ -382,7 +436,10 @@ export default function Tasks() {
             <TaskCard
               key={task.id}
               task={task}
-              onComplete={() => handleCompleteTask(task.id)}
+              onComplete={() => handleCompleteTask(task)}
+              onDelete={task.isAuto ? undefined : () => handleDeleteTask(task)}
+              isCompleting={completingTaskId === task.id}
+              isDeleting={deletingTaskId === task.id}
             />
           ))}
         </div>
@@ -460,9 +517,10 @@ export default function Tasks() {
               </button>
               <button
                 onClick={handleAddTask}
+                disabled={createTask.isPending}
                 className="btn-primary"
               >
-                Add Task
+                {createTask.isPending ? 'Adding...' : 'Add Task'}
               </button>
             </div>
           </div>

@@ -224,6 +224,19 @@ export const PIPELINE_STAGE_LABELS: Record<PipelineStage, string> = {
   placement_started: 'Placed',
 };
 
+// Task for task management
+export interface Task {
+  id: string;
+  created_at: string;
+  candidate_id: string;
+  candidate_name: string;
+  task: string;
+  due_date: string;
+  completed: boolean;
+  completed_at: string | null;
+  is_auto: boolean; // true for auto-generated tasks, false for manual
+}
+
 // Dashboard metrics
 export interface DashboardMetrics {
   totalCandidates: number;
