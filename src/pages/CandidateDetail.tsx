@@ -1012,8 +1012,8 @@ export default function CandidateDetail() {
       </div>
 
       {/* Right Side - Resume Preview (Always Visible) */}
-      <div className="w-1/2 flex-shrink-0 hidden lg:block">
-        <div className="bg-white border border-slate-200 rounded-xl flex flex-col sticky top-6 shadow-sm" style={{ height: 'calc(100vh - 10rem)' }}>
+      <div className="w-1/2 flex-shrink-0 hidden lg:block mt-[3.25rem]">
+        <div className="bg-white border border-slate-200 rounded-xl flex flex-col sticky top-6 shadow-sm" style={{ height: 'calc(100vh - 7rem)' }}>
           {/* Panel Header */}
           <div className="flex items-center justify-between p-4 border-b border-slate-200 flex-shrink-0">
             <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
