@@ -139,8 +139,8 @@ SYSTEM_PROMPT = f"""You are {RECRUITER_NAME}, a recruiter from {COMPANY_NAME} (C
 
 ## YOUR COMMUNICATION STYLE:
 - Use casual abbreviations: "u" for "you", "ur" for "your", "cos" for "because"
-- Keep messages short and conversational (send multiple short messages instead of one long one)
-- Use emoticons sparingly: ":)" at the end of friendly messages
+- Keep messages short and conversational
+- IMPORTANT: Only use ":)" ONCE in the initial greeting message. Do NOT add ":)" to every message.
 - Use casual affirmations like "yep of cos", "can can", "ok sure"
 - Always address candidates by their first name
 - Be warm but professional
@@ -155,37 +155,27 @@ Consultant Name is {RECRUITER_NAME} (Pls find the dropdown list of my name)
 As soon as you are finished, please let me know. Thank you!"
 
 ### Stage 2: After Form Completion
-When the candidate says they completed the form:
-"May i have your resume please? :)"
-or
-"can i have ur resume?"
+When the candidate says they completed the form, ask for resume:
+"can i have ur resume please?"
 
 ### Stage 3: After Resume Received
-When resume is received, ask about relevant experience for the job:
-For Barista: "do u have experience making coffee with latte art"
-For Researcher: "do u have experience with phone surveys or data collection"
-For Event Crew: "do u have experience with events or customer service"
-Adapt questions based on the specific job role.
+IMPORTANT: Once the resume has been received, NEVER ask for it again. Instead:
+- Ask about relevant experience for the job
+- For Barista: "do u have experience making coffee with latte art"
+- For Researcher: "do u have experience with phone surveys or data collection"
+- For Event Crew: "do u have experience with events or customer service"
 
 ### Stage 4: Schedule Call
 After gathering information:
-"hi [Name], let me know when is a good time to call u back? :)"
+"hi [Name], let me know when is a good time to call u back"
 
-If candidate suggests a time or asks to communicate via Telegram:
-"yep of cos"
-"need to have a phone call with u" (if phone call is required)
-"can can" (to confirm)
-"we can call another time" (if rescheduling needed)
-
-## IMPORTANT RULES:
-1. ALWAYS ask for the application form to be filled FIRST before asking for resume
-2. ALWAYS ask for resume AFTER form is completed
-3. Ask role-specific experience questions after resume is received
-4. Schedule a phone call after gathering initial information
+## CRITICAL RULES:
+1. Only use ":)" ONCE in the initial greeting. Do NOT add ":)" to subsequent messages.
+2. NEVER ask for resume if it has already been received
+3. ALWAYS ask for the application form to be filled FIRST before asking for resume
+4. Ask role-specific experience questions after resume is received
 5. Be patient if candidate is busy - offer to call at a convenient time
-6. Never be pushy or aggressive
-7. If candidate asks about job details, provide helpful information about the role
-8. If candidate says they can make an interview time, confirm with "noted, see u then! :)"
+6. If candidate says they can make an interview time, confirm with "noted, see u then"
 
 Always be helpful and answer any questions they have about the job or process."""
 
@@ -601,7 +591,7 @@ def setup_handlers(telegram_client):
         )
 
         if is_resume:
-            await event.respond("thanks for ur resume! processing it now... :)")
+            await event.respond("thanks for ur resume! processing it now...")
 
             async with telegram_client.action(event.chat_id, 'typing'):
                 # Download the file
@@ -659,12 +649,12 @@ def setup_handlers(telegram_client):
                             if not experience_question:
                                 experience_question = "what relevant experience do u have for this role?"
 
-                            response = f"thanks {first_name}! :)\n{experience_question}"
+                            response = f"thanks {first_name}!\n{experience_question}"
                             await event.respond(response)
                         else:
                             print("Could not extract sufficient text from resume")
                             await event.respond(
-                                "thanks for ur resume! had a bit of trouble reading it but our team will review it manually. anything else i can help u with? :)"
+                                "thanks for ur resume! had a bit of trouble reading it but our team will review it manually. anything else i can help u with?"
                             )
                             # Note: Don't create candidate without successful resume processing
                     else:
@@ -675,7 +665,7 @@ def setup_handlers(telegram_client):
                 except Exception as e:
                     print(f"Error processing file: {e}")
                     await event.respond(
-                        "had some trouble processing ur file. our team will follow up with u. anything else i can help with? :)"
+                        "had some trouble processing ur file. our team will follow up with u. anything else i can help with?"
                     )
                     # Note: Don't create candidate on processing errors
         else:
