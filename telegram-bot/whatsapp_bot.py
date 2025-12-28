@@ -7,6 +7,8 @@ import sys
 import asyncio
 import random
 import re
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
 import httpx
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
@@ -66,6 +68,18 @@ CLOSING_PHRASES = [
     "contact u if shortlisted",
     "contact you if shortlisted"
 ]
+
+# Operating hours configuration (Singapore timezone)
+TIMEZONE = ZoneInfo("Asia/Singapore")
+OPERATING_START = time(8, 30)  # 8:30 AM
+OPERATING_END = time(22, 0)    # 10:00 PM
+
+
+def is_within_operating_hours() -> bool:
+    """Check if current time is within operating hours (8:30 AM - 10:00 PM Singapore time)."""
+    now = datetime.now(TIMEZONE)
+    current_time = now.time()
+    return OPERATING_START <= current_time <= OPERATING_END
 
 
 def contains_job_keyword(text: str) -> bool:
@@ -315,11 +329,16 @@ async def download_media(media_url: str, file_id: str = None, message_id: str = 
 async def process_text_message(phone: str, name: str, text: str):
     """Process a text message from WhatsApp."""
 
-    # Check for stop command first (from recruiter taking over)
+    # Check for stop command first (from recruiter taking over) - works anytime
     if text.strip().lower() == STOP_COMMAND.lower():
         deactivate_bot(phone, reason="manual")
         print(f"Bot stopped for {phone} via //stop command")
         return  # Don't send any response for stop command
+
+    # Check operating hours (8:30 AM - 10:00 PM Singapore time)
+    if not is_within_operating_hours():
+        print(f"Outside operating hours - not responding to {phone}")
+        return
 
     # Check spam protection
     allowed, reason = is_user_allowed(phone)
@@ -364,6 +383,11 @@ async def process_text_message(phone: str, name: str, text: str):
 
 async def process_document_message(phone: str, name: str, file_name: str, media_url: str, mime_type: str, message_id: str = "", file_id: str = ""):
     """Process a document message (resume) from WhatsApp."""
+    # Check operating hours (8:30 AM - 10:00 PM Singapore time)
+    if not is_within_operating_hours():
+        print(f"Outside operating hours - not responding to document from {phone}")
+        return
+
     # Check if bot was manually stopped
     if phone in bot_stopped_numbers:
         print(f"Bot not responding to document from {phone}: manually_stopped")
