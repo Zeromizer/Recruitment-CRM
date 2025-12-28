@@ -68,29 +68,24 @@ SCREENING_PROMPT = """Here are the available job roles with their requirements a
 RESUME TEXT:
 {resume_text}
 
-Please analyze this resume and provide a screening assessment.
+First, identify which job role the candidate is applying for based on the context. Match it to one of the available roles. If the context does not clearly indicate a role, select the most suitable role based on the candidates experience.
 
-1. First, identify which job role the candidate is applying for. Match it to one of the available roles. If the message does not clearly indicate a role, select the most suitable role based on the candidates experience.
+Then analyze this resume against that specific roles requirements and scoring guide.
 
-2. Then analyze this resume against that specific roles requirements and scoring guide.
+IMPORTANT: Extract the candidates email address and phone number from the resume if available. Candidates who are Singapore Citizens or Permanent Residents are ideal. Look for indicators such as: NRIC number (starts with S or T for citizens, F or G for PRs), National Service or NS completion, Singapore address, local education (Singapore polytechnics like Ngee Ann or Temasek, universities like NUS NTU SMU SIT SUSS, local schools like ITE or N level, O level for secondary school education), or explicit mention of citizenship or PR status. If no clear indicator of Singapore Citizen or PR status is found, set recommendation to Rejected unless job requirement stated otherwise.
 
-3. Extract the candidates email address and phone number from the resume if available.
+CRITICAL: Your response must be ONLY a JSON object. Do not include any text, explanation, or markdown before or after the JSON. Start your response with {{ and end with }}.
 
-IMPORTANT CITIZENSHIP REQUIREMENT: Candidates MUST be Singapore Citizens or Permanent Residents. Look for indicators such as: NRIC number (starts with S or T for citizens, F or G for PRs), National Service or NS completion, Singapore address, local education (Singapore polytechnics like Ngee Ann or Temasek, universities like NUS NTU SMU SIT SUSS, or local schools), or explicit mention of citizenship or PR status. If no clear indicator of Singapore Citizen or PR status is found, set recommendation to Rejected regardless of qualifications.
-
-Please include a JSON block in your response with these fields:
-{{
-  "candidate_name": "Full name from resume",
-  "candidate_email": "email@example.com or null",
-  "candidate_phone": "+65 XXXX XXXX or null",
-  "job_matched": "matched role name",
-  "score": 7,
-  "citizenship_status": "Singapore Citizen",
-  "recommendation": "Top Candidate",
-  "summary": "Brief evaluation text"
-}}
-
-Note: score should be a number from 1-10, citizenship_status should be one of: Singapore Citizen, PR, Unknown, or Foreigner. recommendation should be one of: Top Candidate, Review, or Rejected.
+The JSON must contain these fields:
+- candidate_name (string)
+- candidate_email (string or null if not found)
+- candidate_phone (string or null if not found)
+- job_applied (the role from context)
+- job_matched (the role matched from your list)
+- score (number 1-10)
+- citizenship_status (Singapore Citizen or PR or Unknown or Foreigner)
+- recommendation (Top Candidate or Review or Rejected)
+- summary (brief evaluation including citizenship verification note)
 
 Use the scoring guide for the matched role."""
 
