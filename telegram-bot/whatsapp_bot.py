@@ -123,34 +123,51 @@ app = FastAPI(
 )
 
 
-async def send_whatsapp_message(phone: str, message: str) -> bool:
-    """Send a WhatsApp message via Walichat API."""
+async def send_single_message(phone: str, message: str) -> bool:
+    """Send a single WhatsApp message via Walichat API."""
     try:
-        # Clean phone number - remove any non-numeric chars except +
         clean_phone = phone.strip()
-
         payload = {
             "phone": clean_phone,
             "message": message,
-            "device": WALICHAT_DEVICE_ID,  # Always include device ID
+            "device": WALICHAT_DEVICE_ID,
         }
-
-        print(f"Sending message to {clean_phone} via device {WALICHAT_DEVICE_ID}")
-        print(f"Payload: {payload}")
 
         response = await http_client.post("/messages", json=payload)
 
         if response.status_code == 200 or response.status_code == 201:
-            print(f"Message sent to {clean_phone}")
+            print(f"Message sent to {clean_phone}: {message[:50]}...")
             return True
         else:
             print(f"Failed to send message: {response.status_code} - {response.text}")
             return False
     except Exception as e:
         print(f"Error sending WhatsApp message: {e}")
-        import traceback
-        print(traceback.format_exc())
         return False
+
+
+async def send_whatsapp_message(phone: str, message: str) -> bool:
+    """Send WhatsApp message(s) - splits on '---' and adds realistic typing delays."""
+    # Split message on '---' delimiter
+    parts = [part.strip() for part in message.split('---') if part.strip()]
+
+    if len(parts) <= 1:
+        # Single message, send normally
+        return await send_single_message(phone, message)
+
+    # Multiple messages - send with delays
+    for i, part in enumerate(parts):
+        success = await send_single_message(phone, part)
+        if not success:
+            return False
+
+        # Add delay before next message (except for last one)
+        if i < len(parts) - 1:
+            # Delay based on message length: ~50ms per character, min 1s, max 3s
+            delay = min(max(len(part) * 0.05, 1.0), 3.0)
+            await asyncio.sleep(delay)
+
+    return True
 
 
 async def download_media(media_url: str, file_id: str = None, message_id: str = None) -> bytes:
