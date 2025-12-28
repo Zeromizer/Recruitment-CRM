@@ -307,14 +307,22 @@ async def get_ai_response(user_id: str, message: str, candidate_name: str = None
         return "I apologize, but I'm having trouble processing your message. Please try again."
 
 
-def mark_resume_received(user_id: str, applied_role: str = None):
-    """Mark that a resume has been received for this user."""
+def mark_resume_received(user_id: str, applied_role: str = None, candidate_name: str = None):
+    """Mark that a resume has been received for this user and add to conversation history."""
     update_conversation_state(
         user_id,
         resume_received=True,
         stage=STATE_RESUME_RECEIVED,
         applied_role=applied_role
     )
+
+    # Add to conversation history so AI knows resume was received
+    # This helps maintain context if messages come in close together
+    add_message(user_id, "user", "[Candidate sent their resume]")
+
+    # Add our response to the conversation too
+    name = candidate_name or "there"
+    add_message(user_id, "assistant", f"thanks {name}! got ur resume, will take a look")
 
 
 async def screen_resume(resume_text: str, job_roles: str = None) -> dict:
