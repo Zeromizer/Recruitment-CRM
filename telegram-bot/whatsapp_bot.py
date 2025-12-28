@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from shared.ai_screening import get_ai_response, screen_resume, init_anthropic, get_conversation, mark_resume_received, update_conversation_state
 from shared.database import save_candidate, upload_resume_to_storage, init_supabase
-from shared.resume_parser import extract_text_from_pdf, extract_text_from_word
+from shared.resume_parser import extract_text_from_pdf, extract_text_from_word, convert_word_to_pdf
 from shared.google_sheets import init_google_sheets
 from shared.spam_protection import is_rate_limited, contains_spam, is_user_allowed
 
@@ -393,17 +393,27 @@ async def process_document_message(phone: str, name: str, file_name: str, media_
         file_bytes = await download_media(media_url, file_id, message_id)
 
         if file_bytes:
-            # Extract text from resume
+            # Extract text from resume and prepare for upload
+            upload_bytes = file_bytes
+            upload_name = file_name
+
             if mime_type == "application/pdf" or file_name.lower().endswith('.pdf'):
                 resume_text = extract_text_from_pdf(file_bytes)
             elif mime_type in ["application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"] or file_name.lower().endswith(('.doc', '.docx')):
                 resume_text = extract_text_from_word(file_bytes)
+                # Convert Word to PDF for preview compatibility
+                pdf_bytes = convert_word_to_pdf(file_bytes)
+                if pdf_bytes:
+                    upload_bytes = pdf_bytes
+                    # Change extension to .pdf
+                    upload_name = os.path.splitext(file_name)[0] + '.pdf'
+                    print(f"Converted Word doc to PDF: {upload_name}")
             else:
                 resume_text = f"[Document received: {file_name}]"
 
             if resume_text and len(resume_text) > 100:
-                # Upload resume to storage
-                resume_url = await upload_resume_to_storage(file_bytes, file_name, phone)
+                # Upload resume to storage (PDF version for Word docs)
+                resume_url = await upload_resume_to_storage(upload_bytes, upload_name, phone)
 
                 # Screen the resume
                 screening_result = await screen_resume(resume_text)

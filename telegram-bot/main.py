@@ -4,6 +4,7 @@ import json
 import asyncio
 import random
 import tempfile
+import subprocess
 import re
 from io import BytesIO
 from telethon import TelegramClient, events
@@ -317,6 +318,36 @@ def extract_text_from_word(doc_bytes: bytes) -> str:
     except Exception as e:
         print(f"Error extracting Word document text: {e}")
         return ""
+
+
+def convert_word_to_pdf(doc_bytes: bytes) -> bytes:
+    """Convert a Word document to PDF using LibreOffice."""
+    try:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Write Word doc to temp file
+            input_path = os.path.join(tmp_dir, "input.docx")
+            with open(input_path, "wb") as f:
+                f.write(doc_bytes)
+
+            # Convert using LibreOffice
+            subprocess.run([
+                "libreoffice",
+                "--headless",
+                "--convert-to", "pdf",
+                "--outdir", tmp_dir,
+                input_path
+            ], check=True, capture_output=True, timeout=60)
+
+            # Read the converted PDF
+            output_path = os.path.join(tmp_dir, "input.pdf")
+            with open(output_path, "rb") as f:
+                return f.read()
+    except subprocess.TimeoutExpired:
+        print("Error: Word to PDF conversion timed out")
+        return None
+    except Exception as e:
+        print(f"Error converting Word to PDF: {e}")
+        return None
 
 
 def get_job_roles_from_sheets() -> str:
@@ -668,11 +699,21 @@ def setup_handlers(telegram_client):
                     file_bytes = await event.download_media(file=bytes)
 
                     if file_bytes:
-                        # Extract text from resume
+                        # Extract text from resume and prepare for upload
+                        upload_bytes = file_bytes
+                        upload_name = file_name
+
                         if mime_type == "application/pdf" or file_name.lower().endswith('.pdf'):
                             resume_text = extract_text_from_pdf(file_bytes)
                         elif mime_type in ["application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"] or file_name.lower().endswith(('.doc', '.docx')):
                             resume_text = extract_text_from_word(file_bytes)
+                            # Convert Word to PDF for preview compatibility
+                            pdf_bytes = convert_word_to_pdf(file_bytes)
+                            if pdf_bytes:
+                                upload_bytes = pdf_bytes
+                                # Change extension to .pdf
+                                upload_name = os.path.splitext(file_name)[0] + '.pdf'
+                                print(f"Converted Word doc to PDF: {upload_name}")
                         else:
                             # For other document types, just note that it was received
                             resume_text = f"[Document received: {file_name}]"
@@ -680,8 +721,8 @@ def setup_handlers(telegram_client):
                         if resume_text and len(resume_text) > 100:
                             print(f"Extracted {len(resume_text)} characters from resume")
 
-                            # Upload resume to storage
-                            resume_url = await upload_resume_to_storage(file_bytes, file_name, user_id)
+                            # Upload resume to storage (PDF version for Word docs)
+                            resume_url = await upload_resume_to_storage(upload_bytes, upload_name, user_id)
 
                             # Screen the resume
                             screening_result = await screen_resume(resume_text)
