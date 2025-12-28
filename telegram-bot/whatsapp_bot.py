@@ -6,6 +6,7 @@ import os
 import sys
 import asyncio
 import random
+import re
 import httpx
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
@@ -24,6 +25,97 @@ from shared.spam_protection import is_rate_limited, contains_spam, is_user_allow
 WALICHAT_API_BASE = "https://api.wali.chat/v1"
 WALICHAT_API_TOKEN = os.environ.get('WALICHAT_API_TOKEN')
 WALICHAT_DEVICE_ID = os.environ.get('WALICHAT_DEVICE_ID')
+
+# Bot activation state tracking
+# Numbers where bot is actively responding
+bot_active_numbers = set()
+# Numbers where bot has been manually stopped
+bot_stopped_numbers = set()
+
+# Keywords that trigger bot activation on first message
+JOB_KEYWORDS = [
+    "job", "jobs", "apply", "applying", "role", "roles", "position", "positions",
+    "hiring", "vacancy", "vacancies", "work", "working", "resume", "cv",
+    "interested", "interest", "opportunity", "opportunities", "opening", "openings",
+    "recruit", "employment", "career", "part time", "part-time", "full time", "full-time",
+    "internship", "intern", "looking for", "available", "joining"
+]
+
+# Stop command pattern
+STOP_COMMAND = "//stop"
+
+# Closing phrases that trigger auto-stop
+CLOSING_PHRASES = [
+    "will contact u if shortlisted",
+    "will contact you if shortlisted",
+    "contact u if shortlisted",
+    "contact you if shortlisted"
+]
+
+
+def contains_job_keyword(text: str) -> bool:
+    """Check if message contains job-related keywords."""
+    if not text:
+        return False
+    text_lower = text.lower()
+    # Use word boundaries to avoid false positives
+    for keyword in JOB_KEYWORDS:
+        # Check for keyword as a whole word
+        if re.search(r'\b' + re.escape(keyword) + r'\b', text_lower):
+            return True
+    return False
+
+
+def is_first_message(phone: str) -> bool:
+    """Check if this is the first message from this phone number."""
+    conversation = get_conversation(phone)
+    return len(conversation) == 0
+
+
+def should_bot_respond(phone: str, text: str) -> tuple[bool, str]:
+    """
+    Determine if bot should respond to this message.
+    Returns (should_respond, reason).
+    """
+    # Check if manually stopped
+    if phone in bot_stopped_numbers:
+        return False, "manually_stopped"
+
+    # Check if already active
+    if phone in bot_active_numbers:
+        return True, "already_active"
+
+    # First message - check for keywords
+    if is_first_message(phone):
+        if contains_job_keyword(text):
+            return True, "keyword_match"
+        else:
+            return False, "no_keyword"
+
+    # Not first message and not active - don't respond
+    return False, "not_active"
+
+
+def activate_bot(phone: str):
+    """Activate bot for this phone number."""
+    bot_active_numbers.add(phone)
+    bot_stopped_numbers.discard(phone)
+    print(f"Bot activated for {phone}")
+
+
+def deactivate_bot(phone: str, reason: str = "manual"):
+    """Deactivate bot for this phone number."""
+    bot_active_numbers.discard(phone)
+    if reason == "manual":
+        bot_stopped_numbers.add(phone)
+    print(f"Bot deactivated for {phone} (reason: {reason})")
+
+
+def check_for_closing(response: str) -> bool:
+    """Check if response contains a closing phrase."""
+    response_lower = response.lower()
+    return any(phrase in response_lower for phrase in CLOSING_PHRASES)
+
 
 # Debug: print device ID at module load
 print(f"WALICHAT_DEVICE_ID loaded: '{WALICHAT_DEVICE_ID}' (length: {len(WALICHAT_DEVICE_ID) if WALICHAT_DEVICE_ID else 0})")
@@ -208,6 +300,12 @@ async def download_media(media_url: str, file_id: str = None, message_id: str = 
 async def process_text_message(phone: str, name: str, text: str):
     """Process a text message from WhatsApp."""
 
+    # Check for stop command first (from recruiter taking over)
+    if text.strip().lower() == STOP_COMMAND.lower():
+        deactivate_bot(phone, reason="manual")
+        print(f"Bot stopped for {phone} via //stop command")
+        return  # Don't send any response for stop command
+
     # Check spam protection
     allowed, reason = is_user_allowed(phone)
     if not allowed:
@@ -220,15 +318,36 @@ async def process_text_message(phone: str, name: str, text: str):
     if contains_spam(text):
         return
 
+    # Check if bot should respond to this message
+    should_respond, respond_reason = should_bot_respond(phone, text)
+
+    if not should_respond:
+        print(f"Bot not responding to {phone}: {respond_reason}")
+        return
+
+    # Activate bot if this is a new keyword-triggered conversation
+    if respond_reason == "keyword_match":
+        activate_bot(phone)
+
     # Get AI response with candidate name for personalization
     response = await get_ai_response(phone, text, candidate_name=name)
     await send_whatsapp_message(phone, response)
+
+    # Check if this is a closing message - auto-stop bot
+    if check_for_closing(response):
+        deactivate_bot(phone, reason="closing")
+        print(f"Bot auto-stopped for {phone} after closing message")
 
     # Note: Only create candidate record when resume is received (not on text messages)
 
 
 async def process_document_message(phone: str, name: str, file_name: str, media_url: str, mime_type: str, message_id: str = "", file_id: str = ""):
     """Process a document message (resume) from WhatsApp."""
+    # Check if bot was manually stopped
+    if phone in bot_stopped_numbers:
+        print(f"Bot not responding to document from {phone}: manually_stopped")
+        return
+
     # Check spam protection
     allowed, reason = is_user_allowed(phone)
     if not allowed:
@@ -243,6 +362,10 @@ async def process_document_message(phone: str, name: str, file_name: str, media_
     )
 
     if is_resume:
+        # Resume = strong intent signal, activate bot if not already active
+        if phone not in bot_active_numbers:
+            activate_bot(phone)
+
         await send_whatsapp_message(phone, "thanks! will check it out")
 
         # Download the file - try with file ID first, then message ID, then direct URL
@@ -330,9 +453,10 @@ async def process_document_message(phone: str, name: str, file_name: str, media_
                 "had trouble downloading ur file. could u try sending it again?"
             )
     else:
-        # Non-resume file - just respond, don't create candidate
-        response = await get_ai_response(phone, f"[User sent a file: {file_name}]", candidate_name=name)
-        await send_whatsapp_message(phone, response)
+        # Non-resume file - only respond if bot is active for this number
+        if phone in bot_active_numbers:
+            response = await get_ai_response(phone, f"[User sent a file: {file_name}]", candidate_name=name)
+            await send_whatsapp_message(phone, response)
 
 
 @app.post("/webhook")
