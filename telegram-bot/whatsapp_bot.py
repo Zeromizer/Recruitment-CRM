@@ -162,6 +162,9 @@ async def send_whatsapp_message(phone: str, message: str) -> bool:
         if not success:
             return False
 
+        # Small buffer to ensure message is delivered before sending next
+        await asyncio.sleep(1.5)
+
         # Add delay before next message (except for last one)
         if i < len(parts) - 1:
             # Natural "thinking" delay: 3-6 seconds randomly
