@@ -545,7 +545,7 @@ export default function CandidateDetail() {
           </div>
 
           {/* Workflow Progress Indicator */}
-          <div className="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+          <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-medium text-slate-700">Workflow Progress</h3>
               <span className={`text-xs px-2 py-1 rounded-full ${
