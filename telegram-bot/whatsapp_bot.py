@@ -44,6 +44,9 @@ Consultant Name is {RECRUITER_NAME} (Pls find the dropdown list of my name)
 
 As soon as you are finished, please let me know. Thank you!"""
 
+# Follow-up message about form being down (temporary)
+FORM_DOWN_MESSAGE = "The application form link is currently down. You can send me your resume first and I will ask you to fill the application form once its ready."
+
 # Keywords that trigger bot activation on first message
 JOB_KEYWORDS = [
     "job", "jobs", "apply", "applying", "role", "roles", "position", "positions",
@@ -342,6 +345,9 @@ async def process_text_message(phone: str, name: str, text: str):
         activate_bot(phone)
         # Send the first reply template
         await send_whatsapp_message(phone, FIRST_REPLY_TEMPLATE)
+        # Send follow-up about form being down
+        await asyncio.sleep(random.uniform(3.0, 5.0))  # Natural delay
+        await send_whatsapp_message(phone, FORM_DOWN_MESSAGE)
         return
 
     # Get AI response with candidate name for personalization
