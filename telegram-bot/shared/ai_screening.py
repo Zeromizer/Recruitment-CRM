@@ -72,7 +72,7 @@ First, identify which job role the candidate is applying for based on the contex
 
 Then analyze this resume against that specific roles requirements and scoring guide.
 
-IMPORTANT: Extract the candidates email address and phone number from the resume if available. Candidates who are Singapore Citizens or Permanent Residents are ideal. Look for indicators such as: NRIC number (starts with S or T for citizens, F or G for PRs), National Service or NS completion, Singapore address, local education (Singapore polytechnics like Ngee Ann or Temasek, universities like NUS NTU SMU SIT SUSS, or local schools), or explicit mention of citizenship or PR status. If no clear indicator of Singapore Citizen or PR status is found, set recommendation to Rejected unless job requirement stated otherwise.
+IMPORTANT: Extract the candidates email address and phone number from the resume if available. Candidates who are Singapore Citizens or Permanent Residents are ideal. Look for indicators such as: NRIC number (starts with S or T for citizens, F or G for PRs), National Service or NS completion, Singapore address, local education (Singapore polytechnics like Ngee Ann or Temasek, universities like NUS NTU SMU SIT SUSS, local schools like ITE or N level, O level for secondary school education), or explicit mention of citizenship or PR status. If no clear indicator of Singapore Citizen or PR status is found, set recommendation to Rejected unless job requirement stated otherwise.
 
 CRITICAL: Your response must be ONLY a JSON object. Do not include any text, explanation, or markdown before or after the JSON. Start your response with {{ and end with }}.
 
