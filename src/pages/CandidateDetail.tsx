@@ -459,7 +459,7 @@ export default function CandidateDetail() {
           </div>
 
           {/* Contact Info */}
-          <div className="mt-6 flex flex-wrap gap-4">
+          <div className="mt-4 flex flex-wrap gap-4">
             {candidate.email && (
               <a
                 href={`mailto:${candidate.email}`}
@@ -487,7 +487,7 @@ export default function CandidateDetail() {
           </div>
 
           {/* Inline Details */}
-          <div className="mt-6">
+          <div className="mt-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {candidate.assigned_recruiter && (
                 <div>
