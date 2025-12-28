@@ -46,6 +46,14 @@ function getAIScoreColor(score: number | null): string {
   return 'text-red-600';
 }
 
+function getAICategoryBadgeClass(category: string | null): string {
+  if (!category) return 'bg-slate-100 text-slate-600';
+  if (category === 'Top Candidate') return 'bg-emerald-100 text-emerald-700';
+  if (category === 'Review') return 'bg-amber-100 text-amber-700';
+  if (category === 'Rejected') return 'bg-red-100 text-red-700';
+  return 'bg-slate-100 text-slate-600';
+}
+
 function CandidateRow({ candidate }: { candidate: Candidate }) {
   return (
     <Link
@@ -53,7 +61,7 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
       className="grid grid-cols-12 gap-4 items-center p-4 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
     >
       {/* Name & Contact */}
-      <div className="col-span-4 flex items-center gap-3">
+      <div className="col-span-3 flex items-center gap-3">
         <div className="w-10 h-10 bg-cgp-red rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
           <span className="text-sm font-medium text-white">
             {candidate.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
@@ -86,6 +94,13 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
         </div>
       </div>
 
+      {/* AI Category (Screening Result) */}
+      <div className="col-span-2">
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getAICategoryBadgeClass(candidate.ai_category)}`}>
+          {candidate.ai_category || 'Not Screened'}
+        </span>
+      </div>
+
       {/* Status */}
       <div className="col-span-2">
         <span className={`badge ${getStatusBadgeClass(candidate.current_status)}`}>
@@ -94,7 +109,7 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
       </div>
 
       {/* Date Applied */}
-      <div className="col-span-2">
+      <div className="col-span-1">
         <p className="text-sm text-slate-500">
           {format(parseISO(candidate.date_received), 'MMM d, yyyy')}
         </p>
@@ -115,6 +130,7 @@ export default function Candidates() {
   const [sourceFilter, setSourceFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [minScoreFilter, setMinScoreFilter] = useState<number | ''>('');
+  const [aiCategoryFilter, setAiCategoryFilter] = useState<string>('');
   const [showFilters, setShowFilters] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [hasUsedFilters, setHasUsedFilters] = useState(false);
@@ -165,11 +181,16 @@ export default function Candidates() {
         return false;
       }
 
+      // AI Category filter
+      if (aiCategoryFilter && candidate.ai_category !== aiCategoryFilter) {
+        return false;
+      }
+
       return true;
     });
-  }, [candidates, search, statusFilter, sourceFilter, roleFilter, minScoreFilter]);
+  }, [candidates, search, statusFilter, sourceFilter, roleFilter, minScoreFilter, aiCategoryFilter]);
 
-  const hasActiveFilters = statusFilter || sourceFilter || roleFilter || minScoreFilter !== '';
+  const hasActiveFilters = statusFilter || sourceFilter || roleFilter || minScoreFilter !== '' || aiCategoryFilter;
 
   if (isLoading) {
     return (
@@ -226,7 +247,7 @@ export default function Candidates() {
             Filters
             {hasActiveFilters && (
               <span className="w-5 h-5 bg-cgp-red text-white text-xs rounded-full flex items-center justify-center">
-                {(statusFilter ? 1 : 0) + (sourceFilter ? 1 : 0) + (roleFilter ? 1 : 0) + (minScoreFilter !== '' ? 1 : 0)}
+                {(statusFilter ? 1 : 0) + (sourceFilter ? 1 : 0) + (roleFilter ? 1 : 0) + (minScoreFilter !== '' ? 1 : 0) + (aiCategoryFilter ? 1 : 0)}
               </span>
             )}
           </button>
@@ -299,6 +320,21 @@ export default function Candidates() {
                 </select>
               </div>
 
+              {/* AI Category Filter */}
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-sm text-slate-500 mb-1">AI Screening Result</label>
+                <select
+                  value={aiCategoryFilter}
+                  onChange={(e) => setAiCategoryFilter(e.target.value)}
+                  className="input w-full"
+                >
+                  <option value="">All Categories</option>
+                  <option value="Top Candidate">Top Candidate</option>
+                  <option value="Review">Review</option>
+                  <option value="Rejected">Rejected</option>
+                </select>
+              </div>
+
               {/* Clear Filters */}
               {hasActiveFilters && (
                 <div className="flex items-end">
@@ -308,6 +344,7 @@ export default function Candidates() {
                       setSourceFilter('');
                       setRoleFilter('');
                       setMinScoreFilter('');
+                      setAiCategoryFilter('');
                     }}
                     className="btn-secondary flex items-center gap-2"
                   >
@@ -325,11 +362,12 @@ export default function Candidates() {
       <div className="card overflow-hidden">
         {/* Table Header */}
         <div className="grid grid-cols-12 gap-4 items-center p-4 bg-slate-50 text-sm font-medium text-slate-500 border-b border-slate-200">
-          <div className="col-span-4">Candidate</div>
+          <div className="col-span-3">Candidate</div>
           <div className="col-span-2">Role</div>
           <div className="col-span-1">Score</div>
+          <div className="col-span-2">AI Screening</div>
           <div className="col-span-2">Status</div>
-          <div className="col-span-2">Applied</div>
+          <div className="col-span-1">Applied</div>
           <div className="col-span-1"></div>
         </div>
 
