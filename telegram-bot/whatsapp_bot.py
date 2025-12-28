@@ -238,9 +238,19 @@ async def process_document_message(phone: str, name: str, file_name: str, media_
                 screening_result = await screen_resume(resume_text)
                 print(f"Resume processed: {screening_result.get('candidate_name', 'Unknown')} - {screening_result.get('recommendation', 'Unknown')}")
 
-                # Update conversation state - mark resume received
+                # Extract candidate info
                 matched_job = screening_result.get('job_matched', 'our open positions')
-                mark_resume_received(phone, applied_role=matched_job)
+                candidate_name = screening_result.get('candidate_name', name or 'there')
+                first_name = candidate_name.split()[0] if candidate_name else 'there'
+                screening_summary = screening_result.get('summary', '')
+
+                # Update conversation state - mark resume received with context
+                mark_resume_received(
+                    phone,
+                    applied_role=matched_job,
+                    candidate_name=first_name,
+                    screening_summary=screening_summary
+                )
 
                 # Save candidate with screening results
                 await save_candidate(
@@ -252,10 +262,6 @@ async def process_document_message(phone: str, name: str, file_name: str, media_
                     resume_url=resume_url,
                     conversation_history=get_conversation(phone)
                 )
-
-                # Generate response in Ai Wei's style - ask role-specific questions
-                candidate_name = screening_result.get('candidate_name', name or 'there')
-                first_name = candidate_name.split()[0] if candidate_name else 'there'
 
                 # Generate role-specific experience question
                 role_questions = {
