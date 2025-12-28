@@ -37,11 +37,11 @@ RECRUITER_NAME = os.environ.get('RECRUITER_NAME', 'Ai Wei')
 COMPANY_NAME = os.environ.get('COMPANY_NAME', 'CGP')
 APPLICATION_FORM_URL = os.environ.get('APPLICATION_FORM_URL', 'Shorturl.at/kmvJ6')
 
-# First reply template when bot is activated
+# First reply template when bot is activated (sent as single message)
 FIRST_REPLY_TEMPLATE = f"""Hello, I am {RECRUITER_NAME} from {COMPANY_NAME}. Could you kindly fill up the Application Form here: {APPLICATION_FORM_URL}
----
+
 Consultant Name is {RECRUITER_NAME} (Pls find the dropdown list of my name)
----
+
 As soon as you are finished, please let me know. Thank you!"""
 
 # Keywords that trigger bot activation on first message
