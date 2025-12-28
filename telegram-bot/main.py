@@ -145,6 +145,22 @@ SYSTEM_PROMPT = f"""You are {RECRUITER_NAME}, a recruiter from {COMPANY_NAME} (C
 - If they're chatty, be chatty back. If they're brief, match their energy.
 - Only use ":)" occasionally, not in every message
 
+## HOW TO FORMAT YOUR REPLIES
+IMPORTANT: Send multiple short messages instead of one long message, like how people actually text.
+- Use "---" to separate each message
+- Keep each message short (1-3 sentences max)
+- It feels more natural and conversational this way
+
+Example of good formatting:
+"yep that makes sense!
+---
+so the role is basically helping customers with their gym memberships
+---
+do u have any experience in customer service or sales?"
+
+Example of bad formatting (too long, all in one message):
+"yep that makes sense! so the role is basically helping customers with their gym memberships and answering their questions about pricing and facilities. do u have any experience in customer service or sales? it would really help for this position."
+
 ## YOUR OBJECTIVES (in this order, but be flexible)
 1. Get them to fill the application form: {APPLICATION_FORM_URL} (select "{RECRUITER_NAME}" as consultant)
 2. Get their resume
@@ -527,6 +543,23 @@ def init_google_sheets():
         return None
 
 
+async def send_telegram_messages(event, telegram_client, message: str):
+    """Send message(s) - splits on '---' and adds realistic typing delays."""
+    parts = [part.strip() for part in message.split('---') if part.strip()]
+
+    for i, part in enumerate(parts):
+        # Show typing action before each message
+        async with telegram_client.action(event.chat_id, 'typing'):
+            # Typing delay based on message length
+            delay = min(max(len(part) * 0.03, 0.5), 2.0)
+            await asyncio.sleep(delay)
+        await event.respond(part)
+
+        # Small pause between messages
+        if i < len(parts) - 1:
+            await asyncio.sleep(0.5)
+
+
 def setup_handlers(telegram_client):
     """Setup message handlers for the Telegram client."""
 
@@ -552,7 +585,9 @@ def setup_handlers(telegram_client):
         print(f"Message from {full_name} (@{username}): {event.text}")
         async with telegram_client.action(event.chat_id, 'typing'):
             response = await get_ai_response(user_id, event.text or "")
-        await event.respond(response)
+
+        # Send response with message splitting and delays
+        await send_telegram_messages(event, telegram_client, response)
         # Note: Only create candidate record when resume is received (not on text messages)
 
     @telegram_client.on(events.NewMessage(incoming=True, func=lambda e: e.file))
