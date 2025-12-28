@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 # Add parent directory to path for shared imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from shared.ai_screening import get_ai_response, screen_resume, init_anthropic, get_conversation
+from shared.ai_screening import get_ai_response, screen_resume, init_anthropic, get_conversation, mark_resume_received, update_conversation_state
 from shared.database import save_candidate, upload_resume_to_storage, init_supabase
 from shared.resume_parser import extract_text_from_pdf
 from shared.google_sheets import init_google_sheets
@@ -195,8 +195,8 @@ async def process_text_message(phone: str, name: str, text: str):
     if contains_spam(text):
         return
 
-    # Get AI response
-    response = await get_ai_response(phone, text)
+    # Get AI response with candidate name for personalization
+    response = await get_ai_response(phone, text, candidate_name=name)
     await send_whatsapp_message(phone, response)
 
     # Note: Only create candidate record when resume is received (not on text messages)
@@ -218,7 +218,7 @@ async def process_document_message(phone: str, name: str, file_name: str, media_
     )
 
     if is_resume:
-        await send_whatsapp_message(phone, "Thank you for your resume! I'm processing it now...")
+        await send_whatsapp_message(phone, "thanks for ur resume! processing it now... :)")
 
         # Download the file - try with file ID first, then message ID, then direct URL
         file_bytes = await download_media(media_url, file_id, message_id)
@@ -238,6 +238,10 @@ async def process_document_message(phone: str, name: str, file_name: str, media_
                 screening_result = await screen_resume(resume_text)
                 print(f"Resume processed: {screening_result.get('candidate_name', 'Unknown')} - {screening_result.get('recommendation', 'Unknown')}")
 
+                # Update conversation state - mark resume received
+                matched_job = screening_result.get('job_matched', 'our open positions')
+                mark_resume_received(phone, applied_role=matched_job)
+
                 # Save candidate with screening results
                 await save_candidate(
                     user_id=phone,
@@ -249,32 +253,54 @@ async def process_document_message(phone: str, name: str, file_name: str, media_
                     conversation_history=get_conversation(phone)
                 )
 
-                # Generate response
-                matched_job = screening_result.get('job_matched', 'our open positions')
-                candidate_name = screening_result.get('candidate_name', name or 'candidate')
+                # Generate response in Ai Wei's style - ask role-specific questions
+                candidate_name = screening_result.get('candidate_name', name or 'there')
+                first_name = candidate_name.split()[0] if candidate_name else 'there'
 
-                response = f"""Thank you for submitting your resume, {candidate_name}!
+                # Generate role-specific experience question
+                role_questions = {
+                    "barista": "do u have experience making coffee with latte art?",
+                    "coffee": "do u have experience making coffee with latte art?",
+                    "researcher": "do u have experience with phone surveys or data collection?",
+                    "phone": "do u have experience with phone surveys or data collection?",
+                    "event": "do u have experience with events or customer service?",
+                    "crew": "do u have experience working at events?",
+                    "admin": "do u have experience with admin work?",
+                    "customer service": "do u have experience in customer service?",
+                    "promoter": "do u have experience with promotions or sales?",
+                }
 
-I've reviewed your application and found you could be a great fit for *{matched_job}*.
+                # Find matching question based on job role
+                experience_question = None
+                matched_job_lower = matched_job.lower()
+                for keyword, question in role_questions.items():
+                    if keyword in matched_job_lower:
+                        experience_question = question
+                        break
 
-Our recruitment team will review your profile and get back to you soon. In the meantime, is there anything specific about the role you'd like to know?"""
+                # Default question if no specific match
+                if not experience_question:
+                    experience_question = "what relevant experience do u have for this role?"
 
+                response = f"thanks {first_name}! :)\n{experience_question}"
                 await send_whatsapp_message(phone, response)
+
+                # Update state to mark experience as asked
+                update_conversation_state(phone, experience_discussed=True)
             else:
                 await send_whatsapp_message(
                     phone,
-                    "Thank you for your resume! I received the file but had trouble reading its contents. "
-                    "Our team will review it manually. Is there anything else I can help you with?"
+                    "thanks for ur resume! had a bit of trouble reading it but our team will review it manually. anything else i can help u with? :)"
                 )
                 # Note: Don't create candidate without successful resume processing
         else:
             await send_whatsapp_message(
                 phone,
-                "I had trouble downloading your file. Could you please try sending it again?"
+                "had trouble downloading ur file. could u try sending it again?"
             )
     else:
         # Non-resume file - just respond, don't create candidate
-        response = await get_ai_response(phone, f"[User sent a file: {file_name}]")
+        response = await get_ai_response(phone, f"[User sent a file: {file_name}]", candidate_name=name)
         await send_whatsapp_message(phone, response)
 
 
