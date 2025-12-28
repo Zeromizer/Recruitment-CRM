@@ -11,6 +11,7 @@ from telethon.sessions import StringSession
 from anthropic import Anthropic
 from supabase import create_client, Client
 import PyPDF2
+from docx import Document
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -288,6 +289,33 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
         return text.strip()
     except Exception as e:
         print(f"Error extracting PDF text: {e}")
+        return ""
+
+
+def extract_text_from_word(doc_bytes: bytes) -> str:
+    """Extract text content from a Word document (.docx)."""
+    try:
+        doc = Document(BytesIO(doc_bytes))
+        text_parts = []
+
+        # Extract text from paragraphs
+        for paragraph in doc.paragraphs:
+            if paragraph.text.strip():
+                text_parts.append(paragraph.text)
+
+        # Extract text from tables
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = []
+                for cell in row.cells:
+                    if cell.text.strip():
+                        row_text.append(cell.text.strip())
+                if row_text:
+                    text_parts.append(" | ".join(row_text))
+
+        return "\n".join(text_parts).strip()
+    except Exception as e:
+        print(f"Error extracting Word document text: {e}")
         return ""
 
 
@@ -640,11 +668,13 @@ def setup_handlers(telegram_client):
                     file_bytes = await event.download_media(file=bytes)
 
                     if file_bytes:
-                        # Extract text from PDF
+                        # Extract text from resume
                         if mime_type == "application/pdf" or file_name.lower().endswith('.pdf'):
                             resume_text = extract_text_from_pdf(file_bytes)
+                        elif mime_type in ["application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"] or file_name.lower().endswith(('.doc', '.docx')):
+                            resume_text = extract_text_from_word(file_bytes)
                         else:
-                            # For non-PDF, just note that it was received
+                            # For other document types, just note that it was received
                             resume_text = f"[Document received: {file_name}]"
 
                         if resume_text and len(resume_text) > 100:
