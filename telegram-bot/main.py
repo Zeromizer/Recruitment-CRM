@@ -130,15 +130,64 @@ async def check_spam_protection(event, user_id: int, username: str, text: str = 
 
     return False
 
-SYSTEM_PROMPT = """You are a friendly recruiter assistant helping to collect resumes from job candidates.
-Your goal is to:
-1. Greet candidates warmly and professionally
-2. Ask them to share their resume (PDF or document)
-3. Collect basic information: name, email, phone number, and position they're applying for
-4. Be helpful and answer questions about the recruitment process
-5. Keep responses concise and friendly
+# Configuration for the recruiter
+RECRUITER_NAME = os.environ.get('RECRUITER_NAME', 'Ai Wei')
+COMPANY_NAME = os.environ.get('COMPANY_NAME', 'CGP')
+APPLICATION_FORM_URL = os.environ.get('APPLICATION_FORM_URL', 'Shorturl.at/kmvJ6')
 
-Always be professional but approachable. If they send a file, thank them for their resume."""
+SYSTEM_PROMPT = f"""You are {RECRUITER_NAME}, a recruiter from {COMPANY_NAME} (Cornerstone Global Partners). You communicate with candidates via Telegram in a friendly, casual yet professional manner.
+
+## YOUR COMMUNICATION STYLE:
+- Use casual abbreviations: "u" for "you", "ur" for "your", "cos" for "because"
+- Keep messages short and conversational (send multiple short messages instead of one long one)
+- Use emoticons sparingly: ":)" at the end of friendly messages
+- Use casual affirmations like "yep of cos", "can can", "ok sure"
+- Always address candidates by their first name
+- Be warm but professional
+- Use lowercase for casual words, avoid being overly formal
+
+## CONVERSATION FLOW (follow this sequence):
+
+### Stage 1: Initial Contact
+When a candidate first reaches out about a job:
+"Hi [Name], I am {RECRUITER_NAME} from {COMPANY_NAME}. Thank you for applying for the [Job Role] role. Could you kindly fill up the Application Form here: {APPLICATION_FORM_URL}
+Consultant Name is {RECRUITER_NAME} (Pls find the dropdown list of my name)
+As soon as you are finished, please let me know. Thank you!"
+
+### Stage 2: After Form Completion
+When the candidate says they completed the form:
+"May i have your resume please? :)"
+or
+"can i have ur resume?"
+
+### Stage 3: After Resume Received
+When resume is received, ask about relevant experience for the job:
+For Barista: "do u have experience making coffee with latte art"
+For Researcher: "do u have experience with phone surveys or data collection"
+For Event Crew: "do u have experience with events or customer service"
+Adapt questions based on the specific job role.
+
+### Stage 4: Schedule Call
+After gathering information:
+"hi [Name], let me know when is a good time to call u back? :)"
+
+If candidate suggests a time or asks to communicate via Telegram:
+"yep of cos"
+"need to have a phone call with u" (if phone call is required)
+"can can" (to confirm)
+"we can call another time" (if rescheduling needed)
+
+## IMPORTANT RULES:
+1. ALWAYS ask for the application form to be filled FIRST before asking for resume
+2. ALWAYS ask for resume AFTER form is completed
+3. Ask role-specific experience questions after resume is received
+4. Schedule a phone call after gathering initial information
+5. Be patient if candidate is busy - offer to call at a convenient time
+6. Never be pushy or aggressive
+7. If candidate asks about job details, provide helpful information about the role
+8. If candidate says they can make an interview time, confirm with "noted, see u then! :)"
+
+Always be helpful and answer any questions they have about the job or process."""
 
 SCREENING_PROMPT = """Here are the available job roles with their requirements and scoring guides (format: Job Title, Requirements, Scoring Guide):
 
@@ -552,7 +601,7 @@ def setup_handlers(telegram_client):
         )
 
         if is_resume:
-            await event.respond("Thank you for your resume! I'm processing it now... 📄")
+            await event.respond("thanks for ur resume! processing it now... :)")
 
             async with telegram_client.action(event.chat_id, 'typing'):
                 # Download the file
@@ -580,34 +629,53 @@ def setup_handlers(telegram_client):
                             # Save candidate with screening results and resume URL
                             await save_candidate(user_id, username, full_name, screening_result, resume_url)
 
-                            # Generate response based on screening
-                            score = screening_result.get('score', 0)
+                            # Generate response in Ai Wei's style - ask role-specific questions
                             matched_job = screening_result.get('job_matched', 'our open positions')
+                            candidate_name = screening_result.get('candidate_name', full_name or 'there')
+                            first_name = candidate_name.split()[0] if candidate_name else 'there'
 
-                            response = f"""Thank you for submitting your resume, {full_name or 'candidate'}!
+                            # Generate role-specific experience question
+                            role_questions = {
+                                "barista": "do u have experience making coffee with latte art?",
+                                "coffee": "do u have experience making coffee with latte art?",
+                                "researcher": "do u have experience with phone surveys or data collection?",
+                                "phone": "do u have experience with phone surveys or data collection?",
+                                "event": "do u have experience with events or customer service?",
+                                "crew": "do u have experience working at events?",
+                                "admin": "do u have experience with admin work?",
+                                "customer service": "do u have experience in customer service?",
+                                "promoter": "do u have experience with promotions or sales?",
+                            }
 
-I've reviewed your application and found you could be a great fit for **{matched_job}**.
+                            # Find matching question based on job role
+                            experience_question = None
+                            matched_job_lower = matched_job.lower()
+                            for keyword, question in role_questions.items():
+                                if keyword in matched_job_lower:
+                                    experience_question = question
+                                    break
 
-Our recruitment team will review your profile and get back to you soon. In the meantime, is there anything specific about the role you'd like to know?"""
+                            # Default question if no specific match
+                            if not experience_question:
+                                experience_question = "what relevant experience do u have for this role?"
 
+                            response = f"thanks {first_name}! :)\n{experience_question}"
                             await event.respond(response)
                         else:
                             print("Could not extract sufficient text from resume")
                             await event.respond(
-                                "Thank you for your resume! I received the file but had trouble reading its contents. "
-                                "Our team will review it manually. Is there anything else I can help you with?"
+                                "thanks for ur resume! had a bit of trouble reading it but our team will review it manually. anything else i can help u with? :)"
                             )
                             # Note: Don't create candidate without successful resume processing
                     else:
                         print("Failed to download file")
                         await event.respond(
-                            "I had trouble downloading your file. Could you please try sending it again?"
+                            "had trouble downloading ur file. could u try sending it again?"
                         )
                 except Exception as e:
                     print(f"Error processing file: {e}")
                     await event.respond(
-                        "I encountered an error processing your file. Our team will follow up with you. "
-                        "Is there anything else I can help with?"
+                        "had some trouble processing ur file. our team will follow up with u. anything else i can help with? :)"
                     )
                     # Note: Don't create candidate on processing errors
         else:
