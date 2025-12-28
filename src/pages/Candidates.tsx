@@ -54,6 +54,22 @@ function getAICategoryBadgeClass(category: string | null): string {
   return 'bg-slate-100 text-slate-600';
 }
 
+function getCitizenshipBadgeClass(citizenship: string | null): string {
+  if (!citizenship) return 'bg-slate-100 text-slate-600';
+  if (citizenship === 'SC') return 'bg-emerald-100 text-emerald-700';
+  if (citizenship === 'PR') return 'bg-blue-100 text-blue-700';
+  if (citizenship === 'Foreign') return 'bg-amber-100 text-amber-700';
+  return 'bg-slate-100 text-slate-600'; // Not Identified
+}
+
+function getCitizenshipLabel(citizenship: string | null): string {
+  if (!citizenship) return '-';
+  if (citizenship === 'SC') return 'SC';
+  if (citizenship === 'PR') return 'PR';
+  if (citizenship === 'Not Identified') return 'N/A';
+  return citizenship; // Foreign or other countries
+}
+
 function CandidateRow({ candidate }: { candidate: Candidate }) {
   return (
     <Link
@@ -95,9 +111,16 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
       </div>
 
       {/* AI Category (Screening Result) */}
-      <div className="col-span-2">
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getAICategoryBadgeClass(candidate.ai_category)}`}>
-          {candidate.ai_category || 'Not Screened'}
+      <div className="col-span-1">
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getAICategoryBadgeClass(candidate.ai_category)}`}>
+          {candidate.ai_category || '-'}
+        </span>
+      </div>
+
+      {/* Citizenship */}
+      <div className="col-span-1">
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getCitizenshipBadgeClass(candidate.citizenship_status)}`}>
+          {getCitizenshipLabel(candidate.citizenship_status)}
         </span>
       </div>
 
@@ -131,6 +154,7 @@ export default function Candidates() {
   const [roleFilter, setRoleFilter] = useState('');
   const [minScoreFilter, setMinScoreFilter] = useState<number | ''>('');
   const [aiCategoryFilter, setAiCategoryFilter] = useState<string>('');
+  const [citizenshipFilter, setCitizenshipFilter] = useState<string>('');
   const [showFilters, setShowFilters] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [hasUsedFilters, setHasUsedFilters] = useState(false);
@@ -186,11 +210,16 @@ export default function Candidates() {
         return false;
       }
 
+      // Citizenship filter
+      if (citizenshipFilter && candidate.citizenship_status !== citizenshipFilter) {
+        return false;
+      }
+
       return true;
     });
-  }, [candidates, search, statusFilter, sourceFilter, roleFilter, minScoreFilter, aiCategoryFilter]);
+  }, [candidates, search, statusFilter, sourceFilter, roleFilter, minScoreFilter, aiCategoryFilter, citizenshipFilter]);
 
-  const hasActiveFilters = statusFilter || sourceFilter || roleFilter || minScoreFilter !== '' || aiCategoryFilter;
+  const hasActiveFilters = statusFilter || sourceFilter || roleFilter || minScoreFilter !== '' || aiCategoryFilter || citizenshipFilter;
 
   if (isLoading) {
     return (
@@ -247,7 +276,7 @@ export default function Candidates() {
             Filters
             {hasActiveFilters && (
               <span className="w-5 h-5 bg-cgp-red text-white text-xs rounded-full flex items-center justify-center">
-                {(statusFilter ? 1 : 0) + (sourceFilter ? 1 : 0) + (roleFilter ? 1 : 0) + (minScoreFilter !== '' ? 1 : 0) + (aiCategoryFilter ? 1 : 0)}
+                {(statusFilter ? 1 : 0) + (sourceFilter ? 1 : 0) + (roleFilter ? 1 : 0) + (minScoreFilter !== '' ? 1 : 0) + (aiCategoryFilter ? 1 : 0) + (citizenshipFilter ? 1 : 0)}
               </span>
             )}
           </button>
@@ -335,6 +364,22 @@ export default function Candidates() {
                 </select>
               </div>
 
+              {/* Citizenship Filter */}
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-sm text-slate-500 mb-1">Citizenship</label>
+                <select
+                  value={citizenshipFilter}
+                  onChange={(e) => setCitizenshipFilter(e.target.value)}
+                  className="input w-full"
+                >
+                  <option value="">All</option>
+                  <option value="SC">Singapore Citizen (SC)</option>
+                  <option value="PR">Permanent Resident (PR)</option>
+                  <option value="Foreign">Foreign</option>
+                  <option value="Not Identified">Not Identified</option>
+                </select>
+              </div>
+
               {/* Clear Filters */}
               {hasActiveFilters && (
                 <div className="flex items-end">
@@ -345,6 +390,7 @@ export default function Candidates() {
                       setRoleFilter('');
                       setMinScoreFilter('');
                       setAiCategoryFilter('');
+                      setCitizenshipFilter('');
                     }}
                     className="btn-secondary flex items-center gap-2"
                   >
@@ -365,7 +411,8 @@ export default function Candidates() {
           <div className="col-span-3">Candidate</div>
           <div className="col-span-2">Role</div>
           <div className="col-span-1">Score</div>
-          <div className="col-span-2">AI Screening</div>
+          <div className="col-span-1">AI Result</div>
+          <div className="col-span-1">Citizenship</div>
           <div className="col-span-2">Status</div>
           <div className="col-span-1">Applied</div>
           <div className="col-span-1"></div>
