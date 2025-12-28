@@ -52,9 +52,24 @@ function saveManualTasks(tasks: ManualTask[]) {
   localStorage.setItem('recruiter-crm-tasks', JSON.stringify(tasks));
 }
 
+// Load completed task IDs from localStorage
+function loadCompletedTasks(): Set<string> {
+  try {
+    const saved = localStorage.getItem('recruiter-crm-completed-tasks');
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+// Save completed task IDs to localStorage
+function saveCompletedTasks(tasks: Set<string>) {
+  localStorage.setItem('recruiter-crm-completed-tasks', JSON.stringify([...tasks]));
+}
+
 function generateAutoTasks(candidate: Candidate): TaskItem[] {
-  // Only create tasks for top candidates with score 8+
-  if (!candidate.ai_score || candidate.ai_score < 8) {
+  // Only create tasks for Top Candidates (based on AI screening category)
+  if (candidate.ai_category !== 'Top Candidate') {
     return [];
   }
 
@@ -196,7 +211,7 @@ function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: () => void
 export default function Tasks() {
   const { data: candidates = [], isLoading } = useCandidates();
   const [filter, setFilter] = useState<'all' | 'overdue' | 'today' | 'upcoming'>('all');
-  const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
+  const [completedTasks, setCompletedTasks] = useState<Set<string>>(loadCompletedTasks);
   const [manualTasks, setManualTasks] = useState<ManualTask[]>(loadManualTasks);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTask, setNewTask] = useState({ candidateId: '', task: '', dueDate: '' });
@@ -231,7 +246,9 @@ export default function Tasks() {
   const filteredTasks = getFilteredTasks();
 
   const handleCompleteTask = (taskId: string) => {
-    setCompletedTasks(prev => new Set([...prev, taskId]));
+    const newCompletedTasks = new Set([...completedTasks, taskId]);
+    setCompletedTasks(newCompletedTasks);
+    saveCompletedTasks(newCompletedTasks);
     // Also remove from manual tasks if it's a manual task
     const updatedManualTasks = manualTasks.filter(t => t.id !== taskId);
     setManualTasks(updatedManualTasks);
