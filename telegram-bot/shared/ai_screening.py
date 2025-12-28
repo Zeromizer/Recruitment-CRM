@@ -49,6 +49,17 @@ IMPORTANT: Once the resume has been received, NEVER ask for it again. Instead:
 After gathering information:
 "hi [Name], let me know when is a good time to call u back"
 
+### Stage 5: Closing the Conversation
+After the call is scheduled or if candidate has provided all needed info:
+"thanks for ur time! will review ur application and contact u if u are shortlisted"
+or
+"noted, our team will review and get back to u if shortlisted. have a good day!"
+
+Use this closing message when:
+- Candidate has completed form, sent resume, answered experience questions
+- A call time has been agreed upon
+- The conversation has naturally reached its end
+
 ## CRITICAL RULES:
 1. Only use ":)" ONCE in the initial greeting. Do NOT add ":)" to subsequent messages.
 2. NEVER ask for resume if it has already been received (check CURRENT CANDIDATE STATE below)
@@ -62,7 +73,8 @@ Track where the candidate is in the process:
 - If they haven't filled the form yet → Guide them to fill the form
 - If they filled the form but no resume → Ask for resume (ONCE only)
 - If resume received → NEVER ask for resume again. Ask role-specific questions instead.
-- If ready for next step → Schedule a phone call
+- If experience discussed → Schedule a phone call
+- If call scheduled or conversation complete → Close with "will contact u if shortlisted"
 
 Always be helpful and answer any questions they have about the job or process."""
 
@@ -137,6 +149,7 @@ STATE_RESUME_REQUESTED = "resume_requested"
 STATE_RESUME_RECEIVED = "resume_received"
 STATE_EXPERIENCE_ASKED = "experience_asked"
 STATE_CALL_SCHEDULING = "call_scheduling"
+STATE_CONVERSATION_CLOSED = "conversation_closed"
 
 
 def get_conversation_state(user_id: str) -> dict:
@@ -197,11 +210,17 @@ def detect_state_from_message(user_id: str, message: str) -> dict:
             update_conversation_state(user_id, applied_role=role)
             break
 
-    # Detect interview confirmation
+    # Detect interview/call confirmation
     interview_keywords = ["interview", "can make it", "available", "confirm"]
     if any(keyword in message_lower for keyword in interview_keywords):
         if "time" in message_lower or "pm" in message_lower or "am" in message_lower:
-            update_conversation_state(user_id, stage=STATE_CALL_SCHEDULING)
+            update_conversation_state(user_id, call_scheduled=True, stage=STATE_CALL_SCHEDULING)
+
+    # Detect call time confirmation (candidate gives specific time)
+    time_patterns = ["pm", "am", "oclock", "o'clock", "mins", "minutes", "call me", "call u"]
+    if any(pattern in message_lower for pattern in time_patterns):
+        if state['experience_discussed']:
+            update_conversation_state(user_id, call_scheduled=True, stage=STATE_CALL_SCHEDULING)
 
     return state
 
@@ -223,6 +242,7 @@ def get_state_context(user_id: str) -> str:
     context_parts.append(f"- Form Completed: {'Yes' if state['form_completed'] else 'No'}")
     context_parts.append(f"- Resume Received: {'Yes' if state['resume_received'] else 'No'}")
     context_parts.append(f"- Experience Discussed: {'Yes' if state['experience_discussed'] else 'No'}")
+    context_parts.append(f"- Call Scheduled: {'Yes' if state['call_scheduled'] else 'No'}")
 
     # Add strong warning if resume already received
     if state['resume_received']:
@@ -238,8 +258,10 @@ def get_state_context(user_id: str) -> str:
         context_parts.append("→ Ask for their resume (ONCE only)")
     elif state['resume_received'] and not state['experience_discussed']:
         context_parts.append("→ Ask role-specific experience questions (resume already received - do NOT ask for it)")
-    elif state['experience_discussed']:
+    elif state['experience_discussed'] and not state['call_scheduled']:
         context_parts.append("→ Schedule a phone call")
+    elif state['call_scheduled']:
+        context_parts.append("→ CLOSE the conversation: thank them and say 'will contact u if shortlisted'")
 
     return "\n".join(context_parts)
 
