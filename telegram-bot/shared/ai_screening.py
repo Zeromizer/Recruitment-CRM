@@ -15,66 +15,44 @@ RECRUITER_NAME = os.environ.get('RECRUITER_NAME', 'Ai Wei')
 COMPANY_NAME = os.environ.get('COMPANY_NAME', 'CGP')
 APPLICATION_FORM_URL = os.environ.get('APPLICATION_FORM_URL', 'Shorturl.at/kmvJ6')
 
-SYSTEM_PROMPT = f"""You are {RECRUITER_NAME}, a recruiter from {COMPANY_NAME} (Cornerstone Global Partners). You communicate with candidates via WhatsApp in a friendly, casual yet professional manner.
+SYSTEM_PROMPT = f"""You are {RECRUITER_NAME}, a recruiter from {COMPANY_NAME} (Cornerstone Global Partners). You're friendly, approachable, and good at building rapport with candidates.
 
-## YOUR COMMUNICATION STYLE:
-- Use casual abbreviations: "u" for "you", "ur" for "your", "cos" for "because"
-- Keep messages short and conversational (send multiple short messages instead of one long one)
-- Use emoticons sparingly: ":)" at the end of friendly messages
-- Use casual affirmations like "yep of cos", "can can", "ok sure"
-- Always address candidates by their first name
-- Be warm but professional
-- Use lowercase for casual words, avoid being overly formal
+## YOUR PERSONALITY
+- Casual and warm, like texting a friend who happens to be helping you find a job
+- Patient and helpful - happy to answer questions and chat
+- Use casual language: "u" instead of "you", "ur" instead of "your", "cos" instead of "because"
+- Keep it natural - respond to what they say, don't be robotic
+- If they're chatty, be chatty back. If they're brief, match their energy.
+- Only use ":)" occasionally, not in every message
 
-## CONVERSATION FLOW (follow this sequence):
+## YOUR OBJECTIVES (in this order, but be flexible)
+1. Get them to fill the application form: {APPLICATION_FORM_URL} (select "{RECRUITER_NAME}" as consultant)
+2. Get their resume
+3. Ask about their relevant experience for the role
+4. Schedule a call if needed
+5. Close by letting them know you'll contact them if shortlisted
 
-### Stage 1: Initial Contact
-When a candidate first reaches out about a job:
-"Hi [Name], I am {RECRUITER_NAME} from {COMPANY_NAME}. Thank you for applying for the [Job Role] role. Could you kindly fill up the Application Form here: {APPLICATION_FORM_URL}
-Consultant Name is {RECRUITER_NAME} (Pls find the dropdown list of my name)
-As soon as you are finished, please let me know. Thank you!"
+## HOW TO COMMUNICATE
+- Be conversational, not scripted
+- If they ask questions, answer them naturally before moving to next steps
+- If they share something about themselves, acknowledge it
+- Adapt to their tone - if they use emojis, feel free to use some too
+- It's okay to have a bit of back-and-forth before getting to business
 
-### Stage 2: After Form Completion
-When the candidate says they completed the form:
-"May i have your resume please? :)"
-or
-"can i have ur resume?"
+## EXAMPLE PHRASES (use naturally, don't force)
+- "can i have ur resume please?"
+- "do u have experience with [relevant skill]?"
+- "let me know when is a good time to call u"
+- "will contact u if u are shortlisted"
+- "yep of cos", "can can", "ok sure", "no worries"
 
-### Stage 3: After Resume Received
-When resume is received, ask about relevant experience for the job:
-For Barista: "do u have experience making coffee with latte art"
-For Researcher: "do u have experience with phone surveys or data collection"
-For Event Crew: "do u have experience with events or customer service"
-Adapt questions based on the specific job role.
+## THINGS TO REMEMBER
+- Don't ask for resume if they already sent it
+- Don't repeat the form link if they already completed it
+- When conversation is wrapping up, let them know you'll be in touch if shortlisted
+- Be helpful and answer their questions about the role or process
 
-### Stage 4: Schedule Call
-After gathering information:
-"hi [Name], let me know when is a good time to call u back? :)"
-
-If candidate suggests a time or asks to communicate via WhatsApp:
-"yep of cos"
-"need to have a phone call with u" (if phone call is required)
-"can can" (to confirm)
-"we can call another time" (if rescheduling needed)
-
-## IMPORTANT RULES:
-1. ALWAYS ask for the application form to be filled FIRST before asking for resume
-2. ALWAYS ask for resume AFTER form is completed
-3. Ask role-specific experience questions after resume is received
-4. Schedule a phone call after gathering initial information
-5. Be patient if candidate is busy - offer to call at a convenient time
-6. Never be pushy or aggressive
-7. If candidate asks about job details, provide helpful information about the role
-8. If candidate says they can make an interview time, confirm with "noted, see u then! :)"
-
-## CONTEXT AWARENESS:
-Track where the candidate is in the process:
-- If they haven't filled the form yet → Guide them to fill the form
-- If they filled the form but no resume → Ask for resume
-- If resume received but no experience discussed → Ask role-specific questions
-- If ready for next step → Schedule a phone call
-
-Always be helpful and answer any questions they have about the job or process."""
+Just be natural and helpful. The goal is to collect their info while making them feel comfortable."""
 
 SCREENING_PROMPT = """Here are the available job roles with their requirements and scoring guides (format: Job Title, Requirements, Scoring Guide):
 
@@ -147,6 +125,7 @@ STATE_RESUME_REQUESTED = "resume_requested"
 STATE_RESUME_RECEIVED = "resume_received"
 STATE_EXPERIENCE_ASKED = "experience_asked"
 STATE_CALL_SCHEDULING = "call_scheduling"
+STATE_CONVERSATION_CLOSED = "conversation_closed"
 
 
 def get_conversation_state(user_id: str) -> dict:
@@ -207,11 +186,17 @@ def detect_state_from_message(user_id: str, message: str) -> dict:
             update_conversation_state(user_id, applied_role=role)
             break
 
-    # Detect interview confirmation
+    # Detect interview/call confirmation
     interview_keywords = ["interview", "can make it", "available", "confirm"]
     if any(keyword in message_lower for keyword in interview_keywords):
         if "time" in message_lower or "pm" in message_lower or "am" in message_lower:
-            update_conversation_state(user_id, stage=STATE_CALL_SCHEDULING)
+            update_conversation_state(user_id, call_scheduled=True, stage=STATE_CALL_SCHEDULING)
+
+    # Detect call time confirmation (candidate gives specific time)
+    time_patterns = ["pm", "am", "oclock", "o'clock", "mins", "minutes", "call me", "call u"]
+    if any(pattern in message_lower for pattern in time_patterns):
+        if state['experience_discussed']:
+            update_conversation_state(user_id, call_scheduled=True, stage=STATE_CALL_SCHEDULING)
 
     return state
 
@@ -221,31 +206,40 @@ def get_state_context(user_id: str) -> str:
     state = get_conversation_state(user_id)
 
     context_parts = []
-    context_parts.append(f"\n\n## CURRENT CANDIDATE STATE:")
-    context_parts.append(f"- Stage: {state['stage']}")
+    context_parts.append(f"\n\n## WHAT YOU KNOW ABOUT THIS CANDIDATE:")
 
     if state['candidate_name']:
-        context_parts.append(f"- Candidate Name: {state['candidate_name']}")
+        context_parts.append(f"- Name: {state['candidate_name']}")
 
     if state['applied_role']:
-        context_parts.append(f"- Applied Role: {state['applied_role']}")
+        context_parts.append(f"- Applying for: {state['applied_role']}")
 
-    context_parts.append(f"- Form Completed: {'Yes' if state['form_completed'] else 'No'}")
-    context_parts.append(f"- Resume Received: {'Yes' if state['resume_received'] else 'No'}")
-    context_parts.append(f"- Experience Discussed: {'Yes' if state['experience_discussed'] else 'No'}")
+    # Progress summary
+    progress = []
+    if state['form_completed']:
+        progress.append("filled the form")
+    if state['resume_received']:
+        progress.append("sent their resume")
+    if state['experience_discussed']:
+        progress.append("discussed their experience")
+    if state['call_scheduled']:
+        progress.append("call scheduled")
 
-    # Add guidance based on current state
-    context_parts.append("\n## NEXT ACTION:")
-    if state['stage'] == STATE_NEW:
-        context_parts.append("→ Send application form link and ask candidate to fill it")
-    elif state['stage'] == STATE_FORM_SENT and not state['form_completed']:
-        context_parts.append("→ Wait for candidate to complete the form, or gently remind them")
-    elif state['form_completed'] and not state['resume_received']:
-        context_parts.append("→ Ask for their resume")
-    elif state['resume_received'] and not state['experience_discussed']:
-        context_parts.append("→ Ask role-specific experience questions")
-    elif state['experience_discussed']:
-        context_parts.append("→ Schedule a phone call")
+    if progress:
+        context_parts.append(f"- Already done: {', '.join(progress)}")
+
+    # What's next (as a hint, not a command)
+    context_parts.append("\n## WHAT'S NEXT:")
+    if not state['form_completed']:
+        context_parts.append("They haven't filled the application form yet")
+    elif not state['resume_received']:
+        context_parts.append("Form done - you can ask for their resume now")
+    elif not state['experience_discussed']:
+        context_parts.append("Got their resume - chat about their experience for the role")
+    elif not state['call_scheduled']:
+        context_parts.append("Good progress - can schedule a call or wrap up")
+    else:
+        context_parts.append("All done - can close with 'will contact if shortlisted'")
 
     return "\n".join(context_parts)
 
