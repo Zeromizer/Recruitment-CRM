@@ -501,23 +501,33 @@ async def save_candidate(user_id: int, username: str, full_name: str, screening_
             if screening_result.get("candidate_phone"):
                 data["phone"] = screening_result["candidate_phone"]
 
-            # Map recommendation to status
+            # Map recommendation to ai_category
             rec = screening_result.get("recommendation", "Review")
             if "Top" in rec:
-                data["status"] = "Top Candidate"
+                data["ai_category"] = "Top Candidate"
             elif "Reject" in rec:
-                data["status"] = "Rejected"
+                data["ai_category"] = "Rejected"
             else:
-                data["status"] = "Review"
+                data["ai_category"] = "Review"
+
+            # Set current_status to ai_screened when resume is processed
+            data["current_status"] = "ai_screened"
 
             # Add screening data
             data["applied_role"] = screening_result.get("job_matched", "")
             data["ai_score"] = screening_result.get("score", 0)
             data["ai_summary"] = screening_result.get("summary", "")
 
-            # Add citizenship status if column exists
-            if screening_result.get("citizenship_status"):
-                data["citizenship_status"] = screening_result["citizenship_status"]
+            # Add citizenship status - map to database format
+            citizenship = screening_result.get("citizenship_status", "")
+            if citizenship == "Singapore Citizen":
+                data["citizenship_status"] = "SC"
+            elif citizenship == "PR":
+                data["citizenship_status"] = "PR"
+            elif citizenship == "Foreigner":
+                data["citizenship_status"] = "Foreign"
+            else:
+                data["citizenship_status"] = "Not Identified"
 
             # Store full screening result as JSON if column exists
             try:
@@ -525,7 +535,7 @@ async def save_candidate(user_id: int, username: str, full_name: str, screening_
             except:
                 pass
         else:
-            data["status"] = "new"
+            data["current_status"] = "new_application"
 
         # Add resume URL if provided
         if resume_url:
