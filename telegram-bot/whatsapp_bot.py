@@ -235,7 +235,7 @@ async def process_document_message(phone: str, name: str, file_name: str, media_
     )
 
     if is_resume:
-        await send_whatsapp_message(phone, "thanks for ur resume! processing it now...")
+        await send_whatsapp_message(phone, "thanks! will check it out")
 
         # Download the file - try with file ID first, then message ID, then direct URL
         file_bytes = await download_media(media_url, file_id, message_id)

@@ -621,7 +621,7 @@ def setup_handlers(telegram_client):
         )
 
         if is_resume:
-            await event.respond("thanks for ur resume! processing it now...")
+            await event.respond("thanks! will check it out")
 
             async with telegram_client.action(event.chat_id, 'typing'):
                 # Download the file
