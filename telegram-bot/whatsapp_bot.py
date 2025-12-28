@@ -412,10 +412,7 @@ async def process_document_message(phone: str, name: str, file_name: str, media_
                 resume_text = f"[Document received: {file_name}]"
 
             if resume_text and len(resume_text) > 100:
-                # Upload resume to storage (PDF version for Word docs)
-                resume_url = await upload_resume_to_storage(upload_bytes, upload_name, phone)
-
-                # Screen the resume
+                # Screen the resume FIRST to get candidate name
                 screening_result = await screen_resume(resume_text)
                 print(f"Resume processed: {screening_result.get('candidate_name', 'Unknown')} - {screening_result.get('recommendation', 'Unknown')}")
 
@@ -424,6 +421,14 @@ async def process_document_message(phone: str, name: str, file_name: str, media_
                 candidate_name = screening_result.get('candidate_name', name or 'there')
                 first_name = candidate_name.split()[0] if candidate_name else 'there'
                 screening_summary = screening_result.get('summary', '')
+
+                # Create filename with candidate name
+                safe_name = "".join(c for c in candidate_name if c.isalnum() or c in (' ', '-', '_')).strip()
+                safe_name = safe_name.replace(' ', '_') if safe_name else 'Unknown'
+                final_upload_name = f"{safe_name}_Resume.pdf"
+
+                # Upload resume to storage with candidate name
+                resume_url = await upload_resume_to_storage(upload_bytes, final_upload_name, phone)
 
                 # Update conversation state - mark resume received with context
                 mark_resume_received(

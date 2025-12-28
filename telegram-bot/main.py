@@ -720,19 +720,26 @@ def setup_handlers(telegram_client):
                         if resume_text and len(resume_text) > 100:
                             print(f"Extracted {len(resume_text)} characters from resume")
 
-                            # Upload resume to storage (PDF version for Word docs)
-                            resume_url = await upload_resume_to_storage(upload_bytes, upload_name, user_id)
-
-                            # Screen the resume
+                            # Screen the resume FIRST to get candidate name
                             screening_result = await screen_resume(resume_text)
                             print(f"Screening result: {screening_result.get('recommendation', 'Unknown')}")
+
+                            # Get candidate name for file naming
+                            candidate_name = screening_result.get('candidate_name', full_name or 'Unknown')
+
+                            # Create filename with candidate name
+                            safe_name = "".join(c for c in candidate_name if c.isalnum() or c in (' ', '-', '_')).strip()
+                            safe_name = safe_name.replace(' ', '_') if safe_name else 'Unknown'
+                            final_upload_name = f"{safe_name}_Resume.pdf"
+
+                            # Upload resume to storage with candidate name
+                            resume_url = await upload_resume_to_storage(upload_bytes, final_upload_name, user_id)
 
                             # Save candidate with screening results and resume URL
                             await save_candidate(user_id, username, full_name, screening_result, resume_url)
 
                             # Generate response in Ai Wei's style - ask role-specific questions
                             matched_job = screening_result.get('job_matched', 'our open positions')
-                            candidate_name = screening_result.get('candidate_name', full_name or 'there')
                             first_name = candidate_name.split()[0] if candidate_name else 'there'
 
                             # Generate role-specific experience question
