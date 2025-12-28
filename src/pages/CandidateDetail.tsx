@@ -1050,19 +1050,11 @@ export default function CandidateDetail() {
           {/* Resume Viewer or No Resume Message */}
           <div className="flex-1 p-4 min-h-0">
             {candidate.resume_url ? (
-              candidate.resume_url.toLowerCase().endsWith('.doc') || candidate.resume_url.toLowerCase().endsWith('.docx') ? (
-                <iframe
-                  src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(candidate.resume_url)}`}
-                  className="w-full h-full rounded-lg border border-slate-200 bg-white"
-                  title="Resume Preview"
-                />
-              ) : (
-                <iframe
-                  src={candidate.resume_url}
-                  className="w-full h-full rounded-lg border border-slate-200 bg-white"
-                  title="Resume Preview"
-                />
-              )
+              <iframe
+                src={candidate.resume_url}
+                className="w-full h-full rounded-lg border border-slate-200 bg-white"
+                title="Resume Preview"
+              />
             ) : (
               <div className="w-full h-full rounded-lg border border-slate-200 bg-slate-50 flex flex-col items-center justify-center">
                 <FileText className="w-16 h-16 text-slate-300 mb-4" />
