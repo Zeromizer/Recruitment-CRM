@@ -6,6 +6,9 @@ import random
 import tempfile
 import subprocess
 import re
+import time
+from datetime import datetime, time as dt_time
+from zoneinfo import ZoneInfo
 from io import BytesIO
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
@@ -20,8 +23,20 @@ from google.oauth2.service_account import Credentials
 conversations = {}
 MAX_MESSAGES = 10
 
+# Operating hours configuration (Singapore timezone)
+TIMEZONE = ZoneInfo("Asia/Singapore")
+OPERATING_START = dt_time(8, 30)  # 8:30 AM
+OPERATING_END = dt_time(22, 0)    # 10:00 PM
+
+
+def is_within_operating_hours() -> bool:
+    """Check if current time is within operating hours (8:30 AM - 10:00 PM Singapore time)."""
+    now = datetime.now(TIMEZONE)
+    current_time = now.time()
+    return OPERATING_START <= current_time <= OPERATING_END
+
+
 # Spam protection
-import time
 rate_limit_tracker = {}  # {user_id: [timestamp1, timestamp2, ...]}
 RATE_LIMIT_MESSAGES = 10  # Max messages per time window
 RATE_LIMIT_WINDOW = 60  # Time window in seconds (1 minute)
@@ -652,6 +667,11 @@ def setup_handlers(telegram_client):
         if not event.is_private:
             return
 
+        # Check operating hours (8:30 AM - 10:00 PM Singapore time)
+        if not is_within_operating_hours():
+            print(f"Outside operating hours - not responding")
+            return
+
         sender = await event.get_sender()
         user_id = sender.id
         username = sender.username or ""
@@ -673,6 +693,11 @@ def setup_handlers(telegram_client):
     async def handle_file(event):
         # Only respond to private messages (ignore groups/channels)
         if not event.is_private:
+            return
+
+        # Check operating hours (8:30 AM - 10:00 PM Singapore time)
+        if not is_within_operating_hours():
+            print(f"Outside operating hours - not responding to file")
             return
 
         sender = await event.get_sender()
