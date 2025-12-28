@@ -32,6 +32,18 @@ bot_active_numbers = set()
 # Numbers where bot has been manually stopped
 bot_stopped_numbers = set()
 
+# Configuration for the recruiter
+RECRUITER_NAME = os.environ.get('RECRUITER_NAME', 'Ai Wei')
+COMPANY_NAME = os.environ.get('COMPANY_NAME', 'CGP')
+APPLICATION_FORM_URL = os.environ.get('APPLICATION_FORM_URL', 'Shorturl.at/kmvJ6')
+
+# First reply template when bot is activated
+FIRST_REPLY_TEMPLATE = f"""Hello, I am {RECRUITER_NAME} from {COMPANY_NAME}. Could you kindly fill up the Application Form here: {APPLICATION_FORM_URL}
+---
+Consultant Name is {RECRUITER_NAME} (Pls find the dropdown list of my name)
+---
+As soon as you are finished, please let me know. Thank you!"""
+
 # Keywords that trigger bot activation on first message
 JOB_KEYWORDS = [
     "job", "jobs", "apply", "applying", "role", "roles", "position", "positions",
@@ -328,6 +340,9 @@ async def process_text_message(phone: str, name: str, text: str):
     # Activate bot if this is a new keyword-triggered conversation
     if respond_reason == "keyword_match":
         activate_bot(phone)
+        # Send the first reply template
+        await send_whatsapp_message(phone, FIRST_REPLY_TEMPLATE)
+        return
 
     # Get AI response with candidate name for personalization
     response = await get_ai_response(phone, text, candidate_name=name)
