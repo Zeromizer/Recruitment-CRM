@@ -7,7 +7,7 @@ import {
   demoActivities,
   demoInterviews
 } from '../lib/supabase';
-import type { Candidate, Activity, Interview, CandidateStatus, DashboardMetrics } from '../types';
+import type { Candidate, Activity, Interview, Task, CandidateStatus, DashboardMetrics } from '../types';
 import { startOfWeek, parseISO, isSameDay } from 'date-fns';
 
 // Candidates hooks
@@ -301,6 +301,176 @@ export function useUpdateInterview() {
   });
 }
 
+// Tasks hooks
+const demoTasks: Task[] = [];
+
+export function useTasks() {
+  return useQuery({
+    queryKey: ['tasks'],
+    queryFn: async (): Promise<Task[]> => {
+      if (!isSupabaseConfigured || !supabase) {
+        return demoTasks;
+      }
+
+      // Fetch all tasks (including completed) so we can track completed auto-tasks
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .order('due_date', { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+export function useCreateTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (task: Omit<Task, 'id' | 'created_at' | 'completed' | 'completed_at'>) => {
+      if (!isSupabaseConfigured || !supabase) {
+        const newTask: Task = {
+          ...task,
+          id: `demo-${Date.now()}`,
+          created_at: new Date().toISOString(),
+          completed: false,
+          completed_at: null,
+        };
+        demoTasks.push(newTask);
+        return newTask;
+      }
+
+      const { data, error } = await supabase
+        .from('tasks')
+        .insert({
+          ...task,
+          completed: false,
+          completed_at: null,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+}
+
+export function useCompleteTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (taskId: string) => {
+      if (!isSupabaseConfigured || !supabase) {
+        const taskIndex = demoTasks.findIndex(t => t.id === taskId);
+        if (taskIndex !== -1) {
+          demoTasks[taskIndex] = {
+            ...demoTasks[taskIndex],
+            completed: true,
+            completed_at: new Date().toISOString(),
+          };
+          return demoTasks[taskIndex];
+        }
+        throw new Error('Task not found');
+      }
+
+      const { data, error } = await supabase
+        .from('tasks')
+        .update({
+          completed: true,
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', taskId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+}
+
+export function useDeleteTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (taskId: string) => {
+      if (!isSupabaseConfigured || !supabase) {
+        const taskIndex = demoTasks.findIndex(t => t.id === taskId);
+        if (taskIndex !== -1) {
+          demoTasks.splice(taskIndex, 1);
+          return true;
+        }
+        throw new Error('Task not found');
+      }
+
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', taskId);
+
+      if (error) throw error;
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+}
+
+// Special hook for completing auto-generated tasks (creates a completed record)
+export function useCompleteAutoTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (task: { id: string; candidate_id: string; candidate_name: string; task: string; due_date: string }) => {
+      if (!isSupabaseConfigured || !supabase) {
+        const newTask: Task = {
+          id: task.id,
+          created_at: new Date().toISOString(),
+          candidate_id: task.candidate_id,
+          candidate_name: task.candidate_name,
+          task: task.task,
+          due_date: task.due_date,
+          completed: true,
+          completed_at: new Date().toISOString(),
+          is_auto: true,
+        };
+        demoTasks.push(newTask);
+        return newTask;
+      }
+
+      const { data, error } = await supabase
+        .from('tasks')
+        .insert({
+          id: task.id, // Use the auto-generated ID so we can track it
+          candidate_id: task.candidate_id,
+          candidate_name: task.candidate_name,
+          task: task.task,
+          due_date: task.due_date,
+          completed: true,
+          completed_at: new Date().toISOString(),
+          is_auto: true,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+}
+
 // Dashboard hooks
 export function useDashboardMetrics() {
   const { data: candidates = [] } = useCandidates();
@@ -538,12 +708,25 @@ export function useRealtimeSubscription() {
       )
       .subscribe();
 
+    // Subscribe to tasks table changes
+    const tasksChannel = supabase
+      .channel('tasks-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tasks' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['tasks'] });
+        }
+      )
+      .subscribe();
+
     // Cleanup subscriptions on unmount
     return () => {
       if (supabase) {
         supabase.removeChannel(candidatesChannel);
         supabase.removeChannel(activitiesChannel);
         supabase.removeChannel(interviewsChannel);
+        supabase.removeChannel(tasksChannel);
       }
     };
   }, [queryClient]);
