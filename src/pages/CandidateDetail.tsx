@@ -487,7 +487,7 @@ export default function CandidateDetail() {
           </div>
 
           {/* Inline Details */}
-          <div className="mt-6 pt-6 border-t border-slate-200">
+          <div className="mt-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {candidate.assigned_recruiter && (
                 <div>
@@ -644,7 +644,6 @@ export default function CandidateDetail() {
 
           {/* Quick Actions - Context Aware */}
           <div className="mt-6">
-            <h3 className="text-sm font-medium text-slate-700 mb-3">Quick Actions</h3>
             <div className="flex flex-wrap gap-3">
               {/* Primary CTA based on status */}
               {['new_application', 'ai_screened', 'human_reviewed'].includes(candidate.current_status) && (
