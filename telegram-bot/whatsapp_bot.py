@@ -242,9 +242,15 @@ async def process_document_message(phone: str, name: str, file_name: str, media_
                 matched_job = screening_result.get('job_matched', 'our open positions')
                 candidate_name = screening_result.get('candidate_name', name or 'there')
                 first_name = candidate_name.split()[0] if candidate_name else 'there'
+                screening_summary = screening_result.get('summary', '')
 
-                # Update conversation state - mark resume received
-                mark_resume_received(phone, applied_role=matched_job, candidate_name=first_name)
+                # Update conversation state - mark resume received with context
+                mark_resume_received(
+                    phone,
+                    applied_role=matched_job,
+                    candidate_name=first_name,
+                    screening_summary=screening_summary
+                )
 
                 # Save candidate with screening results
                 await save_candidate(
