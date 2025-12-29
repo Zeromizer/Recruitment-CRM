@@ -265,8 +265,9 @@ async def load_full_knowledgebase() -> Dict[str, Dict[str, Any]]:
     client = get_supabase()
 
     try:
+        # Include is_active in the select to merge into value
         result = client.table("knowledgebase").select(
-            "category, key, value"
+            "category, key, value, is_active"
         ).eq("is_active", True).execute()
 
         # Organize by category
@@ -275,7 +276,10 @@ async def load_full_knowledgebase() -> Dict[str, Dict[str, Any]]:
             category = item["category"]
             if category not in kb:
                 kb[category] = {}
-            kb[category][item["key"]] = item["value"]
+            # Merge is_active into the value dict so bot can check it
+            value_with_active = dict(item["value"])
+            value_with_active["is_active"] = item["is_active"]
+            kb[category][item["key"]] = value_with_active
 
         _kb_cache = kb
         _kb_cache_time = current_time
