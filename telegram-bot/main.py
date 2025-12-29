@@ -26,8 +26,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from shared.knowledgebase import (
     RECRUITER_NAME, COMPANY_NAME, APPLICATION_FORM_URL,
     ConversationContext, build_system_prompt, build_context_from_state,
-    identify_role_from_text, get_experience_question, get_resume_acknowledgment
+    identify_role_from_text, get_experience_question, get_resume_acknowledgment,
+    reload_from_database
 )
+from shared.training_handlers import handle_training_message, init_admin_users
 
 # Conversation memory (max 10 messages per user)
 conversations = {}
@@ -767,8 +769,18 @@ def setup_handlers(telegram_client):
             return
 
         print(f"Message from {full_name} (@{username}): {event.text}")
+
+        # Check for training commands first (admin only)
+        text = event.text or ""
+        training_response = await handle_training_message(user_id, username, text)
+        if training_response:
+            # Training mode - send response directly (no delays for admin commands)
+            await event.respond(training_response)
+            return
+
+        # Normal conversation mode
         async with telegram_client.action(event.chat_id, 'typing'):
-            response = await get_ai_response(user_id, event.text or "")
+            response = await get_ai_response(user_id, text)
 
         # Send response with message splitting and delays
         await send_telegram_messages(event, telegram_client, response)
@@ -949,6 +961,22 @@ async def main():
     # Initialize Google Sheets client (optional)
     print("Initializing Google Sheets client...")
     init_google_sheets()
+
+    # Initialize training system (admin users)
+    print("Initializing training system...")
+    init_admin_users()
+
+    # Load knowledgebase from database
+    print("Loading knowledgebase from database...")
+    try:
+        kb_loaded = await reload_from_database()
+        if kb_loaded:
+            print("Knowledgebase loaded from database")
+        else:
+            print("Using static knowledgebase (no DB entries found)")
+    except Exception as e:
+        print(f"Warning: Could not load knowledgebase from DB: {e}")
+        print("Using static knowledgebase")
 
     # Initialize Telegram client
     print("Initializing Telegram client...")

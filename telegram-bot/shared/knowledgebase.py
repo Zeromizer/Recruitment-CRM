@@ -10,6 +10,10 @@ The knowledgebase includes:
 - FAQs and common responses
 - Conversation objectives and flow
 - Dynamic context building for AI responses
+
+IMPORTANT: This module supports loading from Supabase database for dynamic updates.
+Use the training commands in Telegram to add/update knowledge, or call
+`await reload_from_database()` to refresh from DB.
 """
 
 import os
@@ -27,6 +31,10 @@ RECRUITER_NAME = os.environ.get('RECRUITER_NAME', 'Ai Wei')
 COMPANY_NAME = os.environ.get('COMPANY_NAME', 'CGP')
 COMPANY_FULL_NAME = "Cornerstone Global Partners"
 APPLICATION_FORM_URL = os.environ.get('APPLICATION_FORM_URL', 'Shorturl.at/kmvJ6')
+
+# Flag to track if we've loaded from database
+_db_loaded = False
+_db_knowledge: Dict[str, Dict[str, Any]] = {}
 
 
 # =============================================================================
@@ -577,6 +585,133 @@ def get_closing_response() -> str:
 
 
 # =============================================================================
+# DATABASE INTEGRATION
+# =============================================================================
+
+async def reload_from_database() -> bool:
+    """
+    Reload knowledgebase from Supabase database.
+
+    This function loads all knowledge entries from the database and
+    updates the module-level dictionaries (ROLE_KNOWLEDGE, FAQ_KNOWLEDGE, etc.)
+
+    Call this on bot startup or when you want to refresh knowledge.
+
+    Returns:
+        True if successful, False on error
+    """
+    global _db_loaded, _db_knowledge, ROLE_KNOWLEDGE, FAQ_KNOWLEDGE
+    global COMPANY_INFO, COMMUNICATION_STYLE, CONVERSATION_OBJECTIVES
+    global RECRUITER_NAME, COMPANY_NAME, APPLICATION_FORM_URL
+
+    try:
+        from .knowledgebase_db import (
+            load_full_knowledgebase,
+            CATEGORY_COMPANY, CATEGORY_ROLE, CATEGORY_FAQ,
+            CATEGORY_STYLE, CATEGORY_OBJECTIVE, CATEGORY_PHRASE
+        )
+
+        # Load all knowledge from database
+        kb = await load_full_knowledgebase()
+
+        if not kb:
+            print("No knowledgebase entries in database, using defaults")
+            return False
+
+        _db_knowledge = kb
+
+        # Update roles if available
+        if CATEGORY_ROLE in kb:
+            ROLE_KNOWLEDGE.update(kb[CATEGORY_ROLE])
+            print(f"Loaded {len(kb[CATEGORY_ROLE])} roles from database")
+
+        # Update FAQs if available
+        if CATEGORY_FAQ in kb:
+            for key, value in kb[CATEGORY_FAQ].items():
+                # Map to expected structure
+                topic = "common_concerns"  # Default topic
+                if "company" in value.get("question", "").lower():
+                    topic = "about_company"
+                elif "apply" in value.get("question", "").lower() or "process" in value.get("question", "").lower():
+                    topic = "application_process"
+                elif "require" in value.get("question", "").lower() or "need" in value.get("question", "").lower():
+                    topic = "job_requirements"
+
+                if topic not in FAQ_KNOWLEDGE:
+                    FAQ_KNOWLEDGE[topic] = {}
+                FAQ_KNOWLEDGE[topic][key] = value.get("answer", "")
+            print(f"Loaded {len(kb[CATEGORY_FAQ])} FAQs from database")
+
+        # Update company info if available
+        if CATEGORY_COMPANY in kb:
+            if "info" in kb[CATEGORY_COMPANY]:
+                COMPANY_INFO.update(kb[CATEGORY_COMPANY]["info"])
+            if "recruiter" in kb[CATEGORY_COMPANY]:
+                recruiter_info = kb[CATEGORY_COMPANY]["recruiter"]
+                if recruiter_info.get("name"):
+                    RECRUITER_NAME = recruiter_info["name"]
+                if recruiter_info.get("application_form_url"):
+                    APPLICATION_FORM_URL = recruiter_info["application_form_url"]
+            print("Loaded company info from database")
+
+        # Update communication style if available
+        if CATEGORY_STYLE in kb:
+            for key, value in kb[CATEGORY_STYLE].items():
+                COMMUNICATION_STYLE[key] = value
+            print("Loaded communication style from database")
+
+        _db_loaded = True
+        print("Knowledgebase successfully loaded from database")
+        return True
+
+    except ImportError as e:
+        print(f"Database module not available: {e}")
+        return False
+    except Exception as e:
+        print(f"Error loading knowledgebase from database: {e}")
+        return False
+
+
+def is_db_loaded() -> bool:
+    """Check if knowledgebase has been loaded from database."""
+    return _db_loaded
+
+
+def get_db_knowledge() -> Dict[str, Dict[str, Any]]:
+    """Get the raw database knowledge (for debugging/inspection)."""
+    return _db_knowledge
+
+
+# Dynamic getters that check database first
+def get_role_from_db(role_key: str) -> Optional[Dict]:
+    """Get role info, preferring database version if available."""
+    if _db_loaded and "role" in _db_knowledge:
+        if role_key in _db_knowledge["role"]:
+            return _db_knowledge["role"][role_key]
+    return ROLE_KNOWLEDGE.get(role_key)
+
+
+def get_all_roles() -> Dict[str, Dict]:
+    """Get all roles, merging database and static."""
+    roles = dict(ROLE_KNOWLEDGE)  # Start with static
+    if _db_loaded and "role" in _db_knowledge:
+        roles.update(_db_knowledge["role"])  # Database overrides
+    return roles
+
+
+def get_faq_from_db(key: str) -> Optional[str]:
+    """Get FAQ answer, preferring database version if available."""
+    if _db_loaded and "faq" in _db_knowledge:
+        if key in _db_knowledge["faq"]:
+            return _db_knowledge["faq"][key].get("answer")
+    # Search in static FAQ
+    for topic in FAQ_KNOWLEDGE.values():
+        if key in topic:
+            return topic[key]
+    return None
+
+
+# =============================================================================
 # EXPORT FOR USE IN AI SCREENING
 # =============================================================================
 
@@ -609,4 +744,12 @@ __all__ = [
     'get_resume_acknowledgment',
     'should_ask_citizenship',
     'get_closing_response',
+
+    # Database integration
+    'reload_from_database',
+    'is_db_loaded',
+    'get_db_knowledge',
+    'get_role_from_db',
+    'get_all_roles',
+    'get_faq_from_db',
 ]
