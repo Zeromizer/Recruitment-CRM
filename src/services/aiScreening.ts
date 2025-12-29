@@ -311,11 +311,14 @@ async function screenResumeViaEdgeFunction(input: ScreeningInput, jobRoles: JobR
     throw new Error('Supabase URL not configured. Please add VITE_SUPABASE_URL to your environment.');
   }
 
-  // Note: Function may be deployed as 'screen-resume' or 'hyper-worker' depending on Supabase setup
+  // Get anon key for authentication
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
   const response = await fetch(`${supabaseUrl}/functions/v1/screen-resume`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${supabaseAnonKey}`,
     },
     body: JSON.stringify({
       pdfBase64: input.pdfBase64,
