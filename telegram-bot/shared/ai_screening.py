@@ -49,7 +49,7 @@ conversation_contexts: Dict[str, ConversationContext] = {}
 MAX_MESSAGES = 10
 
 
-# Resume screening prompt (kept separate as it's a different task)
+# Resume screening prompt (unified across all platforms)
 SCREENING_PROMPT = """You are analyzing a resume for a staffing agency. Your task is to evaluate the candidate.
 
 AVAILABLE JOB ROLES:
@@ -63,15 +63,22 @@ INSTRUCTIONS:
 2. Analyze the resume against that role's requirements.
 3. Extract contact information (email, phone) if visible.
 
-CITIZENSHIP REQUIREMENT (CRITICAL):
-Most roles require Singapore Citizens or Permanent Residents. Look for indicators:
-- NRIC number (S/T = Citizen, F/G = PR)
-- National Service (NS) completion
-- Singapore address
-- Local education (NUS, NTU, SMU, polytechnics, ITE)
-- Explicit mention of citizenship/PR status
+CITIZENSHIP REQUIREMENT:
+Most roles require Singapore Citizens or Permanent Residents. Look for these indicators:
 
-If no clear indicator of SC/PR status is found, set recommendation to "Rejected" unless the role specifically allows foreigners.
+STRONG INDICATORS (treat as Singapore Citizen):
+- NRIC number starting with S or T
+- National Service (NS/NSF) completion or mention
+- Local education: ITE, Secondary school, Primary school, O Levels, N Levels, PSLE
+- Singapore polytechnics (Ngee Ann, Temasek, Republic, Singapore Poly, Nanyang Poly)
+- Local universities (NUS, NTU, SMU, SIT, SUSS, SUTD)
+
+PR INDICATORS:
+- NRIC number starting with F or G
+- Explicit mention of PR status
+
+If local education (ITE, Secondary/Primary school, O/N Levels, PSLE) is found, assume Singapore Citizen unless explicitly stated otherwise.
+Only mark as "Unknown" if no local education or citizenship indicators are found - let the recruiter decide.
 
 RESPONSE FORMAT:
 Return ONLY a JSON object with no other text:

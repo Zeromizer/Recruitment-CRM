@@ -75,7 +75,51 @@ export async function screenResume(
 
   const jobRolesString = formatJobRolesForPrompt(jobRoles);
 
-  const prompt = `The candidate applied via email with subject: ${emailSubject}. Here are the available job roles with their requirements and scoring guides (format: Job Title, Requirements, Scoring Guide): ${jobRolesString}. First, identify which job role the candidate is applying for based on the email subject. Match it to one of the available roles. If the email subject does not clearly indicate a role, select the most suitable role based on the candidates experience. Then analyze this resume against that specific roles requirements and scoring guide. IMPORTANT: Extract the candidates email address and phone number from the resume if available. IMPORTANT CITIZENSHIP REQUIREMENT: Candidates MUST be Singapore Citizens or Permanent Residents. Look for indicators such as: NRIC number (starts with S or T for citizens, F or G for PRs), National Service or NS completion, Singapore address, local education (Singapore polytechnics like Ngee Ann or Temasek, universities like NUS NTU SMU SIT SUSS, or local schools), or explicit mention of citizenship or PR status. If no clear indicator of Singapore Citizen or PR status is found, set recommendation to Rejected regardless of qualifications. CRITICAL: Your response must be ONLY a JSON object. Do not include any text, explanation, or markdown before or after the JSON. Start your response with { and end with }. The JSON must contain these fields: candidate_name (string), candidate_email (string or null if not found), candidate_phone (string or null if not found), job_applied (the role from email subject), job_matched (the role matched from your list), score (number 1-10), citizenship_status (Singapore Citizen or PR or Unknown or Foreigner), recommendation (Top Candidate or Review or Rejected), summary (brief evaluation including citizenship verification note). Use the scoring guide for the matched role.`;
+  const prompt = `You are analyzing a resume for a staffing agency. Your task is to evaluate the candidate.
+
+EMAIL SUBJECT: ${emailSubject}
+
+AVAILABLE JOB ROLES (format: Job Title, Requirements, Scoring Guide):
+${jobRolesString}
+
+INSTRUCTIONS:
+1. Identify which job role the candidate is applying for based on the email subject. Match to one of the available roles.
+2. If the email subject does not clearly indicate a role, select the most suitable role based on the candidate's experience.
+3. Analyze the resume against that role's requirements and scoring guide.
+4. Extract contact information (email, phone) if visible.
+
+CITIZENSHIP REQUIREMENT:
+Most roles require Singapore Citizens or Permanent Residents. Look for these indicators:
+
+STRONG INDICATORS (treat as Singapore Citizen):
+- NRIC number starting with S or T
+- National Service (NS/NSF) completion or mention
+- Local education: ITE, Secondary school, Primary school, O Levels, N Levels, PSLE
+- Singapore polytechnics (Ngee Ann, Temasek, Republic, Singapore Poly, Nanyang Poly)
+- Local universities (NUS, NTU, SMU, SIT, SUSS, SUTD)
+
+PR INDICATORS:
+- NRIC number starting with F or G
+- Explicit mention of PR status
+
+If local education (ITE, Secondary/Primary school, O/N Levels, PSLE) is found, assume Singapore Citizen unless explicitly stated otherwise.
+Only mark as "Unknown" if no local education or citizenship indicators are found - let the recruiter decide.
+
+RESPONSE FORMAT:
+Return ONLY a JSON object with no other text. Start with { and end with }:
+{
+    "candidate_name": "Full name from resume",
+    "candidate_email": "email@example.com or null",
+    "candidate_phone": "+65 XXXX XXXX or null",
+    "job_applied": "Role from email subject",
+    "job_matched": "Best matching role from your list",
+    "score": 7,
+    "citizenship_status": "Singapore Citizen|PR|Unknown|Foreigner",
+    "recommendation": "Top Candidate|Review|Rejected",
+    "summary": "Brief evaluation including citizenship verification"
+}
+
+Use the scoring guide for the matched role. Score 1-10.`;
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
