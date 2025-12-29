@@ -288,16 +288,14 @@ export default function BotConfig() {
             <RefreshCw className="w-4 h-4" />
             Refresh
           </button>
-          {jobs.length === 0 && (
-            <button
-              onClick={handleSeedData}
-              disabled={saving}
-              className="px-3 py-2 text-sm font-medium text-white bg-cgp-red rounded-lg hover:bg-cgp-red/90 flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Seed Default Data
-            </button>
-          )}
+          <button
+            onClick={handleSeedData}
+            disabled={saving}
+            className="px-3 py-2 text-sm font-medium text-white bg-cgp-red rounded-lg hover:bg-cgp-red/90 flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            {jobs.length === 0 && !companyProfile ? 'Seed Default Data' : 'Reset to Defaults'}
+          </button>
         </div>
       </div>
 
