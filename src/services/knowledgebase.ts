@@ -432,6 +432,7 @@ export async function seedDefaultKnowledgebase(): Promise<void> {
     formality: 'casual',
     emoji_usage: 'minimal',
     response_length: 'concise',
+    message_delay: 'normal',
     custom_phrases: 'Hello! Thanks for reaching out to CGP!\nSounds great, let me help you with that!\nWelcome to CGP Singapore!',
   };
 

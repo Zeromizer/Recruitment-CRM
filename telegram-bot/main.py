@@ -735,20 +735,44 @@ def init_google_sheets():
         return None
 
 
+def get_message_delay_settings() -> tuple:
+    """Get message delay settings from knowledgebase."""
+    from shared.knowledgebase import COMMUNICATION_STYLE
+
+    # Get delay setting from CRM configuration
+    crm_settings = COMMUNICATION_STYLE.get('crm_settings', {})
+    delay_setting = crm_settings.get('message_delay', 'normal')
+
+    # Map delay setting to actual delay ranges (min, max)
+    delay_map = {
+        'instant': (0.0, 0.0),
+        'fast': (0.5, 1.0),
+        'normal': (1.5, 3.0),
+        'slow': (3.0, 5.0),
+        'very_slow': (5.0, 8.0),
+    }
+
+    return delay_map.get(delay_setting, (1.5, 3.0))
+
+
 async def send_telegram_messages(event, telegram_client, message: str):
     """Send message(s) - splits on '---' and adds realistic typing delays."""
     parts = [part.strip() for part in message.split('---') if part.strip()]
 
+    # Get delay settings from knowledgebase
+    delay_min, delay_max = get_message_delay_settings()
+
     for i, part in enumerate(parts):
         # Show typing action while "thinking" and "typing"
-        async with telegram_client.action(event.chat_id, 'typing'):
-            # Natural "thinking" delay: 1-2 seconds base + random
-            thinking_delay = random.uniform(1.5, 3.0)
-            # Typing delay: ~0.03s per character (simulates typing speed)
-            typing_delay = len(part) * 0.03
-            # Total delay, capped at 8 seconds
-            total_delay = min(thinking_delay + typing_delay, 8.0)
-            await asyncio.sleep(total_delay)
+        if delay_max > 0:
+            async with telegram_client.action(event.chat_id, 'typing'):
+                # Natural "thinking" delay based on settings
+                thinking_delay = random.uniform(delay_min, delay_max)
+                # Typing delay: ~0.03s per character (simulates typing speed)
+                typing_delay = len(part) * 0.03
+                # Total delay, capped at 10 seconds
+                total_delay = min(thinking_delay + typing_delay, 10.0)
+                await asyncio.sleep(total_delay)
 
         # First message replies directly to user's message, rest are normal responses
         if i == 0:
@@ -757,9 +781,9 @@ async def send_telegram_messages(event, telegram_client, message: str):
             await event.respond(part)
 
         # Add delay before next message (except for last one)
-        if i < len(parts) - 1:
-            # Pause between messages: 1.5-3 seconds
-            between_delay = random.uniform(1.5, 3.0)
+        if i < len(parts) - 1 and delay_max > 0:
+            # Pause between messages based on settings
+            between_delay = random.uniform(delay_min, delay_max)
             await asyncio.sleep(between_delay)
 
 

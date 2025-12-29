@@ -78,6 +78,7 @@ export default function BotConfig() {
     formality: string;
     emoji_usage: string;
     response_length: string;
+    message_delay: string;
     custom_phrases: string;
   } | null>(null);
   const [objectives, setObjectives] = useState<{
@@ -840,6 +841,7 @@ export default function BotConfig() {
                     formality: 'casual',
                     emoji_usage: 'minimal',
                     response_length: 'concise',
+                    message_delay: 'normal',
                     custom_phrases: '',
                   })}
                   className="mt-4 px-4 py-2 text-sm font-medium text-cgp-red border border-cgp-red rounded-lg hover:bg-cgp-red/5"
@@ -923,6 +925,22 @@ export default function BotConfig() {
                       <option value="detailed">Detailed (comprehensive)</option>
                     </select>
                     <p className="text-xs text-slate-400 mt-1">Preferred length of bot responses</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Message Delay</label>
+                    <select
+                      value={communicationStyle.message_delay || 'normal'}
+                      onChange={(e) => setCommunicationStyle({ ...communicationStyle, message_delay: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red"
+                    >
+                      <option value="instant">Instant (no delay)</option>
+                      <option value="fast">Fast (0.5-1s between messages)</option>
+                      <option value="normal">Normal (1.5-3s between messages)</option>
+                      <option value="slow">Slow (3-5s between messages)</option>
+                      <option value="very_slow">Very Slow (5-8s between messages)</option>
+                    </select>
+                    <p className="text-xs text-slate-400 mt-1">Delay between bot messages (more natural feel)</p>
                   </div>
 
                   <div>
