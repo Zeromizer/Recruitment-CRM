@@ -243,22 +243,10 @@ JOB_ROLES_CACHE_DURATION = 300  # 5 minutes
 
 async def restore_conversation_from_db(user_id: int):
     """Restore conversation history and state from database for returning users."""
-    if user_id in restored_users:
-        return  # Already restored
+    already_restored = user_id in restored_users
 
     try:
-        # Get messages from database
-        db_messages = await get_conversation_messages("telegram", str(user_id), limit=MAX_MESSAGES * 2)
-
-        if db_messages:
-            # Convert to the format we use in memory
-            conversations[user_id] = [
-                {"role": msg["role"], "content": msg["content"]}
-                for msg in db_messages
-            ]
-            print(f"Restored {len(db_messages)} messages for user {user_id}")
-
-        # Get conversation state from database
+        # Always ensure conversation state exists (creates if deleted from DB)
         db_state = await get_or_create_conversation_state("telegram", str(user_id))
         if db_state:
             conversation_states[user_id] = {
@@ -271,7 +259,20 @@ async def restore_conversation_from_db(user_id: int):
                 "citizenship_status": db_state.get("citizenship_status"),
             }
 
-        restored_users.add(user_id)
+        # Only restore messages once (avoid duplicates in memory)
+        if not already_restored:
+            # Get messages from database
+            db_messages = await get_conversation_messages("telegram", str(user_id), limit=MAX_MESSAGES * 2)
+
+            if db_messages:
+                # Convert to the format we use in memory
+                conversations[user_id] = [
+                    {"role": msg["role"], "content": msg["content"]}
+                    for msg in db_messages
+                ]
+                print(f"Restored {len(db_messages)} messages for user {user_id}")
+
+            restored_users.add(user_id)
 
     except Exception as e:
         print(f"Error restoring conversation from DB: {e}")
