@@ -311,6 +311,7 @@ async function screenResumeViaEdgeFunction(input: ScreeningInput, jobRoles: JobR
     throw new Error('Supabase URL not configured. Please add VITE_SUPABASE_URL to your environment.');
   }
 
+  // Note: Function may be deployed as 'screen-resume' or 'hyper-worker' depending on Supabase setup
   const response = await fetch(`${supabaseUrl}/functions/v1/screen-resume`, {
     method: 'POST',
     headers: {
