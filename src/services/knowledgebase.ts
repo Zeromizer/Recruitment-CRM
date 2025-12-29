@@ -330,6 +330,17 @@ export async function seedDefaultKnowledgebase(): Promise<void> {
     throw new Error('Supabase not configured');
   }
 
+  // Clear existing data first to avoid duplicate key errors
+  const { error: deleteError } = await supabase
+    .from('knowledgebase')
+    .delete()
+    .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all rows
+
+  if (deleteError) {
+    console.error('Error clearing existing data:', deleteError);
+    // Continue anyway - might be empty table
+  }
+
   // Default company profile
   const defaultCompany: CompanyProfile = {
     name: 'CGP',
