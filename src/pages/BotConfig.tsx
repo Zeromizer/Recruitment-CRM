@@ -313,16 +313,12 @@ export default function BotConfig() {
     setError(null);
 
     try {
-      // Get API key from localStorage or prompt user
-      let apiKey = localStorage.getItem('anthropic_api_key');
+      // Use the same API key as resume screening
+      const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
       if (!apiKey) {
-        apiKey = prompt('Enter your Anthropic API key to use AI image scanning.\n\nThis will be stored locally in your browser.');
-        if (!apiKey) {
-          setError('API key required for image scanning');
-          setImportingImage(false);
-          return;
-        }
-        localStorage.setItem('anthropic_api_key', apiKey);
+        setError('Anthropic API key not configured. Please set VITE_ANTHROPIC_API_KEY in your environment.');
+        setImportingImage(false);
+        return;
       }
 
       // Extract base64 data from data URL
@@ -379,8 +375,7 @@ Return ONLY the JSON, no explanation.`,
       if (!response.ok) {
         const errorData = await response.json();
         if (response.status === 401) {
-          localStorage.removeItem('anthropic_api_key');
-          throw new Error('Invalid API key. Please try again.');
+          throw new Error('Invalid API key. Check your VITE_ANTHROPIC_API_KEY configuration.');
         }
         throw new Error(errorData.error?.message || 'Failed to process image');
       }
@@ -1550,8 +1545,8 @@ Return ONLY the JSON, no explanation.`,
               )}
 
               <div className="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg">
-                <strong>Note:</strong> This feature uses Claude AI to analyze the image.
-                You'll need an Anthropic API key (will be stored locally in your browser).
+                <strong>Note:</strong> This feature uses Claude AI to analyze the image,
+                using the same API key configured for resume screening.
               </div>
             </div>
 
