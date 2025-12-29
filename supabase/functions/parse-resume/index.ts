@@ -121,10 +121,9 @@ IMPORTANT RULES:
 2. Extract ALL education entries
 3. Each responsibility should be a concise bullet point (max 200 characters)
 4. Keep responsibility descriptions short and clear
-5. Extract languages as separate items: ["English", "Mandarin", "Cantonese"]
-6. If no languages mentioned, use ["English"]
-7. Do NOT include any text before or after the JSON object
-8. Ensure all strings are properly escaped (no unescaped quotes or newlines)`;
+5. For languages: ONLY extract languages that are EXPLICITLY mentioned in the resume text. Do NOT assume or infer languages based on candidate name, ethnicity, or nationality. If resume says "English & Malay", extract ["English", "Malay"]. If no languages section exists, use ["English"]
+6. Do NOT include any text before or after the JSON object
+7. Ensure all strings are properly escaped (no unescaped quotes or newlines)`;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
