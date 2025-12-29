@@ -10,6 +10,7 @@ import {
   Menu,
   CheckSquare,
   X,
+  Bot,
 } from 'lucide-react';
 
 const navigation = [
@@ -19,6 +20,7 @@ const navigation = [
   { name: 'Pipeline', href: '/pipeline', icon: Kanban },
   { name: 'Interviews', href: '/interviews', icon: Calendar },
   { name: 'Activities', href: '/activities', icon: Activity },
+  { name: 'Bot Config', href: '/bot-config', icon: Bot },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

@@ -7,6 +7,7 @@ import CandidateDetail from './pages/CandidateDetail';
 import Pipeline from './pages/Pipeline';
 import Interviews from './pages/Interviews';
 import Activities from './pages/Activities';
+import BotConfig from './pages/BotConfig';
 import Settings from './pages/Settings';
 import { useRealtimeSubscription } from './hooks/useData';
 
@@ -31,6 +32,7 @@ function App() {
         <Route path="pipeline" element={<Pipeline />} />
         <Route path="interviews" element={<Interviews />} />
         <Route path="activities" element={<Activities />} />
+        <Route path="bot-config" element={<BotConfig />} />
         <Route path="settings" element={<Settings />} />
         <Route path="auth/callback" element={<AuthCallback />} />
       </Route>
