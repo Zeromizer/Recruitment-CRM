@@ -417,8 +417,9 @@ async def get_ai_response(user_id: int, message: str, candidate_name: str = None
     # Detect and update state based on message (with DB persistence)
     await detect_state_from_message_async(user_id, message)
 
-    # Store candidate name if provided
-    if candidate_name:
+    # Store candidate name if provided and not already set
+    current_state = get_conversation_state(user_id)
+    if candidate_name and not current_state.get("candidate_name"):
         await update_conversation_state_async(user_id, candidate_name=candidate_name)
 
     # Add user message and save to database
@@ -944,7 +945,8 @@ def setup_handlers(telegram_client):
 
         # Normal conversation mode
         async with telegram_client.action(event.chat_id, 'typing'):
-            response = await get_ai_response(user_id, text)
+            # Pass sender's name for context (especially for new conversations)
+            response = await get_ai_response(user_id, text, candidate_name=full_name or username or None)
 
         # Send response with message splitting and delays
         await send_telegram_messages(event, telegram_client, response)
@@ -986,6 +988,14 @@ def setup_handlers(telegram_client):
         )
 
         if is_resume:
+            # Restore conversation from database if this is a returning user
+            await restore_conversation_from_db(user_id)
+
+            # Store sender name if not already set
+            current_state = get_conversation_state(user_id)
+            if (full_name or username) and not current_state.get("candidate_name"):
+                await update_conversation_state_async(user_id, candidate_name=full_name or username)
+
             await event.respond("thanks! will check it out")
 
             async with telegram_client.action(event.chat_id, 'typing'):
@@ -1042,7 +1052,7 @@ def setup_handlers(telegram_client):
                             matched_job = screening_result.get('job_matched', 'our open positions')
                             first_name = candidate_name.split()[0] if candidate_name else 'there'
 
-                            update_conversation_state(
+                            await update_conversation_state_async(
                                 user_id,
                                 resume_received=True,
                                 candidate_name=first_name,
@@ -1056,7 +1066,7 @@ def setup_handlers(telegram_client):
                             response = get_resume_acknowledgment(first_name, role_key)
 
                             # Mark experience as discussed since we're asking about it
-                            update_conversation_state(user_id, experience_discussed=True, stage="experience_asked")
+                            await update_conversation_state_async(user_id, experience_discussed=True, stage="experience_asked")
 
                             await event.respond(response)
                         else:
