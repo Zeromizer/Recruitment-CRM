@@ -26,8 +26,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from shared.knowledgebase import (
     RECRUITER_NAME, COMPANY_NAME, APPLICATION_FORM_URL,
     ConversationContext, build_system_prompt, build_context_from_state,
-    identify_role_from_text, get_experience_question, get_resume_acknowledgment,
-    reload_from_database
+    identify_role_from_text, identify_role_semantic, get_experience_question,
+    get_resume_acknowledgment, reload_from_database, embed_existing_knowledge
 )
 from shared.training_handlers import handle_training_message, init_admin_users
 from shared.database import (
@@ -363,8 +363,8 @@ async def detect_state_from_message_async(user_id: int, message: str):
         if not state["form_completed"]:
             await update_conversation_state_async(user_id, form_completed=True, stage="form_completed")
 
-    # Detect job role
-    detected_role = identify_role_from_text(message)
+    # Detect job role using semantic search (RAG) with keyword fallback
+    detected_role = await identify_role_semantic(message)
     if detected_role and detected_role != "general":
         await update_conversation_state_async(user_id, applied_role=detected_role)
 
@@ -407,7 +407,7 @@ def detect_state_from_message(user_id: int, message: str):
 
 
 async def get_ai_response(user_id: int, message: str, candidate_name: str = None) -> str:
-    """Get AI response using dynamic context-aware prompting."""
+    """Get AI response using dynamic context-aware prompting with RAG."""
     # Restore conversation from database if this is a returning user
     await restore_conversation_from_db(user_id)
 
@@ -442,6 +442,15 @@ async def get_ai_response(user_id: int, message: str, candidate_name: str = None
     state = get_conversation_state(user_id)
     context = build_context_from_state(str(user_id), state)
     system_prompt = build_system_prompt(context)
+
+    # RAG: Retrieve relevant context from knowledgebase
+    try:
+        from shared.knowledgebase import get_relevant_context_for_query
+        rag_context = await get_relevant_context_for_query(message)
+        if rag_context:
+            system_prompt = system_prompt + "\n" + rag_context
+    except Exception as e:
+        print(f"RAG context retrieval failed (continuing without): {e}")
 
     try:
         response = anthropic_client.messages.create(
@@ -1152,6 +1161,20 @@ async def main():
     except Exception as e:
         print(f"Warning: Could not load knowledgebase from DB: {e}")
         print("Using static knowledgebase")
+
+    # Generate embeddings for knowledgebase entries (RAG)
+    if os.environ.get('OPENAI_API_KEY'):
+        print("Checking knowledgebase embeddings (RAG)...")
+        try:
+            stats = await embed_existing_knowledge()
+            if stats.get('processed', 0) > 0:
+                print(f"Generated {stats['processed']} new embeddings")
+            else:
+                print("All entries already have embeddings")
+        except Exception as e:
+            print(f"Warning: Embedding generation skipped: {e}")
+    else:
+        print("Skipping RAG embeddings (OPENAI_API_KEY not set)")
 
     # Initialize Telegram client
     print("Initializing Telegram client...")

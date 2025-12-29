@@ -1010,6 +1010,172 @@ def get_faq_from_db(key: str) -> Optional[str]:
 
 
 # =============================================================================
+# SEMANTIC SEARCH (RAG) FUNCTIONS
+# =============================================================================
+
+async def search_faqs_semantic(query: str, threshold: float = 0.4, limit: int = 3) -> List[Dict]:
+    """
+    Search FAQs using semantic similarity (RAG).
+    Falls back to keyword search if embeddings not available.
+
+    Args:
+        query: The user's question
+        threshold: Minimum similarity score (0-1)
+        limit: Max results to return
+
+    Returns:
+        List of FAQ dicts with question, answer, and similarity score
+    """
+    try:
+        from .embeddings import search_faqs
+        results = await search_faqs(query, threshold, limit)
+        if results:
+            return results
+    except Exception as e:
+        print(f"Semantic FAQ search unavailable: {e}")
+
+    # Fallback to keyword matching
+    query_lower = query.lower()
+    matches = []
+
+    # Search database FAQs
+    if _db_loaded and "faq" in _db_knowledge:
+        for key, faq in _db_knowledge["faq"].items():
+            question = faq.get("question", "").lower()
+            answer = faq.get("answer", "").lower()
+            if any(word in question or word in answer for word in query_lower.split()):
+                matches.append({
+                    "key": key,
+                    "question": faq.get("question"),
+                    "answer": faq.get("answer"),
+                    "similarity": 0.5  # Default score for keyword match
+                })
+
+    # Search static FAQs
+    for topic, faqs in FAQ_KNOWLEDGE.items():
+        for key, value in faqs.items():
+            if isinstance(value, str) and query_lower in value.lower():
+                matches.append({
+                    "key": f"{topic}_{key}",
+                    "question": key,
+                    "answer": value,
+                    "similarity": 0.5
+                })
+
+    return matches[:limit]
+
+
+async def identify_role_semantic(text: str, threshold: float = 0.3) -> Optional[str]:
+    """
+    Identify job role using semantic similarity (RAG).
+    Falls back to keyword matching if embeddings not available.
+
+    Args:
+        text: User message or resume text
+        threshold: Minimum similarity score
+
+    Returns:
+        Role key if found, None otherwise
+    """
+    try:
+        from .embeddings import search_roles
+        results = await search_roles(text, threshold, limit=1)
+        if results and len(results) > 0:
+            return results[0].get("key")
+    except Exception as e:
+        print(f"Semantic role search unavailable: {e}")
+
+    # Fallback to keyword matching
+    return identify_role_from_text(text)
+
+
+async def search_knowledge_semantic(
+    query: str,
+    category: str = None,
+    threshold: float = 0.4,
+    limit: int = 5
+) -> List[Dict]:
+    """
+    Search entire knowledgebase semantically.
+
+    Args:
+        query: Search query
+        category: Optional category filter
+        threshold: Minimum similarity
+        limit: Max results
+
+    Returns:
+        List of matching knowledge entries
+    """
+    try:
+        from .embeddings import search_similar_knowledge
+        results = await search_similar_knowledge(query, category, threshold, limit)
+        if results:
+            return results
+    except Exception as e:
+        print(f"Semantic knowledge search unavailable: {e}")
+
+    return []
+
+
+async def get_relevant_context_for_query(query: str) -> str:
+    """
+    Get relevant context from knowledgebase for a user query.
+    Used to augment AI responses with specific knowledge.
+
+    Args:
+        query: The user's message/question
+
+    Returns:
+        Formatted context string to include in AI prompt
+    """
+    context_parts = []
+
+    # Search FAQs
+    faqs = await search_faqs_semantic(query, threshold=0.4, limit=2)
+    if faqs:
+        faq_context = "Relevant FAQs:\n"
+        for faq in faqs:
+            faq_context += f"- Q: {faq.get('question', 'N/A')}\n  A: {faq.get('answer', 'N/A')}\n"
+        context_parts.append(faq_context)
+
+    # Search roles if query seems job-related
+    job_keywords = ["job", "work", "position", "role", "apply", "hiring", "vacancy", "opening"]
+    if any(kw in query.lower() for kw in job_keywords):
+        try:
+            from .embeddings import search_roles
+            roles = await search_roles(query, threshold=0.3, limit=2)
+            if roles:
+                role_context = "Relevant job roles:\n"
+                for role in roles:
+                    role_context += f"- {role.get('title', 'Unknown')}: keywords={role.get('keywords', [])}\n"
+                context_parts.append(role_context)
+        except Exception:
+            pass
+
+    if context_parts:
+        return "\n---\nRetrieved Context:\n" + "\n".join(context_parts) + "\n---\n"
+
+    return ""
+
+
+async def embed_existing_knowledge() -> Dict[str, int]:
+    """
+    Generate embeddings for all existing knowledgebase entries.
+    Call this after running the vector migration.
+
+    Returns:
+        Stats dict with processed/failed/skipped counts
+    """
+    try:
+        from .embeddings import embed_all_knowledge
+        return await embed_all_knowledge()
+    except Exception as e:
+        print(f"Error embedding knowledge: {e}")
+        return {"processed": 0, "failed": 0, "skipped": 0, "error": str(e)}
+
+
+# =============================================================================
 # EXPORT FOR USE IN AI SCREENING
 # =============================================================================
 
@@ -1052,4 +1218,11 @@ __all__ = [
     'get_role_from_db',
     'get_all_roles',
     'get_faq_from_db',
+
+    # Semantic search (RAG)
+    'search_faqs_semantic',
+    'identify_role_semantic',
+    'search_knowledge_semantic',
+    'get_relevant_context_for_query',
+    'embed_existing_knowledge',
 ]
