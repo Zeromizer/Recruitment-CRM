@@ -39,15 +39,13 @@ RECRUITER_NAME = os.environ.get('RECRUITER_NAME', 'Ai Wei')
 COMPANY_NAME = os.environ.get('COMPANY_NAME', 'CGP')
 APPLICATION_FORM_URL = os.environ.get('APPLICATION_FORM_URL', 'Shorturl.at/kmvJ6')
 
-# First reply template when bot is activated (sent as single message)
+# First reply template when bot is activated
+# Uses '---' delimiter to split into multiple messages with natural delays
 FIRST_REPLY_TEMPLATE = f"""Hello, I am {RECRUITER_NAME} from {COMPANY_NAME}. Could you kindly fill up the Application Form here: {APPLICATION_FORM_URL}
 
 Consultant Name is {RECRUITER_NAME} (Pls find the dropdown list of my name)
 
-As soon as you are finished, please let me know. Thank you!"""
-
-# Follow-up message about form being down (temporary)
-FORM_DOWN_MESSAGE = "The application form link is currently down. You can send me your resume first and I will ask you to fill the application form once its ready."
+As soon as you are finished, please let me know. Thank you!---The application form link is currently down. You can send me your resume first and I will ask you to fill the application form once its ready."""
 
 # Keywords that trigger bot activation on first message
 JOB_KEYWORDS = [
@@ -375,11 +373,8 @@ async def process_text_message(phone: str, name: str, text: str, contact: dict =
     # Activate bot if this is a new keyword-triggered conversation
     if respond_reason == "keyword_match":
         activate_bot(phone)
-        # Send the first reply template
+        # Send the first reply template (contains '---' delimiter for sequential messages)
         await send_whatsapp_message(phone, FIRST_REPLY_TEMPLATE)
-        # Send follow-up about form being down
-        await asyncio.sleep(random.uniform(3.0, 5.0))  # Natural delay
-        await send_whatsapp_message(phone, FORM_DOWN_MESSAGE)
         return
 
     # Get AI response with candidate name for personalization
