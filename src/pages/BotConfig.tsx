@@ -16,7 +16,6 @@ import {
   MapPin,
   DollarSign,
   Clock,
-  Users,
   AlertCircle,
   CheckCircle,
 } from 'lucide-react';
