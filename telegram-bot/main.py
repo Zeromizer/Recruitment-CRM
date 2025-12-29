@@ -742,24 +742,25 @@ async def send_telegram_messages(event, telegram_client, message: str):
     for i, part in enumerate(parts):
         # Show typing action while "thinking" and "typing"
         async with telegram_client.action(event.chat_id, 'typing'):
-            # Natural "thinking" delay: 3-6 seconds randomly
-            thinking_delay = random.uniform(3.0, 6.0)
-            # Typing delay: ~0.05s per character (simulates typing speed)
-            typing_delay = len(part) * 0.05
-            # Total delay, capped at 15 seconds
-            total_delay = min(thinking_delay + typing_delay, 15.0)
+            # Natural "thinking" delay: 1-2 seconds base + random
+            thinking_delay = random.uniform(1.5, 3.0)
+            # Typing delay: ~0.03s per character (simulates typing speed)
+            typing_delay = len(part) * 0.03
+            # Total delay, capped at 8 seconds
+            total_delay = min(thinking_delay + typing_delay, 8.0)
             await asyncio.sleep(total_delay)
-        await event.respond(part)
+
+        # First message replies directly to user's message, rest are normal responses
+        if i == 0:
+            await event.reply(part)
+        else:
+            await event.respond(part)
 
         # Add delay before next message (except for last one)
         if i < len(parts) - 1:
-            # Natural "thinking" delay: 3-6 seconds randomly
-            thinking_delay = random.uniform(3.0, 6.0)
-            # Typing delay: ~0.05s per character (simulates typing speed)
-            typing_delay = len(parts[i + 1]) * 0.05
-            # Total delay, capped at 15 seconds
-            total_delay = min(thinking_delay + typing_delay, 15.0)
-            await asyncio.sleep(total_delay)
+            # Pause between messages: 1.5-3 seconds
+            between_delay = random.uniform(1.5, 3.0)
+            await asyncio.sleep(between_delay)
 
 
 def setup_handlers(telegram_client):
