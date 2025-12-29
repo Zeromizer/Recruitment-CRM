@@ -4,6 +4,7 @@ import {
   Briefcase,
   Building2,
   MessageSquare,
+  MessageCircle,
   Target,
   Plus,
   Pencil,
@@ -22,6 +23,8 @@ import {
   Copy,
   ImagePlus,
   Loader2,
+  User,
+  Send,
 } from 'lucide-react';
 import {
   getJobPosts,
@@ -39,8 +42,15 @@ import {
 } from '../services/knowledgebase';
 import type { JobPost, CompanyProfile, JobFormData } from '../types/botConfig';
 import { isSupabaseConfigured } from '../lib/supabase';
+import {
+  getConversationsList,
+  getConversationMessages,
+  deleteConversation,
+  type ConversationSummary,
+  type ConversationMessage,
+} from '../services/conversations';
 
-type TabType = 'jobs' | 'company' | 'style' | 'objectives' | 'prompt';
+type TabType = 'jobs' | 'company' | 'style' | 'objectives' | 'prompt' | 'conversations';
 
 // Tab configuration
 const tabs: { id: TabType; name: string; icon: typeof Briefcase }[] = [
@@ -49,6 +59,7 @@ const tabs: { id: TabType; name: string; icon: typeof Briefcase }[] = [
   { id: 'style', name: 'Communication Style', icon: MessageSquare },
   { id: 'objectives', name: 'Objectives', icon: Target },
   { id: 'prompt', name: 'System Prompt', icon: Eye },
+  { id: 'conversations', name: 'Conversations', icon: MessageCircle },
 ];
 
 // Empty job form data
@@ -105,6 +116,16 @@ export default function BotConfig() {
   const [showImageImportModal, setShowImageImportModal] = useState(false);
   const [importingImage, setImportingImage] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  // Conversations state
+  const [conversationsList, setConversationsList] = useState<ConversationSummary[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<{
+    platform: string;
+    platform_user_id: string;
+    name: string;
+  } | null>(null);
+  const [conversationMessages, setConversationMessages] = useState<ConversationMessage[]>([]);
+  const [loadingConversations, setLoadingConversations] = useState(false);
 
   // Load data on mount
   useEffect(() => {
@@ -431,6 +452,79 @@ Return ONLY the JSON, no explanation.`,
       setImportingImage(false);
     }
   }
+
+  // ============================================================================
+  // CONVERSATIONS
+  // ============================================================================
+
+  async function loadConversations() {
+    setLoadingConversations(true);
+    try {
+      const convos = await getConversationsList();
+      setConversationsList(convos);
+    } catch (err) {
+      console.error('Error loading conversations:', err);
+      setError('Failed to load conversations');
+    } finally {
+      setLoadingConversations(false);
+    }
+  }
+
+  async function viewConversation(platform: string, platformUserId: string, name: string) {
+    setSelectedConversation({ platform, platform_user_id: platformUserId, name });
+    try {
+      const messages = await getConversationMessages(platform, platformUserId);
+      setConversationMessages(messages);
+    } catch (err) {
+      console.error('Error loading conversation messages:', err);
+      setError('Failed to load conversation messages');
+    }
+  }
+
+  async function handleDeleteConversation(platform: string, platformUserId: string, name: string) {
+    if (!confirm(`Delete all conversation history for ${name}? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const result = await deleteConversation(platform, platformUserId);
+      setSuccess(`Deleted ${result.deletedMessages} messages`);
+      setConversationsList(conversationsList.filter(
+        c => !(c.platform === platform && c.platform_user_id === platformUserId)
+      ));
+      if (selectedConversation?.platform === platform && selectedConversation?.platform_user_id === platformUserId) {
+        setSelectedConversation(null);
+        setConversationMessages([]);
+      }
+    } catch (err) {
+      console.error('Error deleting conversation:', err);
+      setError('Failed to delete conversation');
+    }
+  }
+
+  function formatMessageTime(dateStr: string): string {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      return date.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' });
+    } else if (diffDays === 1) {
+      return 'Yesterday ' + date.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' });
+    } else if (diffDays < 7) {
+      return date.toLocaleDateString('en-SG', { weekday: 'short' }) + ' ' +
+        date.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' });
+    } else {
+      return date.toLocaleDateString('en-SG', { day: 'numeric', month: 'short' });
+    }
+  }
+
+  // Load conversations when tab is selected
+  useEffect(() => {
+    if (activeTab === 'conversations' && conversationsList.length === 0) {
+      loadConversations();
+    }
+  }, [activeTab]);
 
   // ============================================================================
   // GENERATE SYSTEM PROMPT
@@ -1283,6 +1377,149 @@ Return ONLY the JSON, no explanation.`,
                 <li>• <strong>Goals:</strong> From Objectives tab</li>
               </ul>
             </div>
+          </div>
+        )}
+
+        {/* Conversations Tab */}
+        {activeTab === 'conversations' && (
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800">Conversation History</h2>
+                <p className="text-sm text-slate-500">View and manage chatbot conversations with candidates.</p>
+              </div>
+              <button
+                onClick={loadConversations}
+                disabled={loadingConversations}
+                className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 flex items-center gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 ${loadingConversations ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
+
+            {loadingConversations ? (
+              <div className="flex items-center justify-center py-12">
+                <RefreshCw className="w-8 h-8 animate-spin text-cgp-red" />
+              </div>
+            ) : conversationsList.length === 0 ? (
+              <div className="text-center py-12 text-slate-500">
+                <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>No conversations yet.</p>
+                <p className="text-sm">Conversations will appear here after users chat with your bot.</p>
+                <p className="text-xs text-slate-400 mt-2">
+                  Note: Run the migration SQL first to create the conversations table.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Conversations List */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-slate-700 mb-2">
+                    All Conversations ({conversationsList.length})
+                  </h3>
+                  <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                    {conversationsList.map((convo) => (
+                      <div
+                        key={`${convo.platform}-${convo.platform_user_id}`}
+                        className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                          selectedConversation?.platform_user_id === convo.platform_user_id
+                            ? 'border-cgp-red bg-red-50/50'
+                            : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                        }`}
+                        onClick={() => viewConversation(convo.platform, convo.platform_user_id, convo.candidate_name)}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <User className="w-4 h-4 text-slate-400" />
+                              <span className="font-medium text-slate-800 truncate">
+                                {convo.candidate_name}
+                              </span>
+                              <span className={`px-1.5 py-0.5 text-xs rounded ${
+                                convo.platform === 'telegram'
+                                  ? 'bg-blue-100 text-blue-700'
+                                  : 'bg-green-100 text-green-700'
+                              }`}>
+                                {convo.platform}
+                              </span>
+                            </div>
+                            {convo.username && (
+                              <p className="text-xs text-slate-500 mt-0.5">@{convo.username}</p>
+                            )}
+                            <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+                              <span>{convo.message_count} messages</span>
+                              <span>Stage: {convo.stage}</span>
+                              {convo.applied_role && (
+                                <span className="text-cgp-red">{convo.applied_role}</span>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteConversation(convo.platform, convo.platform_user_id, convo.candidate_name);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"
+                            title="Delete conversation"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Conversation Messages */}
+                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  {selectedConversation ? (
+                    <>
+                      <div className="p-3 bg-slate-50 border-b border-slate-200">
+                        <div className="flex items-center gap-2">
+                          <User className="w-5 h-5 text-slate-500" />
+                          <span className="font-medium text-slate-800">{selectedConversation.name}</span>
+                        </div>
+                      </div>
+                      <div className="p-4 max-h-[400px] overflow-y-auto space-y-3 bg-slate-50/50">
+                        {conversationMessages.length === 0 ? (
+                          <p className="text-center text-slate-500 py-8">No messages</p>
+                        ) : (
+                          conversationMessages.map((msg) => (
+                            <div
+                              key={msg.id}
+                              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                            >
+                              <div
+                                className={`max-w-[80%] rounded-lg px-3 py-2 ${
+                                  msg.role === 'user'
+                                    ? 'bg-cgp-red text-white'
+                                    : 'bg-white border border-slate-200 text-slate-800'
+                                }`}
+                              >
+                                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                                <p className={`text-xs mt-1 ${
+                                  msg.role === 'user' ? 'text-red-200' : 'text-slate-400'
+                                }`}>
+                                  {formatMessageTime(msg.created_at)}
+                                </p>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center justify-center h-[400px] text-slate-500">
+                      <div className="text-center">
+                        <Send className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p>Select a conversation to view messages</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
