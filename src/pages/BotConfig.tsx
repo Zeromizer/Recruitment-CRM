@@ -41,7 +41,7 @@ import {
   seedDefaultKnowledgebase,
 } from '../services/knowledgebase';
 import type { JobPost, CompanyProfile, JobFormData } from '../types/botConfig';
-import { isSupabaseConfigured } from '../lib/supabase';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import {
   getConversationsList,
   getConversationMessages,
@@ -519,12 +519,70 @@ Return ONLY the JSON, no explanation.`,
     }
   }
 
-  // Load conversations when tab is selected
+  // Load conversations and set up realtime subscription when tab is selected
   useEffect(() => {
-    if (activeTab === 'conversations' && conversationsList.length === 0) {
+    if (activeTab !== 'conversations') return;
+
+    // Load initial data
+    if (conversationsList.length === 0) {
       loadConversations();
     }
-  }, [activeTab]);
+
+    // Set up realtime subscription for new messages
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel('conversations-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'conversations',
+        },
+        (payload) => {
+          console.log('New message received:', payload);
+          const newMsg = payload.new as ConversationMessage;
+
+          // If viewing this conversation, add the message
+          if (
+            selectedConversation &&
+            newMsg.platform === selectedConversation.platform &&
+            newMsg.platform_user_id === selectedConversation.platform_user_id
+          ) {
+            setConversationMessages((prev) => [...prev, newMsg]);
+          }
+
+          // Update conversation list (increment message count)
+          setConversationsList((prev) =>
+            prev.map((conv) =>
+              conv.platform === newMsg.platform &&
+              conv.platform_user_id === newMsg.platform_user_id
+                ? { ...conv, message_count: conv.message_count + 1 }
+                : conv
+            )
+          );
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'conversation_states',
+        },
+        () => {
+          // New conversation started - reload list
+          loadConversations();
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription on unmount or tab change
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeTab, selectedConversation]);
 
   // ============================================================================
   // GENERATE SYSTEM PROMPT
@@ -1385,7 +1443,15 @@ Return ONLY the JSON, no explanation.`,
           <div className="p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-lg font-semibold text-slate-800">Conversation History</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-semibold text-slate-800">Conversation History</h2>
+                  {supabase && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                      <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                      Live
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-slate-500">View and manage chatbot conversations with candidates.</p>
               </div>
               <button

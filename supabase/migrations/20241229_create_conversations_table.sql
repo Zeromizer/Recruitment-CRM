@@ -130,6 +130,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Enable Realtime for live updates in CRM
+-- Note: This adds the tables to the supabase_realtime publication
+ALTER PUBLICATION supabase_realtime ADD TABLE conversations;
+ALTER PUBLICATION supabase_realtime ADD TABLE conversation_states;
+
 -- Comments for documentation
 COMMENT ON TABLE conversations IS 'Stores individual chat messages for Telegram and WhatsApp bots';
 COMMENT ON TABLE conversation_states IS 'Tracks conversation progress and state for each user';
