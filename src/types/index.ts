@@ -84,11 +84,11 @@ export type InterviewRound = '1st' | '2nd' | '3rd' | 'Final' | 'Assessment';
 export type InterviewStatus = 'Scheduled' | 'Completed' | 'Cancelled' | 'No Show';
 
 // Source
-export type CandidateSource = 'Seek' | 'FastJobs' | 'Indeed' | 'LinkedIn' | 'Direct' | 'Referral' | 'Email' | 'WhatsApp' | 'Telegram';
+export type CandidateSource = 'Seek' | 'FastJobs' | 'Indeed' | 'LinkedIn' | 'Direct' | 'Referral' | 'Email' | 'WhatsApp' | 'Telegram' | 'Others';
 
 export const SOURCE_OPTIONS: CandidateSource[] = [
-  'Seek',
   'FastJobs',
+  'Seek',
   'Indeed',
   'LinkedIn',
   'Direct',
@@ -96,6 +96,7 @@ export const SOURCE_OPTIONS: CandidateSource[] = [
   'Email',
   'WhatsApp',
   'Telegram',
+  'Others',
 ];
 
 export interface Candidate {
