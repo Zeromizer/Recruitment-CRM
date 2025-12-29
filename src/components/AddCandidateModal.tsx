@@ -87,7 +87,7 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
     }
 
     if (!emailSubject.trim()) {
-      setError('Please enter an email subject (e.g., "Application for Senior Developer")');
+      setError('Please enter the job role (e.g., "Senior Software Engineer")');
       return;
     }
 
@@ -96,15 +96,16 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
 
     try {
       // Convert file to base64
-      const pdfBase64 = await fileToBase64(file);
+      const fileBase64 = await fileToBase64(file);
       setStep('fetching_roles');
 
       // Perform full screening
       setStep('screening');
       const screeningResult = await performFullScreening({
-        pdfBase64,
+        pdfBase64: fileBase64,
         emailSubject,
         source,
+        mediaType: file.type,
       });
 
       setResult(screeningResult);
