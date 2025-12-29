@@ -105,16 +105,18 @@ async def add_knowledge(
     category: str,
     key: str,
     value: Dict[str, Any],
-    created_by: str = None
+    created_by: str = None,
+    generate_embedding: bool = True
 ) -> Optional[Dict]:
     """
-    Add or update a knowledge entry.
+    Add or update a knowledge entry with optional embedding generation.
 
     Args:
         category: Category (role, faq, company, style, objective)
         key: Unique key within category
         value: JSON data for the entry
         created_by: Who is adding this (user ID or name)
+        generate_embedding: Whether to generate vector embedding for RAG
 
     Returns:
         The created/updated entry or None on error
@@ -129,6 +131,20 @@ async def add_knowledge(
             "created_by": created_by,
             "is_active": True
         }
+
+        # Generate embedding if requested
+        if generate_embedding:
+            try:
+                from .embeddings import generate_embedding as gen_embed, get_text_for_embedding
+                text_to_embed = get_text_for_embedding(category, value)
+                if text_to_embed:
+                    embedding = await gen_embed(text_to_embed, use_cache=False)
+                    if embedding:
+                        data["embedding"] = embedding
+                        print(f"Generated embedding for {category}/{key}")
+            except Exception as e:
+                print(f"Warning: Could not generate embedding: {e}")
+                # Continue without embedding
 
         # Try to upsert (insert or update on conflict)
         result = client.table("knowledgebase").upsert(
