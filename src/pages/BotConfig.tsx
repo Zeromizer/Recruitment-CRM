@@ -342,6 +342,42 @@ export default function BotConfig() {
     setImagePreviews(prev => prev.filter((_, i) => i !== index));
   }
 
+  // Handle paste from clipboard
+  async function handlePaste(event: ClipboardEvent) {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+
+    const newPreviews: string[] = [];
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.readAsDataURL(file);
+          });
+          newPreviews.push(base64);
+        }
+      }
+    }
+
+    if (newPreviews.length > 0) {
+      event.preventDefault();
+      setImagePreviews(prev => [...prev, ...newPreviews]);
+    }
+  }
+
+  // Listen for paste events when image import modal is open
+  useEffect(() => {
+    if (showImageImportModal) {
+      document.addEventListener('paste', handlePaste);
+      return () => document.removeEventListener('paste', handlePaste);
+    }
+  }, [showImageImportModal]);
+
   async function processImageWithAI() {
     if (imagePreviews.length === 0) return;
 
@@ -1883,9 +1919,9 @@ Return ONLY the JSON, no explanation.`,
               <label className={`flex flex-col items-center justify-center w-full border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-cgp-red hover:bg-red-50/50 transition-colors ${imagePreviews.length > 0 ? 'h-24' : 'h-48'}`}>
                 <ImagePlus className={`text-slate-400 mb-2 ${imagePreviews.length > 0 ? 'w-6 h-6' : 'w-10 h-10'}`} />
                 <span className="text-sm text-slate-500">
-                  {imagePreviews.length > 0 ? 'Add more images' : 'Click to upload images'}
+                  {imagePreviews.length > 0 ? 'Add more images' : 'Click to upload or paste images'}
                 </span>
-                <span className="text-xs text-slate-400 mt-1">PNG, JPG up to 10MB each</span>
+                <span className="text-xs text-slate-400 mt-1">PNG, JPG up to 10MB each • Ctrl+V to paste</span>
                 <input
                   type="file"
                   accept="image/*"
