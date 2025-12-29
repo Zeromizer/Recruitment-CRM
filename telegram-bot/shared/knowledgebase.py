@@ -505,9 +505,11 @@ ROLE_KNOWLEDGE = {
 # =============================================================================
 
 def get_active_roles() -> Dict[str, Dict]:
-    """Get only active roles (is_active=True)."""
+    """Get only active roles (is_active=True), preferring database."""
+    # Get all roles from database + static
+    all_roles = get_all_roles()
     return {
-        key: role for key, role in ROLE_KNOWLEDGE.items()
+        key: role for key, role in all_roles.items()
         if role.get("is_active", False) and key != "general"
     }
 
@@ -517,20 +519,24 @@ def identify_role_from_text(text: str) -> Optional[str]:
     Identify the job role from a text message or resume.
     Returns the role key or None if no match found.
     Only matches against ACTIVE roles.
+    Uses database roles first, then falls back to static.
     """
     if not text:
         return None
 
     text_lower = text.lower()
 
+    # Get all roles from database + static
+    all_roles = get_all_roles()
+
     # First, check active roles only
-    for role_key, role_info in ROLE_KNOWLEDGE.items():
+    for role_key, role_info in all_roles.items():
         if role_key == "general":
             continue
         if not role_info.get("is_active", False):
             continue  # Skip inactive roles
         for keyword in role_info.get("keywords", []):
-            if keyword in text_lower:
+            if keyword.lower() in text_lower:
                 return role_key
 
     return None
@@ -547,7 +553,10 @@ def get_experience_question(role_key: str) -> str:
 
 
 def get_role_info(role_key: str) -> Dict:
-    """Get full role information."""
+    """Get full role information, preferring database."""
+    role = get_role_from_db(role_key)
+    if role:
+        return role
     return ROLE_KNOWLEDGE.get(role_key, ROLE_KNOWLEDGE["general"])
 
 
@@ -841,7 +850,7 @@ async def reload_from_database() -> bool:
     """
     global _db_loaded, _db_knowledge, ROLE_KNOWLEDGE, FAQ_KNOWLEDGE
     global COMPANY_INFO, COMMUNICATION_STYLE, CONVERSATION_OBJECTIVES
-    global RECRUITER_NAME, COMPANY_NAME, APPLICATION_FORM_URL
+    global RECRUITER_NAME, COMPANY_NAME, COMPANY_FULL_NAME, APPLICATION_FORM_URL
 
     try:
         from .knowledgebase_db import (
@@ -883,6 +892,7 @@ async def reload_from_database() -> bool:
 
         # Update company info if available
         if CATEGORY_COMPANY in kb:
+            # Handle bot's format (key='info' and key='recruiter')
             if "info" in kb[CATEGORY_COMPANY]:
                 COMPANY_INFO.update(kb[CATEGORY_COMPANY]["info"])
             if "recruiter" in kb[CATEGORY_COMPANY]:
@@ -891,13 +901,62 @@ async def reload_from_database() -> bool:
                     RECRUITER_NAME = recruiter_info["name"]
                 if recruiter_info.get("application_form_url"):
                     APPLICATION_FORM_URL = recruiter_info["application_form_url"]
+
+            # Handle CRM's format (key='profile')
+            if "profile" in kb[CATEGORY_COMPANY]:
+                profile = kb[CATEGORY_COMPANY]["profile"]
+                # Map CRM profile fields to bot's COMPANY_INFO
+                COMPANY_INFO.update({
+                    "name": profile.get("name", COMPANY_INFO.get("name")),
+                    "full_name": profile.get("full_name", COMPANY_INFO.get("full_name")),
+                    "description": profile.get("description", COMPANY_INFO.get("description")),
+                    "industries": profile.get("industries", COMPANY_INFO.get("industries", [])),
+                })
+                # Update global variables
+                if profile.get("name"):
+                    COMPANY_NAME = profile["name"]
+                if profile.get("full_name"):
+                    COMPANY_FULL_NAME = profile["full_name"]
+                if profile.get("recruiter_name"):
+                    RECRUITER_NAME = profile["recruiter_name"]
+                if profile.get("application_form_url"):
+                    APPLICATION_FORM_URL = profile["application_form_url"]
+
             print("Loaded company info from database")
 
         # Update communication style if available
         if CATEGORY_STYLE in kb:
+            # Handle bot's format (keys: 'personality', 'language', 'formatting')
             for key, value in kb[CATEGORY_STYLE].items():
-                COMMUNICATION_STYLE[key] = value
+                if key != "communication":
+                    COMMUNICATION_STYLE[key] = value
+
+            # Handle CRM's format (key='communication')
+            if "communication" in kb[CATEGORY_STYLE]:
+                crm_style = kb[CATEGORY_STYLE]["communication"]
+                # Map CRM style fields to bot's COMMUNICATION_STYLE
+                COMMUNICATION_STYLE["personality"] = {
+                    "tone": crm_style.get("tone", "friendly"),
+                    "approach": crm_style.get("formality", "casual"),
+                }
+                COMMUNICATION_STYLE["crm_settings"] = crm_style  # Store full CRM settings
+
             print("Loaded communication style from database")
+
+        # Update objectives if available
+        if CATEGORY_OBJECTIVE in kb:
+            # Handle CRM's format (key='conversation')
+            if "conversation" in kb[CATEGORY_OBJECTIVE]:
+                crm_obj = kb[CATEGORY_OBJECTIVE]["conversation"]
+                # Store CRM objectives for reference in system prompt
+                CONVERSATION_OBJECTIVES["crm_settings"] = crm_obj
+                if crm_obj.get("closing_messages"):
+                    # Use first closing message as the closing phrase
+                    closing_msgs = crm_obj["closing_messages"].split("\n")
+                    if closing_msgs:
+                        CONVERSATION_OBJECTIVES["closing_approach"]["phrase"] = closing_msgs[0]
+
+            print("Loaded objectives from database")
 
         _db_loaded = True
         print("Knowledgebase successfully loaded from database")

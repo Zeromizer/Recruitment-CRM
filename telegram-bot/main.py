@@ -40,6 +40,27 @@ TIMEZONE = ZoneInfo("Asia/Singapore")
 OPERATING_START = dt_time(8, 30)  # 8:30 AM
 OPERATING_END = dt_time(22, 0)    # 10:00 PM
 
+# Knowledgebase auto-refresh interval (5 minutes)
+KB_REFRESH_INTERVAL = 300  # seconds
+
+
+async def periodic_knowledgebase_refresh():
+    """
+    Background task that periodically refreshes the knowledgebase from database.
+    This ensures the bot picks up changes made in the CRM without requiring a restart.
+    """
+    while True:
+        try:
+            await asyncio.sleep(KB_REFRESH_INTERVAL)
+            print(f"[{datetime.now(TIMEZONE)}] Auto-refreshing knowledgebase...")
+            success = await reload_from_database()
+            if success:
+                print(f"[{datetime.now(TIMEZONE)}] Knowledgebase auto-refresh complete")
+            else:
+                print(f"[{datetime.now(TIMEZONE)}] Knowledgebase auto-refresh: no changes")
+        except Exception as e:
+            print(f"[{datetime.now(TIMEZONE)}] Error during knowledgebase auto-refresh: {e}")
+
 
 def is_within_operating_hours() -> bool:
     """Check if current time is within operating hours (8:30 AM - 10:00 PM Singapore time)."""
@@ -1033,7 +1054,11 @@ async def main():
 
     print("=" * 50)
     print("Bot is running! Waiting for messages...")
+    print(f"Knowledgebase will auto-refresh every {KB_REFRESH_INTERVAL} seconds")
     print("=" * 50)
+
+    # Start background task for periodic knowledgebase refresh
+    asyncio.create_task(periodic_knowledgebase_refresh())
 
     await client.run_until_disconnected()
 
