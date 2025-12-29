@@ -1047,7 +1047,7 @@ def setup_handlers(telegram_client):
                             await update_conversation_state_async(
                                 user_id,
                                 resume_received=True,
-                                candidate_name=first_name,
+                                # Don't overwrite candidate_name - keep original Telegram display name
                                 applied_role=matched_job,
                                 stage="resume_received"
                             )
