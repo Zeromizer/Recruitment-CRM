@@ -20,6 +20,8 @@ import {
   CheckCircle,
   Eye,
   Copy,
+  ImagePlus,
+  Loader2,
 } from 'lucide-react';
 import {
   getJobPosts,
@@ -98,6 +100,11 @@ export default function BotConfig() {
   const [showJobModal, setShowJobModal] = useState(false);
   const [editingJob, setEditingJob] = useState<string | null>(null);
   const [jobForm, setJobForm] = useState<JobFormData>(emptyJobForm);
+
+  // Image import state
+  const [showImageImportModal, setShowImageImportModal] = useState(false);
+  const [importingImage, setImportingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   // Load data on mount
   useEffect(() => {
@@ -280,6 +287,148 @@ export default function BotConfig() {
       setError('Failed to seed data');
     } finally {
       setSaving(false);
+    }
+  }
+
+  // ============================================================================
+  // IMAGE IMPORT
+  // ============================================================================
+
+  async function handleImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Convert to base64 for preview and API
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setImagePreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function processImageWithAI() {
+    if (!imagePreview) return;
+
+    setImportingImage(true);
+    setError(null);
+
+    try {
+      // Use the same API key as resume screening
+      const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        setError('Anthropic API key not configured. Please set VITE_ANTHROPIC_API_KEY in your environment.');
+        setImportingImage(false);
+        return;
+      }
+
+      // Extract base64 data from data URL
+      const base64Data = imagePreview.split(',')[1];
+      const mediaType = imagePreview.split(';')[0].split(':')[1];
+
+      // Call Claude API with vision
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1024,
+          messages: [{
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: mediaType,
+                  data: base64Data,
+                },
+              },
+              {
+                type: 'text',
+                text: `Extract job posting details from this image and return ONLY a JSON object with these fields (use empty string if not found):
+{
+  "title": "job title",
+  "salary": "salary range",
+  "location": "work location",
+  "work_type": "full-time/part-time/contract",
+  "day_shift": "day shift hours if mentioned",
+  "overnight_shift": "night shift hours if mentioned",
+  "responsibilities": "comma-separated list of responsibilities",
+  "requirements": "comma-separated list of requirements",
+  "keywords": "comma-separated keywords for matching (job type, industry, skills)",
+  "citizenship_required": "SC for Singaporean only, PR for PR/Citizen, Any for no restriction",
+  "notes": "any other important notes"
+}
+
+Return ONLY the JSON, no explanation.`,
+              },
+            ],
+          }],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (response.status === 401) {
+          throw new Error('Invalid API key. Check your VITE_ANTHROPIC_API_KEY configuration.');
+        }
+        throw new Error(errorData.error?.message || 'Failed to process image');
+      }
+
+      const data = await response.json();
+      const content = data.content[0]?.text;
+
+      // Parse the JSON response
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('Could not parse job details from image');
+      }
+
+      const jobData = JSON.parse(jsonMatch[0]);
+
+      // Generate a key from the title
+      const key = jobData.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '')
+        .substring(0, 30);
+
+      // Pre-fill the job form
+      setJobForm({
+        key: key || '',
+        title: jobData.title || '',
+        is_active: true,
+        keywords: jobData.keywords || '',
+        salary: jobData.salary || '',
+        location: jobData.location || '',
+        work_type: jobData.work_type || '',
+        day_shift: jobData.day_shift || '',
+        overnight_shift: jobData.overnight_shift || '',
+        responsibilities: jobData.responsibilities || '',
+        requirements: jobData.requirements || '',
+        experience_questions: '',
+        key_skills: '',
+        citizenship_required: (jobData.citizenship_required as 'SC' | 'PR' | 'Any') || 'Any',
+        notes: jobData.notes || '',
+      });
+
+      // Close image modal and open job form
+      setShowImageImportModal(false);
+      setImagePreview(null);
+      setEditingJob(null);
+      setShowJobModal(true);
+      setSuccess('Job details extracted! Review and save.');
+
+    } catch (err) {
+      console.error('Error processing image:', err);
+      setError(err instanceof Error ? err.message : 'Failed to process image');
+    } finally {
+      setImportingImage(false);
     }
   }
 
@@ -546,6 +695,13 @@ export default function BotConfig() {
                 <h2 className="text-lg font-semibold text-slate-800">Job Posts</h2>
                 <p className="text-sm text-slate-500">Manage available positions. Toggle to enable/disable jobs for the bot.</p>
               </div>
+              <button
+                onClick={() => setShowImageImportModal(true)}
+                className="px-4 py-2 text-sm font-medium text-cgp-red border border-cgp-red rounded-lg hover:bg-cgp-red/5 flex items-center gap-2"
+              >
+                <ImagePlus className="w-4 h-4" />
+                Import from Image
+              </button>
               <button
                 onClick={openAddJobModal}
                 className="px-4 py-2 text-sm font-medium text-white bg-cgp-red rounded-lg hover:bg-cgp-red/90 flex items-center gap-2"
@@ -1330,6 +1486,96 @@ export default function BotConfig() {
               >
                 <Save className="w-4 h-4" />
                 {saving ? 'Saving...' : 'Save Job'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Import Modal */}
+      {showImageImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg m-4">
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+              <h2 className="text-lg font-semibold text-slate-800">Import Job from Image</h2>
+              <button
+                onClick={() => {
+                  setShowImageImportModal(false);
+                  setImagePreview(null);
+                }}
+                className="p-1 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <p className="text-sm text-slate-600">
+                Upload an image of a job posting and AI will extract the details automatically.
+              </p>
+
+              {!imagePreview ? (
+                <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-cgp-red hover:bg-red-50/50 transition-colors">
+                  <ImagePlus className="w-10 h-10 text-slate-400 mb-2" />
+                  <span className="text-sm text-slate-500">Click to upload image</span>
+                  <span className="text-xs text-slate-400 mt-1">PNG, JPG up to 10MB</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                </label>
+              ) : (
+                <div className="space-y-3">
+                  <div className="relative">
+                    <img
+                      src={imagePreview}
+                      alt="Job posting preview"
+                      className="w-full max-h-64 object-contain rounded-lg border border-slate-200"
+                    />
+                    <button
+                      onClick={() => setImagePreview(null)}
+                      className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg">
+                <strong>Note:</strong> This feature uses Claude AI to analyze the image,
+                using the same API key configured for resume screening.
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 p-4 border-t border-slate-200">
+              <button
+                onClick={() => {
+                  setShowImageImportModal(false);
+                  setImagePreview(null);
+                }}
+                className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={processImageWithAI}
+                disabled={!imagePreview || importingImage}
+                className="px-4 py-2 text-sm font-medium text-white bg-cgp-red rounded-lg hover:bg-cgp-red/90 disabled:opacity-50 flex items-center gap-2"
+              >
+                {importingImage ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-4 h-4" />
+                    Extract Job Details
+                  </>
+                )}
               </button>
             </div>
           </div>
