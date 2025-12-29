@@ -51,6 +51,88 @@ export async function extractPdfText(file: File): Promise<string> {
   return text;
 }
 
+// Extract text from PDF using Claude's vision API (for image-based PDFs like Canva resumes)
+export async function extractPdfTextWithVision(file: File): Promise<string> {
+  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+
+  if (!apiKey) {
+    console.warn('Anthropic API key not configured, cannot use vision fallback');
+    return '';
+  }
+
+  // Convert file to base64
+  const arrayBuffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const pdfBase64 = btoa(binary);
+
+  console.log('Using Claude vision API to extract text from image-based PDF...');
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 4096,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: {
+                type: 'base64',
+                media_type: 'application/pdf',
+                data: pdfBase64,
+              },
+            },
+            {
+              type: 'text',
+              text: `Extract ALL text content from this resume/CV document.
+Include everything: name, contact details, work experience, education, skills, certifications, etc.
+Format it in a readable way, preserving the structure and sections.
+Just output the extracted text, no commentary.`,
+            },
+          ],
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error('Vision API error:', error);
+    return '';
+  }
+
+  const result = await response.json();
+  const extractedText = result.content?.[0]?.text || '';
+  console.log(`Vision API extracted ${extractedText.length} characters from PDF`);
+
+  return extractedText;
+}
+
+// Extract text from PDF with automatic fallback to vision API for image-based PDFs
+export async function extractPdfTextWithFallback(file: File): Promise<string> {
+  // First try pdf.js extraction (fast, works for normal PDFs)
+  let text = await extractPdfText(file);
+
+  // If extraction returned very little text, try vision API fallback
+  if (!text || text.trim().length < 100) {
+    console.log(`pdf.js extracted only ${text.trim().length} chars, trying vision API fallback...`);
+    text = await extractPdfTextWithVision(file);
+  }
+
+  return text;
+}
+
 // Extract text from Word document using mammoth
 export async function extractWordText(file: File): Promise<string> {
   const mammoth = await import('mammoth');
@@ -71,7 +153,8 @@ export async function extractTextFromUrl(url: string): Promise<string> {
   const file = new File([blob], 'resume.pdf', { type: contentType });
 
   if (contentType.includes('pdf')) {
-    return extractPdfText(file);
+    // Use fallback extraction that tries pdf.js first, then vision API
+    return extractPdfTextWithFallback(file);
   } else if (contentType.includes('word') || contentType.includes('document')) {
     return extractWordText(file);
   }
@@ -294,7 +377,8 @@ export async function convertResumeToCGP(
   } else {
     const fileName = resumeSource.name.toLowerCase();
     if (fileName.endsWith('.pdf')) {
-      resumeText = await extractPdfText(resumeSource);
+      // Use fallback extraction that tries pdf.js first, then vision API for image-based PDFs
+      resumeText = await extractPdfTextWithFallback(resumeSource);
     } else if (fileName.endsWith('.doc') || fileName.endsWith('.docx')) {
       resumeText = await extractWordText(resumeSource);
     } else {
