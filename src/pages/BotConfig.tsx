@@ -115,7 +115,7 @@ export default function BotConfig() {
   // Image import state
   const [showImageImportModal, setShowImageImportModal] = useState(false);
   const [importingImage, setImportingImage] = useState(false);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
 
   // Conversations state
   const [conversationsList, setConversationsList] = useState<ConversationSummary[]>([]);
@@ -317,19 +317,33 @@ export default function BotConfig() {
   // ============================================================================
 
   async function handleImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
 
-    // Convert to base64 for preview and API
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setImagePreview(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    // Convert all files to base64 for preview and API
+    const newPreviews: string[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.readAsDataURL(file);
+      });
+      newPreviews.push(base64);
+    }
+
+    setImagePreviews(prev => [...prev, ...newPreviews]);
+    // Reset input so same files can be selected again
+    event.target.value = '';
+  }
+
+  function removeImage(index: number) {
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
   }
 
   async function processImageWithAI() {
-    if (!imagePreview) return;
+    if (imagePreviews.length === 0) return;
 
     setImportingImage(true);
     setError(null);
@@ -343,36 +357,31 @@ export default function BotConfig() {
         return;
       }
 
-      // Extract base64 data from data URL
-      const base64Data = imagePreview.split(',')[1];
-      const mediaType = imagePreview.split(';')[0].split(':')[1];
+      // Build content array with all images
+      const contentArray: Array<{type: 'image'; source: {type: 'base64'; media_type: string; data: string}} | {type: 'text'; text: string}> = [];
 
-      // Call Claude API with vision
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1024,
-          messages: [{
-            role: 'user',
-            content: [
-              {
-                type: 'image',
-                source: {
-                  type: 'base64',
-                  media_type: mediaType,
-                  data: base64Data,
-                },
-              },
-              {
-                type: 'text',
-                text: `Extract job posting details from this image and return ONLY a JSON object with these fields (use empty string if not found):
+      // Add each image to the content array
+      imagePreviews.forEach((preview) => {
+        const base64Data = preview.split(',')[1];
+        const mediaType = preview.split(';')[0].split(':')[1];
+        contentArray.push({
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: mediaType,
+            data: base64Data,
+          },
+        });
+      });
+
+      // Add the text prompt at the end
+      const imageCountText = imagePreviews.length > 1
+        ? `These ${imagePreviews.length} images are parts of the same job posting. Combine the information from all images.`
+        : 'Extract job posting details from this image.';
+
+      contentArray.push({
+        type: 'text',
+        text: `${imageCountText} Return ONLY a JSON object with these fields (use empty string if not found):
 {
   "title": "job title",
   "salary": "salary range",
@@ -388,8 +397,23 @@ export default function BotConfig() {
 }
 
 Return ONLY the JSON, no explanation.`,
-              },
-            ],
+      });
+
+      // Call Claude API with vision
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1024,
+          messages: [{
+            role: 'user',
+            content: contentArray,
           }],
         }),
       });
@@ -441,7 +465,7 @@ Return ONLY the JSON, no explanation.`,
 
       // Close image modal and open job form
       setShowImageImportModal(false);
-      setImagePreview(null);
+      setImagePreviews([]);
       setEditingJob(null);
       setShowJobModal(true);
       setSuccess('Job details extracted! Review and save.');
@@ -1815,7 +1839,7 @@ Return ONLY the JSON, no explanation.`,
               <button
                 onClick={() => {
                   setShowImageImportModal(false);
-                  setImagePreview(null);
+                  setImagePreviews([]);
                 }}
                 className="p-1 text-slate-400 hover:text-slate-600"
               >
@@ -1825,41 +1849,60 @@ Return ONLY the JSON, no explanation.`,
 
             <div className="p-4 space-y-4">
               <p className="text-sm text-slate-600">
-                Upload an image of a job posting and AI will extract the details automatically.
+                Upload images of a job posting and AI will extract the details automatically.
+                You can upload multiple images if the job post spans multiple pages.
               </p>
 
-              {!imagePreview ? (
-                <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-cgp-red hover:bg-red-50/50 transition-colors">
-                  <ImagePlus className="w-10 h-10 text-slate-400 mb-2" />
-                  <span className="text-sm text-slate-500">Click to upload image</span>
-                  <span className="text-xs text-slate-400 mt-1">PNG, JPG up to 10MB</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                </label>
-              ) : (
-                <div className="space-y-3">
-                  <div className="relative">
-                    <img
-                      src={imagePreview}
-                      alt="Job posting preview"
-                      className="w-full max-h-64 object-contain rounded-lg border border-slate-200"
-                    />
-                    <button
-                      onClick={() => setImagePreview(null)}
-                      className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
+              {/* Image previews grid */}
+              {imagePreviews.length > 0 && (
+                <div className="grid grid-cols-2 gap-3">
+                  {imagePreviews.map((preview, index) => (
+                    <div key={index} className="relative group">
+                      <img
+                        src={preview}
+                        alt={`Job posting image ${index + 1}`}
+                        className="w-full h-32 object-cover rounded-lg border border-slate-200"
+                      />
+                      <div className="absolute top-1 right-1 flex gap-1">
+                        <span className="px-1.5 py-0.5 text-xs bg-black/60 text-white rounded">
+                          {index + 1}
+                        </span>
+                        <button
+                          onClick={() => removeImage(index)}
+                          className="p-1 bg-red-500 text-white rounded-full hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
 
+              {/* Upload area */}
+              <label className={`flex flex-col items-center justify-center w-full border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-cgp-red hover:bg-red-50/50 transition-colors ${imagePreviews.length > 0 ? 'h-24' : 'h-48'}`}>
+                <ImagePlus className={`text-slate-400 mb-2 ${imagePreviews.length > 0 ? 'w-6 h-6' : 'w-10 h-10'}`} />
+                <span className="text-sm text-slate-500">
+                  {imagePreviews.length > 0 ? 'Add more images' : 'Click to upload images'}
+                </span>
+                <span className="text-xs text-slate-400 mt-1">PNG, JPG up to 10MB each</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </label>
+
+              {imagePreviews.length > 0 && (
+                <p className="text-sm text-slate-500 text-center">
+                  {imagePreviews.length} image{imagePreviews.length > 1 ? 's' : ''} selected
+                </p>
+              )}
+
               <div className="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg">
-                <strong>Note:</strong> This feature uses Claude AI to analyze the image,
+                <strong>Note:</strong> This feature uses Claude AI to analyze the image{imagePreviews.length > 1 ? 's' : ''},
                 using the same API key configured for resume screening.
               </div>
             </div>
@@ -1868,7 +1911,7 @@ Return ONLY the JSON, no explanation.`,
               <button
                 onClick={() => {
                   setShowImageImportModal(false);
-                  setImagePreview(null);
+                  setImagePreviews([]);
                 }}
                 className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
               >
@@ -1876,7 +1919,7 @@ Return ONLY the JSON, no explanation.`,
               </button>
               <button
                 onClick={processImageWithAI}
-                disabled={!imagePreview || importingImage}
+                disabled={imagePreviews.length === 0 || importingImage}
                 className="px-4 py-2 text-sm font-medium text-white bg-cgp-red rounded-lg hover:bg-cgp-red/90 disabled:opacity-50 flex items-center gap-2"
               >
                 {importingImage ? (
