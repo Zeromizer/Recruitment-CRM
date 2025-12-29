@@ -207,6 +207,20 @@ export async function generateCGPDocument(data: ParsedResume, preparedBy: string
 
   let docXml = await documentXmlFile.async('string');
 
+  // ===== FIX HEADER - Replace incorrect website URL =====
+  // Process all header files (header1.xml, header2.xml, etc.)
+  const headerFiles = Object.keys(zip.files).filter(name => name.match(/word\/header\d*\.xml/));
+  for (const headerFile of headerFiles) {
+    const headerXmlFile = zip.file(headerFile);
+    if (headerXmlFile) {
+      let headerXml = await headerXmlFile.async('string');
+      // Replace incorrect website URL with correct one
+      headerXml = headerXml.replace(/https?:\/\/www\.cgpo2o\.com\/?/g, 'https://www.cgp-personnel.sg/');
+      headerXml = headerXml.replace(/www\.cgpo2o\.com/g, 'www.cgp-personnel.sg');
+      zip.file(headerFile, headerXml);
+    }
+  }
+
   // Ensure arrays are valid
   const education = Array.isArray(data.education) ? data.education : [];
   const workExperience = Array.isArray(data.workExperience) ? data.workExperience : [];
