@@ -288,6 +288,51 @@ export async function logToGoogleSheets(
   }
 }
 
+// Upload resume to Supabase Storage and return public URL
+export async function uploadResumeToStorage(file: File, candidateName: string): Promise<string | null> {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn('Supabase not configured, skipping resume upload');
+    return null;
+  }
+
+  try {
+    // Create a unique filename
+    const timestamp = Date.now();
+    const safeName = candidateName.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+    const extension = file.name.split('.').pop() || 'pdf';
+    const fileName = `${safeName}_${timestamp}.${extension}`;
+
+    // Upload to Supabase Storage
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+    const { data, error } = await supabase.storage
+      .from('resumes')
+      .upload(fileName, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+
+    if (error) {
+      console.error('Error uploading resume:', error);
+      return null;
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('resumes')
+      .getPublicUrl(data.path);
+
+    return urlData.publicUrl;
+  } catch (error) {
+    console.error('Error uploading resume:', error);
+    return null;
+  }
+}
+
 // Convert File to base64
 export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

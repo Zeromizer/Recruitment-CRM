@@ -12,6 +12,7 @@ import { useCreateCandidate, useCreateActivity } from '../hooks/useData';
 import {
   performFullScreening,
   fileToBase64,
+  uploadResumeToStorage,
   type ScreeningResult,
 } from '../services/aiScreening';
 import type { CandidateSource, CandidateStatus, AICategory, CitizenshipStatus } from '../types';
@@ -117,7 +118,7 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
   };
 
   const handleAddCandidate = async () => {
-    if (!result) return;
+    if (!result || !file) return;
 
     // Determine the status based on recommendation
     let status: CandidateStatus;
@@ -128,6 +129,9 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
     }
 
     try {
+      // Upload resume to storage
+      const resumeUrl = await uploadResumeToStorage(file, result.candidate_name);
+
       const newCandidate = await createCandidate.mutateAsync({
         date_received: new Date().toISOString(),
         full_name: result.candidate_name,
@@ -140,7 +144,7 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
         citizenship_status: result.citizenship_status as CitizenshipStatus,
         ai_summary: result.summary,
         ai_reasoning: '',
-        resume_url: '',
+        resume_url: resumeUrl || '',
         current_status: status,
         assigned_recruiter: null,
         matched_roles: [result.job_matched],
