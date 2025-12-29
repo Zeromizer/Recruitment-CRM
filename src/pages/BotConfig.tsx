@@ -27,6 +27,10 @@ import {
   deleteJobPost,
   getCompanyProfile,
   saveCompanyProfile,
+  getCommunicationStyle,
+  saveCommunicationStyle,
+  getObjectives,
+  saveObjectives,
   seedDefaultKnowledgebase,
 } from '../services/knowledgebase';
 import type { JobPost, CompanyProfile, JobFormData } from '../types/botConfig';
@@ -65,6 +69,22 @@ export default function BotConfig() {
   const [activeTab, setActiveTab] = useState<TabType>('jobs');
   const [jobs, setJobs] = useState<JobPost[]>([]);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
+  const [communicationStyle, setCommunicationStyle] = useState<{
+    tone: string;
+    language: string;
+    formality: string;
+    emoji_usage: string;
+    response_length: string;
+    custom_phrases: string;
+  } | null>(null);
+  const [objectives, setObjectives] = useState<{
+    primary_goal: string;
+    secondary_goals: string;
+    conversation_starters: string;
+    closing_messages: string;
+    escalation_triggers: string;
+    success_criteria: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,12 +120,16 @@ export default function BotConfig() {
 
     setLoading(true);
     try {
-      const [jobsData, profileData] = await Promise.all([
+      const [jobsData, profileData, styleData, objectivesData] = await Promise.all([
         getJobPosts(),
         getCompanyProfile(),
+        getCommunicationStyle(),
+        getObjectives(),
       ]);
       setJobs(jobsData);
       setCompanyProfile(profileData);
+      setCommunicationStyle(styleData as typeof communicationStyle);
+      setObjectives(objectivesData as typeof objectives);
     } catch (err) {
       console.error('Error loading data:', err);
       setError('Failed to load configuration data');
@@ -601,25 +625,276 @@ export default function BotConfig() {
 
         {/* Communication Style Tab */}
         {activeTab === 'style' && (
-          <div className="p-6">
-            <div className="text-center py-12 text-slate-500">
-              <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <h3 className="font-medium text-slate-700 mb-2">Communication Style</h3>
-              <p className="text-sm">Configure how the bot communicates with candidates.</p>
-              <p className="text-sm mt-2 text-slate-400">Coming soon...</p>
+          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800">Communication Style</h2>
+                <p className="text-sm text-slate-500">Configure how the bot communicates with candidates.</p>
+              </div>
+              <button
+                onClick={async () => {
+                  if (!communicationStyle) return;
+                  setSaving(true);
+                  try {
+                    await saveCommunicationStyle(communicationStyle);
+                    setSuccess('Communication style saved successfully');
+                  } catch (err) {
+                    console.error('Error saving style:', err);
+                    setError('Failed to save communication style');
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                disabled={saving || !communicationStyle}
+                className="px-4 py-2 text-sm font-medium text-white bg-cgp-red rounded-lg hover:bg-cgp-red/90 flex items-center gap-2 disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                Save Changes
+              </button>
             </div>
+
+            {!communicationStyle ? (
+              <div className="text-center py-12 text-slate-500">
+                <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>No communication style configured.</p>
+                <p className="text-sm">Click "Reset to Defaults" to get started.</p>
+                <button
+                  onClick={() => setCommunicationStyle({
+                    tone: 'friendly',
+                    language: 'english',
+                    formality: 'casual',
+                    emoji_usage: 'minimal',
+                    response_length: 'concise',
+                    custom_phrases: '',
+                  })}
+                  className="mt-4 px-4 py-2 text-sm font-medium text-cgp-red border border-cgp-red rounded-lg hover:bg-cgp-red/5"
+                >
+                  Create Style Configuration
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Tone</label>
+                    <select
+                      value={communicationStyle.tone}
+                      onChange={(e) => setCommunicationStyle({ ...communicationStyle, tone: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red"
+                    >
+                      <option value="friendly">Friendly & Warm</option>
+                      <option value="professional">Professional</option>
+                      <option value="enthusiastic">Enthusiastic & Energetic</option>
+                      <option value="empathetic">Empathetic & Understanding</option>
+                      <option value="direct">Direct & Efficient</option>
+                    </select>
+                    <p className="text-xs text-slate-400 mt-1">Sets the overall feeling of the conversation</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Language</label>
+                    <select
+                      value={communicationStyle.language}
+                      onChange={(e) => setCommunicationStyle({ ...communicationStyle, language: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red"
+                    >
+                      <option value="english">English</option>
+                      <option value="singlish">Singlish (Singapore English)</option>
+                      <option value="bilingual">Bilingual (English + Chinese)</option>
+                    </select>
+                    <p className="text-xs text-slate-400 mt-1">Primary language for bot responses</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Formality Level</label>
+                    <select
+                      value={communicationStyle.formality}
+                      onChange={(e) => setCommunicationStyle({ ...communicationStyle, formality: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red"
+                    >
+                      <option value="casual">Casual (like texting a friend)</option>
+                      <option value="semi-formal">Semi-formal (professional but approachable)</option>
+                      <option value="formal">Formal (corporate language)</option>
+                    </select>
+                    <p className="text-xs text-slate-400 mt-1">How formal should the bot sound</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Emoji Usage</label>
+                    <select
+                      value={communicationStyle.emoji_usage}
+                      onChange={(e) => setCommunicationStyle({ ...communicationStyle, emoji_usage: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red"
+                    >
+                      <option value="none">None</option>
+                      <option value="minimal">Minimal (occasional)</option>
+                      <option value="moderate">Moderate</option>
+                      <option value="frequent">Frequent</option>
+                    </select>
+                    <p className="text-xs text-slate-400 mt-1">How often to use emojis in messages</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Response Length</label>
+                    <select
+                      value={communicationStyle.response_length}
+                      onChange={(e) => setCommunicationStyle({ ...communicationStyle, response_length: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red"
+                    >
+                      <option value="concise">Concise (short, to the point)</option>
+                      <option value="balanced">Balanced (medium length)</option>
+                      <option value="detailed">Detailed (comprehensive)</option>
+                    </select>
+                    <p className="text-xs text-slate-400 mt-1">Preferred length of bot responses</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Custom Phrases / Greetings</label>
+                    <textarea
+                      value={communicationStyle.custom_phrases}
+                      onChange={(e) => setCommunicationStyle({ ...communicationStyle, custom_phrases: e.target.value })}
+                      placeholder="Enter custom phrases the bot should use, one per line. E.g.:&#10;Hello! Thanks for reaching out to CGP!&#10;Sounds great, let me help you with that!&#10;Welcome to CGP Singapore!"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red"
+                      rows={4}
+                    />
+                    <p className="text-xs text-slate-400 mt-1">Custom phrases the bot can use (one per line)</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* Objectives Tab */}
         {activeTab === 'objectives' && (
-          <div className="p-6">
-            <div className="text-center py-12 text-slate-500">
-              <Target className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <h3 className="font-medium text-slate-700 mb-2">Conversation Objectives</h3>
-              <p className="text-sm">Set goals and triggers for bot conversations.</p>
-              <p className="text-sm mt-2 text-slate-400">Coming soon...</p>
+          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800">Conversation Objectives</h2>
+                <p className="text-sm text-slate-500">Set goals and triggers for bot conversations.</p>
+              </div>
+              <button
+                onClick={async () => {
+                  if (!objectives) return;
+                  setSaving(true);
+                  try {
+                    await saveObjectives(objectives);
+                    setSuccess('Objectives saved successfully');
+                  } catch (err) {
+                    console.error('Error saving objectives:', err);
+                    setError('Failed to save objectives');
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                disabled={saving || !objectives}
+                className="px-4 py-2 text-sm font-medium text-white bg-cgp-red rounded-lg hover:bg-cgp-red/90 flex items-center gap-2 disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                Save Changes
+              </button>
             </div>
+
+            {!objectives ? (
+              <div className="text-center py-12 text-slate-500">
+                <Target className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>No objectives configured.</p>
+                <p className="text-sm">Click "Reset to Defaults" to get started.</p>
+                <button
+                  onClick={() => setObjectives({
+                    primary_goal: 'Qualify candidates for job openings and collect their contact information for follow-up',
+                    secondary_goals: 'Answer questions about job requirements\nProvide company information\nSchedule interviews when appropriate',
+                    conversation_starters: 'Hi! I\'m the CGP recruitment assistant. Are you looking for a new job opportunity?\nHello! Thanks for reaching out. How can I help you today?\nWelcome to CGP! Are you interested in any of our current job openings?',
+                    closing_messages: 'Great! I\'ve noted your details. Our recruiter will be in touch soon!\nThank you for your interest! We\'ll review your information and get back to you.\nThanks for chatting! Look out for a call or message from our team.',
+                    escalation_triggers: 'Candidate requests to speak to a human\nComplex salary negotiation questions\nComplaints or negative feedback\nLegal or contract-related questions',
+                    success_criteria: 'Candidate provides name and phone number\nCandidate expresses interest in specific job\nCandidate agrees to interview or follow-up call',
+                  })}
+                  className="mt-4 px-4 py-2 text-sm font-medium text-cgp-red border border-cgp-red rounded-lg hover:bg-cgp-red/5"
+                >
+                  Create Objectives Configuration
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Primary Goal</label>
+                  <textarea
+                    value={objectives.primary_goal}
+                    onChange={(e) => setObjectives({ ...objectives, primary_goal: e.target.value })}
+                    placeholder="What is the main objective of each conversation?"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red"
+                    rows={2}
+                  />
+                  <p className="text-xs text-slate-400 mt-1">The main purpose of bot conversations</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Secondary Goals</label>
+                    <textarea
+                      value={objectives.secondary_goals}
+                      onChange={(e) => setObjectives({ ...objectives, secondary_goals: e.target.value })}
+                      placeholder="Other things the bot should try to accomplish (one per line)"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red"
+                      rows={4}
+                    />
+                    <p className="text-xs text-slate-400 mt-1">Additional objectives (one per line)</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Success Criteria</label>
+                    <textarea
+                      value={objectives.success_criteria}
+                      onChange={(e) => setObjectives({ ...objectives, success_criteria: e.target.value })}
+                      placeholder="How do we know a conversation was successful? (one per line)"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red"
+                      rows={4}
+                    />
+                    <p className="text-xs text-slate-400 mt-1">What counts as a successful conversation</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Conversation Starters</label>
+                    <textarea
+                      value={objectives.conversation_starters}
+                      onChange={(e) => setObjectives({ ...objectives, conversation_starters: e.target.value })}
+                      placeholder="Opening messages the bot can use (one per line)"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red"
+                      rows={4}
+                    />
+                    <p className="text-xs text-slate-400 mt-1">How the bot starts conversations</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Closing Messages</label>
+                    <textarea
+                      value={objectives.closing_messages}
+                      onChange={(e) => setObjectives({ ...objectives, closing_messages: e.target.value })}
+                      placeholder="How the bot should end conversations (one per line)"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red"
+                      rows={4}
+                    />
+                    <p className="text-xs text-slate-400 mt-1">How the bot ends conversations</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Escalation Triggers</label>
+                  <textarea
+                    value={objectives.escalation_triggers}
+                    onChange={(e) => setObjectives({ ...objectives, escalation_triggers: e.target.value })}
+                    placeholder="When should the bot hand off to a human? (one per line)"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red"
+                    rows={3}
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Situations that require human intervention</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
