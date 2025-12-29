@@ -588,7 +588,9 @@ Return ONLY the JSON, no explanation.`,
 
     // Cleanup subscription on unmount or tab change
     return () => {
-      supabase.removeChannel(channel);
+      if (supabase) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [activeTab, selectedConversation]);
 
