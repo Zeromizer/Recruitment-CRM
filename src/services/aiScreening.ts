@@ -1,8 +1,43 @@
 // AI Screening Service
 // Migrated from Power Automate workflow
+// Works standalone without Google Sheets (uses fallback job roles)
 
 const GOOGLE_SHEETS_SPREADSHEET_ID = '1jT-Xosd4W3ev7WTGiRHxupW_a7xBQ_Y0mn2ncoX65al';
 const GOOGLE_SHEETS_RANGE = 'Sheet1!A2:C';
+
+// Fallback job roles when Google Sheets is not configured
+const FALLBACK_JOB_ROLES: JobRole[] = [
+  {
+    title: 'General Application',
+    requirements: 'Evaluate based on overall experience and skills',
+    scoringGuide: '8-10: Excellent experience, 6-7: Good fit, 4-5: Average, 1-3: Poor fit',
+  },
+  {
+    title: 'Administrative / Office Support',
+    requirements: 'Office administration, data entry, customer service, MS Office proficiency',
+    scoringGuide: '8-10: 3+ years admin experience, 6-7: 1-2 years, 4-5: Entry level',
+  },
+  {
+    title: 'Customer Service / Call Centre',
+    requirements: 'Customer handling, communication skills, problem solving',
+    scoringGuide: '8-10: 3+ years CS experience, 6-7: 1-2 years, 4-5: Entry level',
+  },
+  {
+    title: 'Warehouse / Logistics',
+    requirements: 'Warehouse operations, forklift license preferred, inventory management',
+    scoringGuide: '8-10: 3+ years warehouse experience, 6-7: 1-2 years, 4-5: Entry level',
+  },
+  {
+    title: 'F&B / Retail',
+    requirements: 'Service oriented, able to work shifts, customer facing experience',
+    scoringGuide: '8-10: 2+ years experience, 6-7: 1 year, 4-5: Entry level',
+  },
+  {
+    title: 'Engineering / Technical',
+    requirements: 'Technical diploma/degree, relevant certifications, hands-on experience',
+    scoringGuide: '8-10: 5+ years technical experience, 6-7: 2-4 years, 4-5: Entry level',
+  },
+];
 
 export interface JobRole {
   title: string;
@@ -26,32 +61,46 @@ export interface ScreeningInput {
   pdfBase64: string;
   emailSubject: string;
   source: string;
+  mediaType?: string; // 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 }
 
-// Fetch job roles from Google Sheets
+// Fetch job roles from Google Sheets (with fallback)
 export async function fetchJobRoles(): Promise<JobRole[]> {
   const apiKey = import.meta.env.VITE_GOOGLE_SHEETS_API_KEY;
 
+  // If no API key, use fallback job roles
   if (!apiKey) {
-    throw new Error('Google Sheets API key not configured');
+    console.log('Google Sheets API key not configured, using fallback job roles');
+    return FALLBACK_JOB_ROLES;
   }
 
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEETS_SPREADSHEET_ID}/values/${GOOGLE_SHEETS_RANGE}?key=${apiKey}`;
+  try {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEETS_SPREADSHEET_ID}/values/${GOOGLE_SHEETS_RANGE}?key=${apiKey}`;
 
-  const response = await fetch(url);
+    const response = await fetch(url);
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch job roles: ${response.statusText}`);
+    if (!response.ok) {
+      console.warn(`Failed to fetch job roles from Google Sheets: ${response.statusText}, using fallback`);
+      return FALLBACK_JOB_ROLES;
+    }
+
+    const data = await response.json();
+    const values: string[][] = data.values || [];
+
+    if (values.length === 0) {
+      console.warn('No job roles found in Google Sheets, using fallback');
+      return FALLBACK_JOB_ROLES;
+    }
+
+    return values.map((row) => ({
+      title: row[0] || '',
+      requirements: row[1] || '',
+      scoringGuide: row[2] || '',
+    }));
+  } catch (error) {
+    console.warn('Error fetching job roles from Google Sheets, using fallback:', error);
+    return FALLBACK_JOB_ROLES;
   }
-
-  const data = await response.json();
-  const values: string[][] = data.values || [];
-
-  return values.map((row) => ({
-    title: row[0] || '',
-    requirements: row[1] || '',
-    scoringGuide: row[2] || '',
-  }));
 }
 
 // Format job roles for the AI prompt
@@ -65,7 +114,8 @@ function formatJobRolesForPrompt(roles: JobRole[]): string {
 export async function screenResume(
   pdfBase64: string,
   emailSubject: string,
-  jobRoles: JobRole[]
+  jobRoles: JobRole[],
+  mediaType: string = 'application/pdf'
 ): Promise<ScreeningResult> {
   const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
 
@@ -77,14 +127,14 @@ export async function screenResume(
 
   const prompt = `You are analyzing a resume for a staffing agency. Your task is to evaluate the candidate.
 
-EMAIL SUBJECT: ${emailSubject}
+APPLYING FOR: ${emailSubject}
 
 AVAILABLE JOB ROLES (format: Job Title, Requirements, Scoring Guide):
 ${jobRolesString}
 
 INSTRUCTIONS:
-1. Identify which job role the candidate is applying for based on the email subject. Match to one of the available roles.
-2. If the email subject does not clearly indicate a role, select the most suitable role based on the candidate's experience.
+1. Identify which job role the candidate is applying for based on the application title. Match to one of the available roles.
+2. If the application title does not clearly indicate a role, select the most suitable role based on the candidate's experience.
 3. Analyze the resume against that role's requirements and scoring guide.
 4. Extract contact information (email, phone) if visible.
 
@@ -111,7 +161,7 @@ Return ONLY a JSON object with no other text. Start with { and end with }:
     "candidate_name": "Full name from resume",
     "candidate_email": "email@example.com or null",
     "candidate_phone": "+65 XXXX XXXX or null",
-    "job_applied": "Role from email subject",
+    "job_applied": "Role from application",
     "job_matched": "Best matching role from your list",
     "score": 7,
     "citizenship_status": "Singapore Citizen|PR|Unknown|Foreigner",
@@ -139,7 +189,7 @@ Use the scoring guide for the matched role. Score 1-10.`;
               type: 'document',
               source: {
                 type: 'base64',
-                media_type: 'application/pdf',
+                media_type: mediaType,
                 data: pdfBase64,
               },
             },
@@ -255,17 +305,16 @@ export function fileToBase64(file: File): Promise<string> {
 
 // Full screening workflow
 export async function performFullScreening(input: ScreeningInput): Promise<ScreeningResult> {
-  // Step 1: Fetch job roles from Google Sheets
+  // Step 1: Fetch job roles (from Google Sheets or fallback)
   const jobRoles = await fetchJobRoles();
 
-  if (jobRoles.length === 0) {
-    throw new Error('No job roles found in Google Sheets');
-  }
+  // Step 2: Determine media type (default to PDF)
+  const mediaType = input.mediaType || 'application/pdf';
 
-  // Step 2: Screen the resume with Claude AI
-  const result = await screenResume(input.pdfBase64, input.emailSubject, jobRoles);
+  // Step 3: Screen the resume with Claude AI
+  const result = await screenResume(input.pdfBase64, input.emailSubject, jobRoles, mediaType);
 
-  // Step 3: Log to Google Sheets (optional, doesn't block)
+  // Step 4: Log to Google Sheets (optional, doesn't block)
   logToGoogleSheets(result, input.emailSubject).catch(console.warn);
 
   return result;

@@ -21,13 +21,13 @@ interface AddCandidateModalProps {
   onClose: () => void;
 }
 
-const SOURCES: CandidateSource[] = ['Seek', 'FastJobs', 'Indeed', 'LinkedIn', 'Direct', 'Referral'];
+const SOURCES: CandidateSource[] = ['FastJobs', 'Seek', 'Indeed', 'LinkedIn', 'Direct', 'Referral', 'Email', 'WhatsApp', 'Telegram', 'Others'];
 
 type ScreeningStep = 'idle' | 'uploading' | 'fetching_roles' | 'screening' | 'complete' | 'error';
 
 export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModalProps) {
   const [file, setFile] = useState<File | null>(null);
-  const [source, setSource] = useState<CandidateSource>('Seek');
+  const [source, setSource] = useState<CandidateSource>('FastJobs');
   const [emailSubject, setEmailSubject] = useState('');
   const [step, setStep] = useState<ScreeningStep>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -40,8 +40,13 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      if (selectedFile.type !== 'application/pdf') {
-        setError('Please upload a PDF file');
+      const validTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ];
+      if (!validTypes.includes(selectedFile.type)) {
+        setError('Please upload a PDF or Word document (.pdf, .doc, .docx)');
         return;
       }
       setFile(selectedFile);
@@ -55,8 +60,13 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
     e.preventDefault();
     const droppedFile = e.dataTransfer.files[0];
     if (droppedFile) {
-      if (droppedFile.type !== 'application/pdf') {
-        setError('Please upload a PDF file');
+      const validTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ];
+      if (!validTypes.includes(droppedFile.type)) {
+        setError('Please upload a PDF or Word document (.pdf, .doc, .docx)');
         return;
       }
       setFile(droppedFile);
@@ -72,12 +82,12 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
 
   const handleScreen = async () => {
     if (!file) {
-      setError('Please upload a PDF resume');
+      setError('Please upload a resume (PDF or Word document)');
       return;
     }
 
     if (!emailSubject.trim()) {
-      setError('Please enter an email subject (e.g., "Application for Senior Developer")');
+      setError('Please enter the job role (e.g., "Senior Software Engineer")');
       return;
     }
 
@@ -86,15 +96,16 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
 
     try {
       // Convert file to base64
-      const pdfBase64 = await fileToBase64(file);
+      const fileBase64 = await fileToBase64(file);
       setStep('fetching_roles');
 
       // Perform full screening
       setStep('screening');
       const screeningResult = await performFullScreening({
-        pdfBase64,
+        pdfBase64: fileBase64,
         emailSubject,
         source,
+        mediaType: file.type,
       });
 
       setResult(screeningResult);
@@ -178,7 +189,7 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
 
   const handleClose = () => {
     setFile(null);
-    setSource('Seek');
+    setSource('FastJobs');
     setEmailSubject('');
     setStep('idle');
     setError(null);
@@ -238,10 +249,10 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
             </select>
           </div>
 
-          {/* Email Subject */}
+          {/* Applying Job */}
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-2">
-              Email Subject / Application Title
+              Applying Job
             </label>
             <input
               type="text"
@@ -259,7 +270,7 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
           {/* File Upload */}
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-2">
-              Resume (PDF)
+              Resume (PDF or Word)
             </label>
             <div
               onDrop={handleDrop}
@@ -274,7 +285,7 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf"
+                accept=".pdf,.doc,.docx"
                 onChange={handleFileChange}
                 className="hidden"
                 disabled={step !== 'idle' && step !== 'error'}
@@ -293,7 +304,7 @@ export default function AddCandidateModal({ isOpen, onClose }: AddCandidateModal
                 <>
                   <Upload className="w-8 h-8 mx-auto text-slate-400 mb-2" />
                   <p className="text-slate-500">
-                    Drop a PDF resume here or click to browse
+                    Drop a resume here or click to browse (.pdf, .doc, .docx)
                   </p>
                 </>
               )}
