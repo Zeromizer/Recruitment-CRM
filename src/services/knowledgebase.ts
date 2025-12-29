@@ -414,6 +414,30 @@ export async function seedDefaultKnowledgebase(): Promise<void> {
 
   await createJobPost(defaultJob);
 
+  // Default communication style
+  const defaultStyle = {
+    tone: 'friendly',
+    language: 'english',
+    formality: 'casual',
+    emoji_usage: 'minimal',
+    response_length: 'concise',
+    custom_phrases: 'Hello! Thanks for reaching out to CGP!\nSounds great, let me help you with that!\nWelcome to CGP Singapore!',
+  };
+
+  await saveCommunicationStyle(defaultStyle);
+
+  // Default objectives
+  const defaultObjectives = {
+    primary_goal: 'Qualify candidates for job openings and collect their contact information for follow-up',
+    secondary_goals: 'Answer questions about job requirements\nProvide company information\nSchedule interviews when appropriate',
+    conversation_starters: "Hi! I'm the CGP recruitment assistant. Are you looking for a new job opportunity?\nHello! Thanks for reaching out. How can I help you today?\nWelcome to CGP! Are you interested in any of our current job openings?",
+    closing_messages: "Great! I've noted your details. Our recruiter will be in touch soon!\nThank you for your interest! We'll review your information and get back to you.\nThanks for chatting! Look out for a call or message from our team.",
+    escalation_triggers: 'Candidate requests to speak to a human\nComplex salary negotiation questions\nComplaints or negative feedback\nLegal or contract-related questions',
+    success_criteria: 'Candidate provides name and phone number\nCandidate expresses interest in specific job\nCandidate agrees to interview or follow-up call',
+  };
+
+  await saveObjectives(defaultObjectives);
+
   console.log('Default knowledgebase seeded successfully');
 }
 
