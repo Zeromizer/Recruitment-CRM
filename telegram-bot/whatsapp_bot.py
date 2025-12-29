@@ -39,15 +39,17 @@ RECRUITER_NAME = os.environ.get('RECRUITER_NAME', 'Ai Wei')
 COMPANY_NAME = os.environ.get('COMPANY_NAME', 'CGP')
 APPLICATION_FORM_URL = os.environ.get('APPLICATION_FORM_URL', 'Shorturl.at/kmvJ6')
 
-# First reply template when bot is activated (sent as single message)
+# Global bot enable/disable switch
+# Set WHATSAPP_BOT_ENABLED=false in environment to disable bot
+BOT_ENABLED = os.environ.get('WHATSAPP_BOT_ENABLED', 'true').lower() in ('true', '1', 'yes')
+
+# First reply template when bot is activated
+# Uses '---' delimiter to split into multiple messages with natural delays
 FIRST_REPLY_TEMPLATE = f"""Hello, I am {RECRUITER_NAME} from {COMPANY_NAME}. Could you kindly fill up the Application Form here: {APPLICATION_FORM_URL}
 
 Consultant Name is {RECRUITER_NAME} (Pls find the dropdown list of my name)
 
-As soon as you are finished, please let me know. Thank you!"""
-
-# Follow-up message about form being down (temporary)
-FORM_DOWN_MESSAGE = "The application form link is currently down. You can send me your resume first and I will ask you to fill the application form once its ready."
+As soon as you are finished, please let me know. Thank you!---The application form link is currently down. You can send me your resume first and I will ask you to fill the application form once its ready."""
 
 # Keywords that trigger bot activation on first message
 JOB_KEYWORDS = [
@@ -198,6 +200,7 @@ async def lifespan(app: FastAPI):
 
     print("=" * 50)
     print("WhatsApp Bot Starting...")
+    print(f"Bot Status: {'ENABLED' if BOT_ENABLED else 'DISABLED'}")
     print("=" * 50)
 
     # Validate environment variables
@@ -342,6 +345,11 @@ async def download_media(media_url: str, file_id: str = None, message_id: str = 
 async def process_text_message(phone: str, name: str, text: str, contact: dict = None):
     """Process a text message from WhatsApp."""
 
+    # Check if bot is globally disabled
+    if not BOT_ENABLED:
+        print(f"Bot is disabled globally - not responding to {phone}")
+        return
+
     # Check for stop command first (from recruiter taking over) - works anytime
     if text.strip().lower() == STOP_COMMAND.lower():
         deactivate_bot(phone, reason="manual")
@@ -375,11 +383,8 @@ async def process_text_message(phone: str, name: str, text: str, contact: dict =
     # Activate bot if this is a new keyword-triggered conversation
     if respond_reason == "keyword_match":
         activate_bot(phone)
-        # Send the first reply template
+        # Send the first reply template (contains '---' delimiter for sequential messages)
         await send_whatsapp_message(phone, FIRST_REPLY_TEMPLATE)
-        # Send follow-up about form being down
-        await asyncio.sleep(random.uniform(3.0, 5.0))  # Natural delay
-        await send_whatsapp_message(phone, FORM_DOWN_MESSAGE)
         return
 
     # Get AI response with candidate name for personalization
@@ -396,6 +401,11 @@ async def process_text_message(phone: str, name: str, text: str, contact: dict =
 
 async def process_document_message(phone: str, name: str, file_name: str, media_url: str, mime_type: str, message_id: str = "", file_id: str = "", contact: dict = None):
     """Process a document message (resume) from WhatsApp."""
+    # Check if bot is globally disabled
+    if not BOT_ENABLED:
+        print(f"Bot is disabled globally - not responding to document from {phone}")
+        return
+
     # Check operating hours (8:30 AM - 10:00 PM Singapore time)
     if not is_within_operating_hours():
         print(f"Outside operating hours - not responding to document from {phone}")
@@ -654,7 +664,11 @@ async def webhook_handler(request: Request, background_tasks: BackgroundTasks):
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "healthy", "service": "whatsapp-bot"}
+    return {
+        "status": "healthy",
+        "service": "whatsapp-bot",
+        "bot_enabled": BOT_ENABLED
+    }
 
 
 @app.get("/")
