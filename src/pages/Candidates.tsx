@@ -136,6 +136,9 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
         <p className="text-sm text-slate-500">
           {format(parseISO(candidate.date_received), 'MMM d, yyyy')}
         </p>
+        <p className="text-xs text-slate-400">
+          {format(parseISO(candidate.date_received), 'h:mm a')}
+        </p>
       </div>
 
       {/* Arrow */}
@@ -216,6 +219,9 @@ export default function Candidates() {
       }
 
       return true;
+    }).sort((a, b) => {
+      // Sort by date_received descending (newest first)
+      return new Date(b.date_received).getTime() - new Date(a.date_received).getTime();
     });
   }, [candidates, search, statusFilter, sourceFilter, roleFilter, minScoreFilter, aiCategoryFilter, citizenshipFilter]);
 
