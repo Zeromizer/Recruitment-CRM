@@ -5,6 +5,57 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Extract text from PDF using Claude's vision API (for image-based PDFs)
+async function extractTextFromPdfWithVision(pdfBase64: string, apiKey: string): Promise<string> {
+  console.log("Using Claude vision API to extract text from image-based PDF...");
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 4096,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "document",
+              source: {
+                type: "base64",
+                media_type: "application/pdf",
+                data: pdfBase64,
+              },
+            },
+            {
+              type: "text",
+              text: `Extract ALL text content from this resume/CV document.
+Include everything: name, contact details, work experience, education, skills, certifications, etc.
+Format it in a readable way, preserving the structure and sections.
+Just output the extracted text, no commentary.`,
+            },
+          ],
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Vision API error: ${error}`);
+  }
+
+  const result = await response.json();
+  const extractedText = result.content?.[0]?.text || "";
+  console.log(`Vision API extracted ${extractedText.length} characters from PDF`);
+
+  return extractedText;
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -12,11 +63,22 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { resumeText, candidateInfo } = await req.json();
+    const { resumeText: inputResumeText, pdfBase64, candidateInfo } = await req.json();
 
     const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
     if (!apiKey) {
       throw new Error("ANTHROPIC_API_KEY not configured");
+    }
+
+    // If pdfBase64 is provided and resumeText is empty/short, use vision extraction
+    let resumeText = inputResumeText || "";
+    if (pdfBase64 && (!resumeText || resumeText.trim().length < 100)) {
+      console.log(`Text extraction insufficient (${resumeText.length} chars), using vision API...`);
+      resumeText = await extractTextFromPdfWithVision(pdfBase64, apiKey);
+    }
+
+    if (!resumeText || resumeText.trim().length < 50) {
+      throw new Error("Could not extract sufficient text from resume");
     }
 
     // Truncate resume text if too long to avoid token limits
