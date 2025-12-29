@@ -29,7 +29,8 @@ from enum import Enum
 
 RECRUITER_NAME = os.environ.get('RECRUITER_NAME', 'Ai Wei')
 COMPANY_NAME = os.environ.get('COMPANY_NAME', 'CGP')
-COMPANY_FULL_NAME = "Cornerstone Global Partners"
+COMPANY_FULL_NAME = "CGP Singapore"
+EA_LICENCE = "19C9859"
 APPLICATION_FORM_URL = os.environ.get('APPLICATION_FORM_URL', 'Shorturl.at/kmvJ6')
 
 # Flag to track if we've loaded from database
@@ -44,29 +45,64 @@ _db_knowledge: Dict[str, Dict[str, Any]] = {}
 COMPANY_INFO = {
     "name": COMPANY_NAME,
     "full_name": COMPANY_FULL_NAME,
-    "description": "A staffing and recruitment agency specializing in temp/contract positions across various industries in Singapore.",
+    "tagline": "Unleashing Global Talent",
+    "candidate_tagline": "Empowering Job Seekers With Career Solutions",
+    "description": "CGP Singapore is a leading recruitment agency providing executive search, permanent placement, and staffing solutions across Singapore and Malaysia.",
+    "ea_licence": EA_LICENCE,
     "recruiter_name": RECRUITER_NAME,
     "application_form_url": APPLICATION_FORM_URL,
-    "location": "Singapore",
-    "focus_areas": [
-        "Part-time positions",
-        "Contract roles",
-        "Temp staffing",
-        "Entry-level to mid-level positions"
+    "locations": {
+        "singapore": "Singapore (Primary)",
+        "malaysia": "Malaysia (CGP Malaysia)"
+    },
+    "contact": {
+        "malaysia_phone": "+603 2935 0107",
+        "website": "www.cgp.sg"
+    },
+    "social_media": {
+        "instagram": "@cgp_apac",
+        "youtube": "@cgpapac",
+        "linkedin": "CGP Malaysia"
+    },
+    "services": [
+        "Executive Search",
+        "Permanent Recruitment",
+        "Contract & Temp Staffing",
+        "Work Pass Services"
     ],
     "industries": [
+        "Accounting & Finance",
+        "Government, GLC & Public Healthcare",
+        "Human Resources",
+        "Industrial & Manufacturing",
+        "Legal & Compliance",
+        "Sales, Marketing & Digital",
+        "Supply Chain, Logistics & Shipping",
+        "Technology",
         "F&B (Food & Beverage)",
         "Retail",
         "Events & Hospitality",
         "Customer Service",
-        "Administrative",
-        "Research & Data Collection"
+        "Administrative"
+    ],
+    "focus_areas": [
+        "Executive-level positions",
+        "Permanent placements",
+        "Part-time positions",
+        "Contract roles",
+        "Temp staffing"
     ],
     "requirements": {
         "citizenship": "Singapore Citizens and Permanent Residents preferred for most roles",
         "age": "Varies by role, typically 18+",
         "availability": "Flexible scheduling available for most positions"
-    }
+    },
+    "differentiators": [
+        "Regional presence across Singapore and Malaysia",
+        "Industry-specialized consultants",
+        "Comprehensive work pass assistance",
+        "Career guidance and resources including salary guides"
+    ]
 }
 
 
@@ -186,26 +222,40 @@ COMMUNICATION_STYLE = {
 
 FAQ_KNOWLEDGE = {
     "about_company": {
-        "what_is_cgp": f"{COMPANY_FULL_NAME} ({COMPANY_NAME}) is a staffing agency in Singapore that helps connect candidates with part-time, contract, and temp positions across various industries.",
-        "types_of_jobs": "We have roles in F&B, retail, events, customer service, admin, and research. Mostly part-time and contract positions.",
-        "how_it_works": "You apply through our form, we review your resume, and if there's a good match we'll reach out to discuss opportunities."
+        "what_is_cgp": f"{COMPANY_FULL_NAME} ({COMPANY_NAME}) is a leading recruitment agency in Singapore providing executive search, permanent placement, and staffing solutions. We operate across Singapore and Malaysia with EA Licence {EA_LICENCE}.",
+        "types_of_jobs": "We cover a wide range - from executive roles to temp positions across Accounting & Finance, Tech, Legal, HR, Manufacturing, Supply Chain, Sales & Marketing, Government/Healthcare, F&B, Retail, and more.",
+        "how_it_works": "You apply through our form, we review your resume, and our specialized consultants match you with suitable opportunities. We'll reach out if there's a good fit.",
+        "services_offered": "We provide executive search, permanent recruitment, contract/temp staffing, and work pass services for candidates and employers.",
+        "company_locations": "Our main office is in Singapore, and we also operate in Malaysia as CGP Malaysia."
     },
     "application_process": {
         "what_happens_after_apply": "Once you submit your application and resume, our team reviews it. If you're a good fit for any current openings, we'll contact you to discuss next steps.",
         "how_long_to_hear_back": "Usually within a few days if there's a suitable role. If you don't hear back, it might mean there's no immediate match, but we keep profiles on file.",
         "interview_process": "Depends on the role - some clients do phone interviews, others want in-person meetings. We'll brief you on what to expect.",
-        "can_apply_multiple": "Yes, you can be considered for multiple roles if you have the relevant experience."
+        "can_apply_multiple": "Yes, you can be considered for multiple roles if you have the relevant experience.",
+        "referral_program": "Yes, we have a referral program. Ask your consultant for details on how to refer friends."
     },
     "job_requirements": {
-        "citizenship": "Most of our roles require Singapore Citizens or PRs due to work permit regulations. Some positions may consider other work pass holders.",
-        "experience_needed": "Varies by role - some are entry-level, others need specific experience. We'll match you based on your background.",
+        "citizenship": "Most of our roles require Singapore Citizens or PRs due to work permit regulations. Some positions may consider other work pass holders - we also provide work pass services.",
+        "experience_needed": "Varies by role - we have entry-level positions to executive-level roles. We'll match you based on your background and skills.",
         "age_requirement": "Generally 18 and above, though some roles may have different requirements.",
         "availability": "Many positions offer flexible scheduling. Part-time roles typically need a few days per week availability."
     },
     "common_concerns": {
-        "pay_rates": "Rates vary by role and experience. We'll discuss specifics when we have a suitable match for you.",
+        "pay_rates": "Rates vary by role, industry, and experience. We'll discuss specifics when we have a suitable match for you.",
         "work_schedule": "Most roles offer flexibility. You can indicate your preferred schedule in the application.",
-        "how_soon_start": "Depends on the position - some roles need people immediately, others have planned start dates."
+        "how_soon_start": "Depends on the position - some roles need people immediately, others have planned start dates.",
+        "salary_guide": "We provide salary guides and career resources to help you understand market rates in your industry."
+    },
+    "industries": {
+        "accounting_finance": "We have roles in accounting, finance, audit, and financial services sectors.",
+        "technology": "Tech roles including software development, IT support, data, and digital positions.",
+        "legal_compliance": "Legal counsel, compliance officers, paralegals, and regulatory roles.",
+        "hr": "Human resources positions from HR executives to recruitment and talent acquisition.",
+        "manufacturing": "Industrial and manufacturing roles across various sectors.",
+        "supply_chain": "Supply chain, logistics, and shipping industry positions.",
+        "sales_marketing": "Sales, marketing, digital marketing, and brand management roles.",
+        "government_healthcare": "Government, GLC, and public healthcare sector opportunities."
     }
 }
 
@@ -215,6 +265,96 @@ FAQ_KNOWLEDGE = {
 # =============================================================================
 
 ROLE_KNOWLEDGE = {
+    # =========================================================================
+    # PROFESSIONAL / EXECUTIVE ROLES
+    # =========================================================================
+    "accountant": {
+        "title": "Accountant / Finance Professional",
+        "keywords": ["accountant", "accounting", "finance", "audit", "cpa", "acca", "financial"],
+        "experience_questions": [
+            "how many years of accounting experience do u have?",
+            "are u familiar with any accounting software like SAP or Oracle?",
+            "do u have any professional certifications like CPA or ACCA?"
+        ],
+        "key_skills": ["Financial reporting", "Accounting software", "Excel", "Audit", "Tax"],
+        "typical_schedule": "Full-time office hours",
+        "notes": "Professional certifications are valued"
+    },
+    "hr_professional": {
+        "title": "HR Professional",
+        "keywords": ["hr", "human resource", "recruitment", "talent", "payroll", "compensation"],
+        "experience_questions": [
+            "what areas of HR have u worked in?",
+            "do u have experience with HRIS systems?",
+            "have u handled recruitment or employee relations before?"
+        ],
+        "key_skills": ["Recruitment", "Employee relations", "HRIS", "Payroll", "Policy"],
+        "typical_schedule": "Full-time office hours",
+        "notes": "Specialization in specific HR areas is common"
+    },
+    "legal_professional": {
+        "title": "Legal / Compliance Professional",
+        "keywords": ["legal", "lawyer", "compliance", "paralegal", "contract", "regulatory"],
+        "experience_questions": [
+            "what's ur legal background or specialization?",
+            "do u have experience in corporate or regulatory compliance?",
+            "are u admitted to the Singapore Bar?"
+        ],
+        "key_skills": ["Legal research", "Contract drafting", "Compliance", "Regulatory"],
+        "typical_schedule": "Full-time, may require long hours",
+        "notes": "Industry specialization matters"
+    },
+    "it_professional": {
+        "title": "IT / Technology Professional",
+        "keywords": ["it", "software", "developer", "tech", "data", "engineer", "programmer", "digital"],
+        "experience_questions": [
+            "what programming languages or technologies do u work with?",
+            "what's ur experience in software development or IT support?",
+            "have u worked on any notable projects?"
+        ],
+        "key_skills": ["Programming", "System administration", "Cloud", "Data analysis"],
+        "typical_schedule": "Full-time, some roles offer remote",
+        "notes": "Technical skills and portfolio matter"
+    },
+    "sales_marketing": {
+        "title": "Sales / Marketing Professional",
+        "keywords": ["sales", "marketing", "business development", "digital marketing", "brand"],
+        "experience_questions": [
+            "what's ur sales or marketing background?",
+            "what industries have u worked in?",
+            "do u have experience with digital marketing tools?"
+        ],
+        "key_skills": ["Sales", "Marketing strategy", "Digital marketing", "CRM"],
+        "typical_schedule": "Full-time, may involve travel",
+        "notes": "Track record and industry experience valued"
+    },
+    "supply_chain": {
+        "title": "Supply Chain / Logistics Professional",
+        "keywords": ["supply chain", "logistics", "procurement", "warehouse", "shipping", "inventory"],
+        "experience_questions": [
+            "what's ur experience in supply chain or logistics?",
+            "have u worked with any ERP or inventory systems?",
+            "do u have experience in procurement or vendor management?"
+        ],
+        "key_skills": ["Logistics", "Procurement", "Inventory management", "ERP systems"],
+        "typical_schedule": "Full-time, may involve shifts",
+        "notes": "Industry certifications like CSCP are valued"
+    },
+    "healthcare": {
+        "title": "Healthcare Professional",
+        "keywords": ["healthcare", "medical", "nurse", "hospital", "clinical", "pharma"],
+        "experience_questions": [
+            "what's ur healthcare background?",
+            "do u have any medical certifications or licenses?",
+            "which healthcare settings have u worked in?"
+        ],
+        "key_skills": ["Clinical skills", "Patient care", "Medical knowledge"],
+        "typical_schedule": "Shift-based for clinical roles",
+        "notes": "Valid licenses and certifications required"
+    },
+    # =========================================================================
+    # TEMP / PART-TIME ROLES
+    # =========================================================================
     "barista": {
         "title": "Barista",
         "keywords": ["barista", "coffee", "cafe", "latte"],
@@ -286,6 +426,18 @@ ROLE_KNOWLEDGE = {
         "key_skills": ["Outgoing personality", "Sales skills", "Persuasion", "Appearance"],
         "typical_schedule": "Project-based, often weekends at malls",
         "notes": "Confidence and approachability are important"
+    },
+    "fnb_service": {
+        "title": "F&B Service Crew",
+        "keywords": ["waiter", "waitress", "f&b", "restaurant", "service crew", "food"],
+        "experience_questions": [
+            "do u have experience in f&b or restaurant service?",
+            "are u comfortable working in a fast-paced environment?",
+            "do u have food hygiene certification?"
+        ],
+        "key_skills": ["Customer service", "Food handling", "POS systems", "Teamwork"],
+        "typical_schedule": "Shift-based, weekends and evenings",
+        "notes": "Food hygiene cert may be required"
     },
     "general": {
         "title": "General Position",
@@ -483,8 +635,12 @@ def build_system_prompt(context: ConversationContext) -> str:
         "## WHAT YOU KNOW",
         f"- Application form: {APPLICATION_FORM_URL} (select '{RECRUITER_NAME}' as consultant)",
         f"- Company: {COMPANY_INFO['description']}",
-        "- Most roles need Singapore Citizens or PRs",
-        "- You handle part-time and contract positions",
+        f"- EA Licence: {EA_LICENCE}",
+        "- We cover: executive search, permanent recruitment, contract/temp staffing, and work pass services",
+        "- Industries: Accounting & Finance, Tech, Legal, HR, Manufacturing, Supply Chain, Sales & Marketing, Government/Healthcare, F&B, Retail",
+        "- Locations: Singapore (main) and Malaysia",
+        "- Most roles need Singapore Citizens or PRs (we can help with work passes for some roles)",
+        "- Website: www.cgp.sg for more job listings",
         ""
     ])
 
@@ -720,6 +876,7 @@ __all__ = [
     'RECRUITER_NAME',
     'COMPANY_NAME',
     'COMPANY_FULL_NAME',
+    'EA_LICENCE',
     'APPLICATION_FORM_URL',
 
     # Knowledge
