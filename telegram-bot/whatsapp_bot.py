@@ -17,7 +17,15 @@ from contextlib import asynccontextmanager
 # Add parent directory to path for shared imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from shared.ai_screening import get_ai_response, screen_resume, init_anthropic, get_conversation, mark_resume_received, update_conversation_state
+from shared.ai_screening import (
+    get_ai_response, screen_resume, init_anthropic, get_conversation,
+    mark_resume_received, update_conversation_state, get_resume_response,
+    persist_conversation, restore_conversation_from_db
+)
+from shared.knowledgebase import (
+    RECRUITER_NAME, COMPANY_NAME, APPLICATION_FORM_URL,
+    get_first_contact_response, identify_role_from_text
+)
 from shared.database import save_candidate, upload_resume_to_storage, init_supabase
 from shared.resume_parser import extract_text_from_pdf, extract_text_from_pdf_with_vision, extract_text_from_word, convert_word_to_pdf
 from shared.google_sheets import init_google_sheets
@@ -34,22 +42,9 @@ bot_active_numbers = set()
 # Numbers where bot has been manually stopped
 bot_stopped_numbers = set()
 
-# Configuration for the recruiter
-RECRUITER_NAME = os.environ.get('RECRUITER_NAME', 'Ai Wei')
-COMPANY_NAME = os.environ.get('COMPANY_NAME', 'CGP')
-APPLICATION_FORM_URL = os.environ.get('APPLICATION_FORM_URL', 'Shorturl.at/kmvJ6')
-
 # Global bot enable/disable switch
 # Set WHATSAPP_BOT_ENABLED=false in environment to disable bot
 BOT_ENABLED = os.environ.get('WHATSAPP_BOT_ENABLED', 'true').lower() in ('true', '1', 'yes')
-
-# First reply template when bot is activated
-# Uses '---' delimiter to split into multiple messages with natural delays
-FIRST_REPLY_TEMPLATE = f"""Hello, I am {RECRUITER_NAME} from {COMPANY_NAME}. Could you kindly fill up the Application Form here: {APPLICATION_FORM_URL}
-
-Consultant Name is {RECRUITER_NAME} (Pls find the dropdown list of my name)
-
-As soon as you are finished, please let me know. Thank you!---The application form link is currently down. You can send me your resume first and I will ask you to fill the application form once its ready."""
 
 # Keywords that trigger bot activation on first message
 JOB_KEYWORDS = [
@@ -383,13 +378,17 @@ async def process_text_message(phone: str, name: str, text: str, contact: dict =
     # Activate bot if this is a new keyword-triggered conversation
     if respond_reason == "keyword_match":
         activate_bot(phone)
-        # Send the first reply template (contains '---' delimiter for sequential messages)
-        await send_whatsapp_message(phone, FIRST_REPLY_TEMPLATE)
+        # Generate natural first contact response using knowledgebase
+        first_response = get_first_contact_response(name)
+        await send_whatsapp_message(phone, first_response)
         return
 
     # Get AI response with candidate name for personalization
-    response = await get_ai_response(phone, text, candidate_name=name)
+    response = await get_ai_response(phone, text, candidate_name=name, platform="whatsapp")
     await send_whatsapp_message(phone, response)
+
+    # Persist conversation after each exchange for continuity
+    await persist_conversation(phone, platform="whatsapp")
 
     # Check if this is a closing message - auto-stop bot
     if check_for_closing(response):
@@ -505,36 +504,18 @@ async def process_document_message(phone: str, name: str, file_name: str, media_
                     conversation_history=get_conversation(phone)
                 )
 
-                # Generate role-specific experience question
-                role_questions = {
-                    "barista": "do u have experience making coffee with latte art?",
-                    "coffee": "do u have experience making coffee with latte art?",
-                    "researcher": "do u have experience with phone surveys or data collection?",
-                    "phone": "do u have experience with phone surveys or data collection?",
-                    "event": "do u have experience with events or customer service?",
-                    "crew": "do u have experience working at events?",
-                    "admin": "do u have experience with admin work?",
-                    "customer service": "do u have experience in customer service?",
-                    "promoter": "do u have experience with promotions or sales?",
-                }
-
-                # Find matching question based on job role
-                experience_question = None
-                matched_job_lower = matched_job.lower()
-                for keyword, question in role_questions.items():
-                    if keyword in matched_job_lower:
-                        experience_question = question
-                        break
-
-                # Default question if no specific match
-                if not experience_question:
-                    experience_question = "what relevant experience do u have for this role?"
-
-                response = f"thanks {first_name}!\n{experience_question}"
+                # Generate natural response using knowledgebase
+                # This uses the role knowledge to ask appropriate experience questions
+                response = get_resume_response(
+                    user_id=phone,
+                    candidate_name=first_name,
+                    matched_role=matched_job,
+                    screening_summary=screening_summary
+                )
                 await send_whatsapp_message(phone, response)
 
-                # Update state to mark experience as asked
-                update_conversation_state(phone, experience_discussed=True)
+                # Persist conversation after resume processing for continuity
+                await persist_conversation(phone, platform="whatsapp")
             else:
                 await send_whatsapp_message(
                     phone,
@@ -549,7 +530,7 @@ async def process_document_message(phone: str, name: str, file_name: str, media_
     else:
         # Non-resume file - only respond if bot is active for this number
         if phone in bot_active_numbers:
-            response = await get_ai_response(phone, f"[User sent a file: {file_name}]", candidate_name=name)
+            response = await get_ai_response(phone, f"[User sent a file: {file_name}]", candidate_name=name, platform="whatsapp")
             await send_whatsapp_message(phone, response)
 
 

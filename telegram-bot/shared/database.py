@@ -1,7 +1,16 @@
-"""Database operations for Supabase."""
+"""Database operations for Supabase.
+
+This module handles:
+- Supabase client initialization
+- Candidate CRUD operations
+- Resume storage
+- Conversation history persistence and retrieval
+"""
+
 import os
 import json
 import time
+from typing import Optional, Dict, List, Any
 from supabase import create_client, Client
 
 # Global client
@@ -173,3 +182,225 @@ async def save_candidate(
     except Exception as e:
         print(f"Error saving candidate: {e}")
         return False
+
+
+# =============================================================================
+# CONVERSATION HISTORY RETRIEVAL
+# =============================================================================
+
+async def get_candidate_by_platform_id(
+    platform: str,
+    platform_id: str
+) -> Optional[Dict[str, Any]]:
+    """
+    Get a candidate record by their platform-specific ID.
+
+    Args:
+        platform: 'telegram' or 'whatsapp'
+        platform_id: The user ID (telegram_user_id or whatsapp_phone)
+
+    Returns:
+        Candidate record dict or None if not found
+    """
+    client = get_supabase()
+
+    try:
+        if platform == "telegram":
+            # Telegram uses numeric user ID
+            user_id = int(platform_id) if str(platform_id).isdigit() else None
+            if user_id:
+                result = client.table("candidates").select("*").eq("telegram_user_id", user_id).execute()
+            else:
+                return None
+        elif platform == "whatsapp":
+            result = client.table("candidates").select("*").eq("whatsapp_phone", str(platform_id)).execute()
+        else:
+            return None
+
+        if result.data:
+            return result.data[0]
+        return None
+
+    except Exception as e:
+        print(f"Error getting candidate by platform ID: {e}")
+        return None
+
+
+async def load_conversation_history(
+    platform: str,
+    platform_id: str
+) -> Optional[List[Dict[str, str]]]:
+    """
+    Load conversation history for a user from the database.
+
+    This allows conversation continuity after bot restarts.
+
+    Args:
+        platform: 'telegram' or 'whatsapp'
+        platform_id: The user ID
+
+    Returns:
+        List of conversation messages or None
+    """
+    candidate = await get_candidate_by_platform_id(platform, platform_id)
+
+    if candidate and candidate.get("conversation_history"):
+        try:
+            history = json.loads(candidate["conversation_history"])
+            if isinstance(history, list):
+                print(f"Loaded {len(history)} messages from DB for {platform}:{platform_id}")
+                return history
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return None
+
+
+async def load_conversation_state(
+    platform: str,
+    platform_id: str
+) -> Optional[Dict[str, Any]]:
+    """
+    Load conversation state from candidate record.
+
+    Reconstructs state from stored fields like:
+    - applied_role, ai_score, citizenship_status
+    - resume_url (indicates resume received)
+    - conversation_history
+
+    Args:
+        platform: 'telegram' or 'whatsapp'
+        platform_id: The user ID
+
+    Returns:
+        Conversation state dict or None
+    """
+    candidate = await get_candidate_by_platform_id(platform, platform_id)
+
+    if not candidate:
+        return None
+
+    # Reconstruct state from candidate record
+    state = {
+        "stage": "new",
+        "applied_role": candidate.get("applied_role"),
+        "candidate_name": candidate.get("full_name"),
+        "resume_received": bool(candidate.get("resume_url")),
+        "form_completed": False,  # Can't determine from DB, assume false
+        "experience_discussed": False,
+        "citizenship_status": candidate.get("citizenship_status"),
+        "call_scheduled": False
+    }
+
+    # Infer form completion from having a record
+    if candidate.get("ai_score") or candidate.get("resume_url"):
+        state["form_completed"] = True
+        state["stage"] = "form_completed"
+
+    # Infer stage from available data
+    if candidate.get("resume_url"):
+        state["stage"] = "resume_received"
+        state["resume_received"] = True
+
+    # If they have an AI score, they've been screened
+    if candidate.get("ai_score"):
+        state["stage"] = "experience_asked"
+        state["experience_discussed"] = True
+
+    print(f"Loaded state from DB for {platform}:{platform_id}: {state.get('stage')}")
+    return state
+
+
+async def save_conversation_state(
+    platform: str,
+    platform_id: str,
+    conversation_history: List[Dict[str, str]],
+    state: Dict[str, Any] = None
+) -> bool:
+    """
+    Save conversation history and optionally update state fields.
+
+    This is called periodically or on important events to persist
+    conversation progress.
+
+    Args:
+        platform: 'telegram' or 'whatsapp'
+        platform_id: The user ID
+        conversation_history: List of messages
+        state: Optional conversation state to update
+
+    Returns:
+        True on success
+    """
+    client = get_supabase()
+
+    try:
+        data = {
+            "conversation_history": json.dumps(conversation_history)
+        }
+
+        # Add state fields if provided
+        if state:
+            if state.get("applied_role"):
+                data["applied_role"] = state["applied_role"]
+            if state.get("candidate_name"):
+                data["full_name"] = state["candidate_name"]
+
+        # Update based on platform
+        if platform == "telegram":
+            user_id = int(platform_id) if str(platform_id).isdigit() else None
+            if user_id:
+                client.table("candidates").update(data).eq("telegram_user_id", user_id).execute()
+        elif platform == "whatsapp":
+            client.table("candidates").update(data).eq("whatsapp_phone", str(platform_id)).execute()
+
+        return True
+
+    except Exception as e:
+        print(f"Error saving conversation state: {e}")
+        return False
+
+
+async def get_candidate_context_summary(
+    platform: str,
+    platform_id: str
+) -> Optional[str]:
+    """
+    Get a summary of what we know about a returning candidate.
+
+    This is useful for providing context to the AI when a conversation
+    resumes after a break.
+
+    Returns a human-readable summary string.
+    """
+    candidate = await get_candidate_by_platform_id(platform, platform_id)
+
+    if not candidate:
+        return None
+
+    parts = []
+
+    if candidate.get("full_name"):
+        parts.append(f"Name: {candidate['full_name']}")
+
+    if candidate.get("applied_role"):
+        parts.append(f"Applied for: {candidate['applied_role']}")
+
+    if candidate.get("citizenship_status"):
+        status_map = {"SC": "Singapore Citizen", "PR": "Permanent Resident", "Foreign": "Foreigner"}
+        status = status_map.get(candidate["citizenship_status"], candidate["citizenship_status"])
+        parts.append(f"Citizenship: {status}")
+
+    if candidate.get("resume_url"):
+        parts.append("Resume: Received")
+
+    if candidate.get("ai_score"):
+        parts.append(f"AI Score: {candidate['ai_score']}/10")
+
+    if candidate.get("ai_category"):
+        parts.append(f"Category: {candidate['ai_category']}")
+
+    if not parts:
+        return None
+
+    return " | ".join(parts)

@@ -20,6 +20,15 @@ from docx import Document
 import gspread
 from google.oauth2.service_account import Credentials
 
+# Add shared directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from shared.knowledgebase import (
+    RECRUITER_NAME, COMPANY_NAME, APPLICATION_FORM_URL,
+    ConversationContext, build_system_prompt, build_context_from_state,
+    identify_role_from_text, get_experience_question, get_resume_acknowledgment
+)
+
 # Conversation memory (max 10 messages per user)
 conversations = {}
 MAX_MESSAGES = 10
@@ -149,97 +158,47 @@ async def check_spam_protection(event, user_id: int, username: str, text: str = 
 
     return False
 
-# Configuration for the recruiter
-RECRUITER_NAME = os.environ.get('RECRUITER_NAME', 'Ai Wei')
-COMPANY_NAME = os.environ.get('COMPANY_NAME', 'CGP')
-APPLICATION_FORM_URL = os.environ.get('APPLICATION_FORM_URL', 'Shorturl.at/kmvJ6')
+# Conversation state tracking for dynamic prompts
+conversation_states = {}
 
-SYSTEM_PROMPT = f"""You are {RECRUITER_NAME}, a recruiter from {COMPANY_NAME} (Cornerstone Global Partners). You're friendly, approachable, and good at building rapport with candidates.
+# Resume screening prompt (kept local for Telegram bot)
+SCREENING_PROMPT = """You are analyzing a resume for a staffing agency. Your task is to evaluate the candidate.
 
-## YOUR PERSONALITY
-- Casual and warm, like texting a friend who happens to be helping you find a job
-- Patient and helpful - happy to answer questions and chat
-- Use casual language: "u" instead of "you", "ur" instead of "your", "cos" instead of "because"
-- Keep it natural - respond to what they say, don't be robotic
-- If they're chatty, be chatty back. If they're brief, match their energy.
-- Only use ":)" occasionally, not in every message
-
-## HOW TO FORMAT YOUR REPLIES
-IMPORTANT: Send multiple short messages instead of one long message, like how people actually text.
-- Use "---" to separate each message
-- Keep each message short (1-3 sentences max)
-- It feels more natural and conversational this way
-
-Example of good formatting:
-"yep that makes sense!
----
-so the role is basically helping customers with their gym memberships
----
-do u have any experience in customer service or sales?"
-
-Example of bad formatting (too long, all in one message):
-"yep that makes sense! so the role is basically helping customers with their gym memberships and answering their questions about pricing and facilities. do u have any experience in customer service or sales? it would really help for this position."
-
-## YOUR OBJECTIVES (in this order, but be flexible)
-1. Get them to fill the application form: {APPLICATION_FORM_URL} (select "{RECRUITER_NAME}" as consultant)
-2. Get their resume
-3. Ask about their relevant experience for the role
-4. Close by letting them know you'll contact them if shortlisted
-
-## HOW TO COMMUNICATE
-- Be conversational, not scripted
-- If they ask questions, answer them naturally before moving to next steps
-- If they share something about themselves, acknowledge it
-- Adapt to their tone - if they use emojis, feel free to use some too
-- It's okay to have a bit of back-and-forth before getting to business
-
-## EXAMPLE PHRASES (use naturally, don't force)
-- "can i have ur resume please?"
-- "do u have experience with [relevant skill]?"
-- "let me know when is a good time to call u"
-- "will contact u if u are shortlisted"
-- "yep of cos", "can can", "ok sure", "no worries"
-
-## THINGS TO REMEMBER
-- Don't ask for resume if they already sent it
-- Don't repeat the form link if they already completed it
-- When conversation is wrapping up, let them know you'll be in touch if shortlisted
-- Be helpful and answer their questions about the role or process
-
-Just be natural and helpful. The goal is to collect their info while making them feel comfortable."""
-
-SCREENING_PROMPT = """Here are the available job roles with their requirements and scoring guides (format: Job Title, Requirements, Scoring Guide):
-
+AVAILABLE JOB ROLES:
 {job_roles}
 
 RESUME TEXT:
 {resume_text}
 
-Please analyze this resume and provide a screening assessment.
+INSTRUCTIONS:
+1. Identify which job role the candidate is applying for based on context. Match to one of the available roles.
+2. Analyze the resume against that role's requirements.
+3. Extract contact information (email, phone) if visible.
 
-1. First, identify which job role the candidate is applying for. Match it to one of the available roles. If the message does not clearly indicate a role, select the most suitable role based on the candidates experience.
+CITIZENSHIP REQUIREMENT (CRITICAL):
+Most roles require Singapore Citizens or Permanent Residents. Look for indicators:
+- NRIC number (S/T = Citizen, F/G = PR)
+- National Service (NS) completion
+- Singapore address
+- Local education (NUS, NTU, SMU, polytechnics, ITE)
+- Explicit mention of citizenship/PR status
 
-2. Then analyze this resume against that specific roles requirements and scoring guide.
+If no clear indicator of SC/PR status is found, set recommendation to "Rejected" unless the role specifically allows foreigners.
 
-3. Extract the candidates email address and phone number from the resume if available.
-
-IMPORTANT CITIZENSHIP REQUIREMENT: Candidates MUST be Singapore Citizens or Permanent Residents. Look for indicators such as: NRIC number (starts with S or T for citizens, F or G for PRs), National Service or NS completion, Singapore address, local education (Singapore polytechnics like Ngee Ann or Temasek, universities like NUS NTU SMU SIT SUSS, or local schools), or explicit mention of citizenship or PR status. If no clear indicator of Singapore Citizen or PR status is found, set recommendation to Rejected regardless of qualifications.
-
-Please include a JSON block in your response with these fields:
+RESPONSE FORMAT:
+Return a JSON object:
 {{
-  "candidate_name": "Full name from resume",
-  "candidate_email": "email@example.com or null",
-  "candidate_phone": "+65 XXXX XXXX or null",
-  "job_matched": "matched role name",
-  "score": 7,
-  "citizenship_status": "Singapore Citizen",
-  "recommendation": "Top Candidate",
-  "summary": "Brief evaluation text"
+    "candidate_name": "Full name from resume",
+    "candidate_email": "email@example.com or null",
+    "candidate_phone": "+65 XXXX XXXX or null",
+    "job_matched": "Best matching role from your list",
+    "score": 7,
+    "citizenship_status": "Singapore Citizen|PR|Unknown|Foreigner",
+    "recommendation": "Top Candidate|Review|Rejected",
+    "summary": "Brief evaluation including citizenship verification"
 }}
 
-Note: score should be a number from 1-10, citizenship_status should be one of: Singapore Citizen, PR, Unknown, or Foreigner. recommendation should be one of: Top Candidate, Review, or Rejected.
-
-Use the scoring guide for the matched role."""
+Use the scoring guide for the matched role. Score 1-10."""
 
 # Global clients - initialized in main()
 client = None
@@ -264,10 +223,67 @@ def add_message(user_id: int, role: str, content: str):
         conv[:] = conv[-MAX_MESSAGES * 2:]
 
 
-async def get_ai_response(user_id: int, message: str) -> str:
+def get_conversation_state(user_id: int) -> dict:
+    """Get the conversation state for a user."""
+    if user_id not in conversation_states:
+        conversation_states[user_id] = {
+            "stage": "new",
+            "applied_role": None,
+            "candidate_name": None,
+            "resume_received": False,
+            "form_completed": False,
+            "experience_discussed": False,
+            "citizenship_status": None
+        }
+    return conversation_states[user_id]
+
+
+def update_conversation_state(user_id: int, **kwargs):
+    """Update the conversation state for a user."""
+    state = get_conversation_state(user_id)
+    state.update(kwargs)
+    return state
+
+
+def detect_state_from_message(user_id: int, message: str):
+    """Detect and update state based on message content."""
+    state = get_conversation_state(user_id)
+    message_lower = message.lower()
+
+    # Detect form completion
+    form_keywords = ["done", "completed", "finished", "filled", "submitted"]
+    if any(kw in message_lower for kw in form_keywords):
+        if not state["form_completed"]:
+            update_conversation_state(user_id, form_completed=True, stage="form_completed")
+
+    # Detect job role
+    detected_role = identify_role_from_text(message)
+    if detected_role and detected_role != "general":
+        update_conversation_state(user_id, applied_role=detected_role)
+
+    # Detect citizenship mentions
+    citizenship_map = {
+        "singapore citizen": "SC", "singaporean": "SC", "sg citizen": "SC",
+        "permanent resident": "PR", " pr ": "PR", "foreigner": "Foreign"
+    }
+    for indicator, status in citizenship_map.items():
+        if indicator in message_lower:
+            update_conversation_state(user_id, citizenship_status=status)
+            break
+
+
+async def get_ai_response(user_id: int, message: str, candidate_name: str = None) -> str:
+    """Get AI response using dynamic context-aware prompting."""
     # Ensure message is not empty
     if not message or not message.strip():
         message = "[Empty message]"
+
+    # Detect and update state based on message
+    detect_state_from_message(user_id, message)
+
+    # Store candidate name if provided
+    if candidate_name:
+        update_conversation_state(user_id, candidate_name=candidate_name)
 
     add_message(user_id, "user", message)
 
@@ -278,21 +294,36 @@ async def get_ai_response(user_id: int, message: str) -> str:
     ]
 
     if not valid_messages:
-        return "Hello! I'm a recruiter assistant. How can I help you today?"
+        # First message - simple greeting with form
+        return f"Hi! I'm {RECRUITER_NAME} from {COMPANY_NAME} :)\n---\nCould u fill up this form? {APPLICATION_FORM_URL}\n---\nJust select '{RECRUITER_NAME}' as the consultant"
+
+    # Build dynamic context-aware system prompt
+    state = get_conversation_state(user_id)
+    context = build_context_from_state(str(user_id), state)
+    system_prompt = build_system_prompt(context)
 
     try:
         response = anthropic_client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=1024,
-            system=SYSTEM_PROMPT,
+            system=system_prompt,
             messages=valid_messages
         )
         ai_message = response.content[0].text
         add_message(user_id, "assistant", ai_message)
+
+        # Update state based on response
+        response_lower = ai_message.lower()
+        if "resume" in response_lower and ("send" in response_lower or "have" in response_lower):
+            if state.get("form_completed"):
+                update_conversation_state(user_id, stage="resume_requested")
+        if any(phrase in response_lower for phrase in ["will contact", "shortlisted"]):
+            update_conversation_state(user_id, stage="conversation_closed")
+
         return ai_message
     except Exception as e:
         print(f"Error getting AI response: {e}")
-        return "I apologize, but I'm having trouble processing your message. Please try again."
+        return "sorry, having some trouble. could u try again?"
 
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
@@ -831,36 +862,26 @@ def setup_handlers(telegram_client):
                             # Save candidate with screening results and resume URL
                             await save_candidate(user_id, username, full_name, screening_result, resume_url)
 
-                            # Generate response in Ai Wei's style - ask role-specific questions
+                            # Update conversation state
                             matched_job = screening_result.get('job_matched', 'our open positions')
                             first_name = candidate_name.split()[0] if candidate_name else 'there'
 
-                            # Generate role-specific experience question
-                            role_questions = {
-                                "barista": "do u have experience making coffee with latte art?",
-                                "coffee": "do u have experience making coffee with latte art?",
-                                "researcher": "do u have experience with phone surveys or data collection?",
-                                "phone": "do u have experience with phone surveys or data collection?",
-                                "event": "do u have experience with events or customer service?",
-                                "crew": "do u have experience working at events?",
-                                "admin": "do u have experience with admin work?",
-                                "customer service": "do u have experience in customer service?",
-                                "promoter": "do u have experience with promotions or sales?",
-                            }
+                            update_conversation_state(
+                                user_id,
+                                resume_received=True,
+                                candidate_name=first_name,
+                                applied_role=matched_job,
+                                stage="resume_received"
+                            )
 
-                            # Find matching question based on job role
-                            experience_question = None
-                            matched_job_lower = matched_job.lower()
-                            for keyword, question in role_questions.items():
-                                if keyword in matched_job_lower:
-                                    experience_question = question
-                                    break
+                            # Generate natural response using knowledgebase
+                            # Identify role key for appropriate experience question
+                            role_key = identify_role_from_text(matched_job)
+                            response = get_resume_acknowledgment(first_name, role_key)
 
-                            # Default question if no specific match
-                            if not experience_question:
-                                experience_question = "what relevant experience do u have for this role?"
+                            # Mark experience as discussed since we're asking about it
+                            update_conversation_state(user_id, experience_discussed=True, stage="experience_asked")
 
-                            response = f"thanks {first_name}!\n{experience_question}"
                             await event.respond(response)
                         else:
                             print("Could not extract sufficient text from resume")
