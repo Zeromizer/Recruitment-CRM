@@ -18,6 +18,8 @@ import {
   Clock,
   AlertCircle,
   CheckCircle,
+  Eye,
+  Copy,
 } from 'lucide-react';
 import {
   getJobPosts,
@@ -36,7 +38,7 @@ import {
 import type { JobPost, CompanyProfile, JobFormData } from '../types/botConfig';
 import { isSupabaseConfigured } from '../lib/supabase';
 
-type TabType = 'jobs' | 'company' | 'style' | 'objectives';
+type TabType = 'jobs' | 'company' | 'style' | 'objectives' | 'prompt';
 
 // Tab configuration
 const tabs: { id: TabType; name: string; icon: typeof Briefcase }[] = [
@@ -44,6 +46,7 @@ const tabs: { id: TabType; name: string; icon: typeof Briefcase }[] = [
   { id: 'company', name: 'Company Profile', icon: Building2 },
   { id: 'style', name: 'Communication Style', icon: MessageSquare },
   { id: 'objectives', name: 'Objectives', icon: Target },
+  { id: 'prompt', name: 'System Prompt', icon: Eye },
 ];
 
 // Empty job form data
@@ -277,6 +280,178 @@ export default function BotConfig() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // ============================================================================
+  // GENERATE SYSTEM PROMPT
+  // ============================================================================
+
+  function generateSystemPrompt(): string {
+    const parts: string[] = [];
+
+    // Identity section
+    const recruiterName = companyProfile?.recruiter_name || 'Ai Wei';
+    const companyName = companyProfile?.name || 'CGP';
+    const fullName = companyProfile?.full_name || 'CGP Singapore';
+
+    parts.push(`You are ${recruiterName}, a recruiter at ${fullName} (${companyName}).`);
+    parts.push('');
+    parts.push('## YOUR ROLE');
+    parts.push(`You're helping candidates find suitable part-time and contract positions in Singapore. You work for ${companyName}, a staffing agency.`);
+    parts.push('');
+
+    // Communication style section
+    if (communicationStyle) {
+      parts.push('## HOW TO COMMUNICATE');
+
+      const toneDescriptions: Record<string, string> = {
+        'friendly': 'friendly and warm, like texting a helpful friend',
+        'professional': 'professional and courteous',
+        'enthusiastic': 'enthusiastic and energetic',
+        'empathetic': 'empathetic and understanding',
+        'direct': 'direct and efficient, getting straight to the point',
+      };
+      parts.push(`- Be ${toneDescriptions[communicationStyle.tone] || communicationStyle.tone}`);
+
+      if (communicationStyle.language === 'singlish') {
+        parts.push("- Use Singlish: 'lah', 'lor', 'can' etc. to sound more local");
+      } else if (communicationStyle.language === 'bilingual') {
+        parts.push('- Mix English with Chinese phrases where appropriate');
+      }
+
+      if (communicationStyle.formality === 'casual') {
+        parts.push("- Use casual language: 'u' instead of 'you', 'ur' instead of 'your', 'cos' instead of 'because'");
+      } else if (communicationStyle.formality === 'semi-formal') {
+        parts.push('- Keep language professional but approachable');
+      } else {
+        parts.push('- Use formal, corporate language');
+      }
+
+      if (communicationStyle.emoji_usage === 'none') {
+        parts.push('- Do not use emojis');
+      } else if (communicationStyle.emoji_usage === 'minimal') {
+        parts.push('- Use emojis sparingly, only when appropriate');
+      } else if (communicationStyle.emoji_usage === 'moderate') {
+        parts.push('- Use emojis moderately to add warmth');
+      } else {
+        parts.push('- Feel free to use emojis frequently');
+      }
+
+      parts.push("- Match the candidate's energy - if they're brief, be brief. If chatty, be more conversational");
+      parts.push('');
+
+      parts.push('## MESSAGE FORMAT');
+      if (communicationStyle.response_length === 'concise') {
+        parts.push("- Keep responses short and to the point (1-2 sentences)");
+        parts.push("- Use '---' to split into multiple short messages");
+      } else if (communicationStyle.response_length === 'balanced') {
+        parts.push('- Use medium-length responses (2-3 sentences)');
+      } else {
+        parts.push('- Provide detailed, comprehensive responses when helpful');
+      }
+      parts.push('- Less is more - don\'t over-explain');
+      parts.push('');
+
+      if (communicationStyle.custom_phrases) {
+        parts.push('## SUGGESTED PHRASES');
+        communicationStyle.custom_phrases.split('\n').forEach(phrase => {
+          if (phrase.trim()) {
+            parts.push(`- "${phrase.trim()}"`);
+          }
+        });
+        parts.push('');
+      }
+    }
+
+    // Objectives section
+    if (objectives) {
+      parts.push('## YOUR OBJECTIVES');
+      parts.push(`**Primary Goal:** ${objectives.primary_goal}`);
+      parts.push('');
+
+      if (objectives.secondary_goals) {
+        parts.push('**Secondary Goals:**');
+        objectives.secondary_goals.split('\n').forEach(goal => {
+          if (goal.trim()) parts.push(`- ${goal.trim()}`);
+        });
+        parts.push('');
+      }
+
+      if (objectives.success_criteria) {
+        parts.push('**Success Criteria:**');
+        objectives.success_criteria.split('\n').forEach(criterion => {
+          if (criterion.trim()) parts.push(`- ${criterion.trim()}`);
+        });
+        parts.push('');
+      }
+
+      if (objectives.escalation_triggers) {
+        parts.push('**When to Escalate to Human:**');
+        objectives.escalation_triggers.split('\n').forEach(trigger => {
+          if (trigger.trim()) parts.push(`- ${trigger.trim()}`);
+        });
+        parts.push('');
+      }
+
+      if (objectives.closing_messages) {
+        parts.push('**Closing Messages (use when wrapping up):**');
+        objectives.closing_messages.split('\n').forEach(msg => {
+          if (msg.trim()) parts.push(`- "${msg.trim()}"`);
+        });
+        parts.push('');
+      }
+    }
+
+    // Company knowledge section
+    parts.push('## WHAT YOU KNOW');
+    if (companyProfile) {
+      parts.push(`- Company: ${companyProfile.description || 'A recruitment agency in Singapore'}`);
+      if (companyProfile.ea_licence) parts.push(`- EA Licence: ${companyProfile.ea_licence}`);
+      if (companyProfile.application_form_url) {
+        parts.push(`- Application form: ${companyProfile.application_form_url} (select '${recruiterName}' as consultant)`);
+      }
+      if (companyProfile.contact?.website) parts.push(`- Website: ${companyProfile.contact.website}`);
+    }
+    parts.push('');
+
+    // Active jobs section
+    const activeJobs = jobs.filter(job => job.is_active);
+    if (activeJobs.length > 0) {
+      parts.push('## CURRENT JOB OPENINGS');
+      activeJobs.forEach(job => {
+        parts.push(`**${job.title}**`);
+        if (job.salary) parts.push(`- Pay: ${job.salary}`);
+        if (job.location) parts.push(`- Location: ${job.location}`);
+        if (job.work_type) parts.push(`- Type: ${job.work_type}`);
+        if (job.shifts?.day || job.shifts?.overnight) {
+          parts.push(`- Shifts: Day (${job.shifts?.day || 'TBD'}) or Overnight (${job.shifts?.overnight || 'TBD'})`);
+        }
+        if (job.requirements && job.requirements.length > 0) {
+          parts.push(`- Requirements: ${job.requirements.join(', ')}`);
+        }
+        if (job.citizenship_required === 'SC') {
+          parts.push('- **IMPORTANT: Singaporeans Only**');
+        } else if (job.citizenship_required === 'PR') {
+          parts.push('- **Requires: Singapore PR or Citizen**');
+        }
+        if (job.notes) parts.push(`- Notes: ${job.notes}`);
+        parts.push('');
+      });
+    } else {
+      parts.push('## CURRENT OPENINGS');
+      parts.push('- No specific openings at the moment, but collect their info for future opportunities');
+      parts.push('');
+    }
+
+    // Things to avoid
+    parts.push("## DON'T");
+    parts.push('- Repeat information they already told you');
+    parts.push("- Ask for things they've already provided (form/resume)");
+    parts.push('- Be overly enthusiastic with exclamation marks');
+    parts.push("- Promise to call them - just say you'll be in touch if shortlisted");
+    parts.push('- Send very long messages - keep it casual and brief');
+
+    return parts.join('\n');
   }
 
   // ============================================================================
@@ -895,6 +1070,45 @@ export default function BotConfig() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* System Prompt Preview Tab */}
+        {activeTab === 'prompt' && (
+          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800">System Prompt Preview</h2>
+                <p className="text-sm text-slate-500">This is what the AI bot sees when responding to candidates.</p>
+              </div>
+              <button
+                onClick={() => {
+                  const prompt = generateSystemPrompt();
+                  navigator.clipboard.writeText(prompt);
+                  setSuccess('System prompt copied to clipboard!');
+                }}
+                className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 flex items-center gap-2"
+              >
+                <Copy className="w-4 h-4" />
+                Copy to Clipboard
+              </button>
+            </div>
+
+            <div className="bg-slate-900 rounded-lg p-4 overflow-auto max-h-[600px]">
+              <pre className="text-sm text-green-400 whitespace-pre-wrap font-mono">
+                {generateSystemPrompt()}
+              </pre>
+            </div>
+
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h3 className="text-sm font-medium text-blue-800 mb-2">How this prompt is built:</h3>
+              <ul className="text-sm text-blue-700 space-y-1">
+                <li>• <strong>Identity:</strong> From Company Profile (recruiter name, company name)</li>
+                <li>• <strong>Communication rules:</strong> From Communication Style tab</li>
+                <li>• <strong>Job listings:</strong> Only active jobs from Job Posts tab</li>
+                <li>• <strong>Goals:</strong> From Objectives tab</li>
+              </ul>
+            </div>
           </div>
         )}
       </div>
