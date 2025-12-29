@@ -30,10 +30,18 @@ from shared.knowledgebase import (
     reload_from_database
 )
 from shared.training_handlers import handle_training_message, init_admin_users
+from shared.database import (
+    save_message, get_conversation_messages, get_or_create_conversation_state,
+    update_conversation_state_db, link_conversation_to_candidate
+)
 
-# Conversation memory (max 10 messages per user)
+# Conversation memory (max messages per user for AI context)
 conversations = {}
-MAX_MESSAGES = 10
+MAX_MESSAGES = 25  # Increased for better context
+conversation_states = {}
+
+# Track which users have been restored from DB
+restored_users = set()
 
 # Operating hours configuration (Singapore timezone)
 TIMEZONE = ZoneInfo("Asia/Singapore")
@@ -233,13 +241,65 @@ job_roles_cache_time = 0
 JOB_ROLES_CACHE_DURATION = 300  # 5 minutes
 
 
+async def restore_conversation_from_db(user_id: int):
+    """Restore conversation history and state from database for returning users."""
+    if user_id in restored_users:
+        return  # Already restored
+
+    try:
+        # Get messages from database
+        db_messages = await get_conversation_messages("telegram", str(user_id), limit=MAX_MESSAGES * 2)
+
+        if db_messages:
+            # Convert to the format we use in memory
+            conversations[user_id] = [
+                {"role": msg["role"], "content": msg["content"]}
+                for msg in db_messages
+            ]
+            print(f"Restored {len(db_messages)} messages for user {user_id}")
+
+        # Get conversation state from database
+        db_state = await get_or_create_conversation_state("telegram", str(user_id))
+        if db_state:
+            conversation_states[user_id] = {
+                "stage": db_state.get("stage", "new"),
+                "applied_role": db_state.get("applied_role"),
+                "candidate_name": db_state.get("candidate_name"),
+                "resume_received": db_state.get("resume_received", False),
+                "form_completed": db_state.get("form_completed", False),
+                "experience_discussed": db_state.get("experience_discussed", False),
+                "citizenship_status": db_state.get("citizenship_status"),
+            }
+
+        restored_users.add(user_id)
+
+    except Exception as e:
+        print(f"Error restoring conversation from DB: {e}")
+        restored_users.add(user_id)  # Mark as restored to avoid repeated errors
+
+
 def get_conversation(user_id: int) -> list:
     if user_id not in conversations:
         conversations[user_id] = []
     return conversations[user_id]
 
 
+async def add_message_async(user_id: int, role: str, content: str):
+    """Add message to memory and save to database."""
+    conv = get_conversation(user_id)
+    conv.append({"role": role, "content": content})
+    if len(conv) > MAX_MESSAGES * 2:
+        conv[:] = conv[-MAX_MESSAGES * 2:]
+
+    # Save to database asynchronously
+    try:
+        await save_message("telegram", str(user_id), role, content)
+    except Exception as e:
+        print(f"Error saving message to DB: {e}")
+
+
 def add_message(user_id: int, role: str, content: str):
+    """Sync wrapper - adds to memory only. Use add_message_async for DB persistence."""
     conv = get_conversation(user_id)
     conv.append({"role": role, "content": content})
     if len(conv) > MAX_MESSAGES * 2:
@@ -256,20 +316,62 @@ def get_conversation_state(user_id: int) -> dict:
             "resume_received": False,
             "form_completed": False,
             "experience_discussed": False,
-            "citizenship_status": None
+            "citizenship_status": None,
+            "call_scheduled": False
         }
     return conversation_states[user_id]
 
 
 def update_conversation_state(user_id: int, **kwargs):
-    """Update the conversation state for a user."""
+    """Update the conversation state for a user (memory only)."""
     state = get_conversation_state(user_id)
     state.update(kwargs)
     return state
 
 
+async def update_conversation_state_async(user_id: int, **kwargs):
+    """Update the conversation state for a user and persist to database."""
+    state = get_conversation_state(user_id)
+    state.update(kwargs)
+
+    # Save to database
+    try:
+        await update_conversation_state_db("telegram", str(user_id), **kwargs)
+    except Exception as e:
+        print(f"Error saving conversation state to DB: {e}")
+
+    return state
+
+
+async def detect_state_from_message_async(user_id: int, message: str):
+    """Detect and update state based on message content, persisting to DB."""
+    state = get_conversation_state(user_id)
+    message_lower = message.lower()
+
+    # Detect form completion
+    form_keywords = ["done", "completed", "finished", "filled", "submitted"]
+    if any(kw in message_lower for kw in form_keywords):
+        if not state["form_completed"]:
+            await update_conversation_state_async(user_id, form_completed=True, stage="form_completed")
+
+    # Detect job role
+    detected_role = identify_role_from_text(message)
+    if detected_role and detected_role != "general":
+        await update_conversation_state_async(user_id, applied_role=detected_role)
+
+    # Detect citizenship mentions
+    citizenship_map = {
+        "singapore citizen": "SC", "singaporean": "SC", "sg citizen": "SC",
+        "permanent resident": "PR", " pr ": "PR", "foreigner": "Foreign"
+    }
+    for indicator, status in citizenship_map.items():
+        if indicator in message_lower:
+            await update_conversation_state_async(user_id, citizenship_status=status)
+            break
+
+
 def detect_state_from_message(user_id: int, message: str):
-    """Detect and update state based on message content."""
+    """Detect and update state based on message content (memory only)."""
     state = get_conversation_state(user_id)
     message_lower = message.lower()
 
@@ -297,18 +399,22 @@ def detect_state_from_message(user_id: int, message: str):
 
 async def get_ai_response(user_id: int, message: str, candidate_name: str = None) -> str:
     """Get AI response using dynamic context-aware prompting."""
+    # Restore conversation from database if this is a returning user
+    await restore_conversation_from_db(user_id)
+
     # Ensure message is not empty
     if not message or not message.strip():
         message = "[Empty message]"
 
-    # Detect and update state based on message
-    detect_state_from_message(user_id, message)
+    # Detect and update state based on message (with DB persistence)
+    await detect_state_from_message_async(user_id, message)
 
     # Store candidate name if provided
     if candidate_name:
-        update_conversation_state(user_id, candidate_name=candidate_name)
+        await update_conversation_state_async(user_id, candidate_name=candidate_name)
 
-    add_message(user_id, "user", message)
+    # Add user message and save to database
+    await add_message_async(user_id, "user", message)
 
     # Filter out any empty messages from conversation history
     valid_messages = [
@@ -318,7 +424,9 @@ async def get_ai_response(user_id: int, message: str, candidate_name: str = None
 
     if not valid_messages:
         # First message - simple greeting with form
-        return f"Hi! I'm {RECRUITER_NAME} from {COMPANY_NAME} :)\n---\nCould u fill up this form? {APPLICATION_FORM_URL}\n---\nJust select '{RECRUITER_NAME}' as the consultant"
+        greeting = f"Hi! I'm {RECRUITER_NAME} from {COMPANY_NAME} :)\n---\nCould u fill up this form? {APPLICATION_FORM_URL}\n---\nJust select '{RECRUITER_NAME}' as the consultant"
+        await add_message_async(user_id, "assistant", greeting)
+        return greeting
 
     # Build dynamic context-aware system prompt
     state = get_conversation_state(user_id)
@@ -333,15 +441,17 @@ async def get_ai_response(user_id: int, message: str, candidate_name: str = None
             messages=valid_messages
         )
         ai_message = response.content[0].text
-        add_message(user_id, "assistant", ai_message)
 
-        # Update state based on response
+        # Save assistant response to database
+        await add_message_async(user_id, "assistant", ai_message)
+
+        # Update state based on response and persist to DB
         response_lower = ai_message.lower()
         if "resume" in response_lower and ("send" in response_lower or "have" in response_lower):
             if state.get("form_completed"):
-                update_conversation_state(user_id, stage="resume_requested")
+                await update_conversation_state_async(user_id, stage="resume_requested")
         if any(phrase in response_lower for phrase in ["will contact", "shortlisted"]):
-            update_conversation_state(user_id, stage="conversation_closed")
+            await update_conversation_state_async(user_id, stage="conversation_closed")
 
         return ai_message
     except Exception as e:

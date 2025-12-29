@@ -404,3 +404,318 @@ async def get_candidate_context_summary(
         return None
 
     return " | ".join(parts)
+
+
+# =============================================================================
+# NEW CONVERSATIONS TABLE OPERATIONS
+# =============================================================================
+
+async def save_message(
+    platform: str,
+    platform_user_id: str,
+    role: str,
+    content: str,
+    metadata: dict = None
+) -> bool:
+    """
+    Save a single message to the conversations table.
+
+    Args:
+        platform: 'telegram' or 'whatsapp'
+        platform_user_id: The user's platform ID
+        role: 'user' or 'assistant'
+        content: The message content
+        metadata: Optional metadata (file info, etc.)
+
+    Returns:
+        True on success
+    """
+    client = get_supabase()
+
+    try:
+        data = {
+            "platform": platform,
+            "platform_user_id": str(platform_user_id),
+            "role": role,
+            "content": content,
+            "message_metadata": metadata or {}
+        }
+
+        client.table("conversations").insert(data).execute()
+        return True
+
+    except Exception as e:
+        print(f"Error saving message: {e}")
+        return False
+
+
+async def get_conversation_messages(
+    platform: str,
+    platform_user_id: str,
+    limit: int = 50
+) -> List[Dict[str, Any]]:
+    """
+    Get conversation messages from the database.
+
+    Args:
+        platform: 'telegram' or 'whatsapp'
+        platform_user_id: The user's platform ID
+        limit: Maximum number of messages to return (most recent)
+
+    Returns:
+        List of message dicts with role, content, created_at
+    """
+    client = get_supabase()
+
+    try:
+        result = client.table("conversations").select(
+            "role, content, created_at, message_metadata"
+        ).eq(
+            "platform", platform
+        ).eq(
+            "platform_user_id", str(platform_user_id)
+        ).order(
+            "created_at", desc=True
+        ).limit(limit).execute()
+
+        if result.data:
+            # Reverse to get chronological order
+            messages = list(reversed(result.data))
+            return messages
+
+        return []
+
+    except Exception as e:
+        print(f"Error getting conversation messages: {e}")
+        return []
+
+
+async def get_or_create_conversation_state(
+    platform: str,
+    platform_user_id: str
+) -> Dict[str, Any]:
+    """
+    Get or create conversation state for a user.
+
+    Returns the state dict with stage, flags, etc.
+    """
+    client = get_supabase()
+
+    try:
+        # Try to get existing state
+        result = client.table("conversation_states").select("*").eq(
+            "platform", platform
+        ).eq(
+            "platform_user_id", str(platform_user_id)
+        ).execute()
+
+        if result.data:
+            state = result.data[0]
+            return {
+                "id": state.get("id"),
+                "stage": state.get("stage", "initial"),
+                "candidate_name": state.get("candidate_name"),
+                "applied_role": state.get("applied_role"),
+                "citizenship_status": state.get("citizenship_status"),
+                "form_completed": state.get("form_completed", False),
+                "resume_received": state.get("resume_received", False),
+                "experience_discussed": state.get("experience_discussed", False),
+                "call_scheduled": state.get("call_scheduled", False),
+                "state_data": state.get("state_data", {}),
+                "candidate_id": state.get("candidate_id"),
+            }
+
+        # Create new state
+        data = {
+            "platform": platform,
+            "platform_user_id": str(platform_user_id),
+            "stage": "initial",
+            "form_completed": False,
+            "resume_received": False,
+            "experience_discussed": False,
+            "call_scheduled": False,
+            "state_data": {}
+        }
+
+        insert_result = client.table("conversation_states").insert(data).execute()
+
+        if insert_result.data:
+            return {**data, "id": insert_result.data[0].get("id")}
+
+        return data
+
+    except Exception as e:
+        print(f"Error getting/creating conversation state: {e}")
+        return {
+            "stage": "initial",
+            "form_completed": False,
+            "resume_received": False,
+            "experience_discussed": False,
+            "call_scheduled": False,
+        }
+
+
+async def update_conversation_state_db(
+    platform: str,
+    platform_user_id: str,
+    **updates
+) -> bool:
+    """
+    Update conversation state fields in the database.
+
+    Args:
+        platform: 'telegram' or 'whatsapp'
+        platform_user_id: The user's platform ID
+        **updates: Fields to update (stage, candidate_name, etc.)
+
+    Returns:
+        True on success
+    """
+    client = get_supabase()
+
+    try:
+        # Build update data from kwargs
+        allowed_fields = [
+            "stage", "candidate_name", "applied_role", "citizenship_status",
+            "form_completed", "resume_received", "experience_discussed",
+            "call_scheduled", "candidate_id", "state_data"
+        ]
+
+        data = {k: v for k, v in updates.items() if k in allowed_fields}
+
+        if not data:
+            return True
+
+        client.table("conversation_states").update(data).eq(
+            "platform", platform
+        ).eq(
+            "platform_user_id", str(platform_user_id)
+        ).execute()
+
+        return True
+
+    except Exception as e:
+        print(f"Error updating conversation state: {e}")
+        return False
+
+
+async def link_conversation_to_candidate(
+    platform: str,
+    platform_user_id: str,
+    candidate_id: str
+) -> bool:
+    """
+    Link all conversations and state to a candidate record.
+
+    Called when a candidate is created/identified.
+    """
+    client = get_supabase()
+
+    try:
+        # Update conversations table
+        client.table("conversations").update({
+            "candidate_id": candidate_id
+        }).eq(
+            "platform", platform
+        ).eq(
+            "platform_user_id", str(platform_user_id)
+        ).execute()
+
+        # Update conversation_states table
+        client.table("conversation_states").update({
+            "candidate_id": candidate_id
+        }).eq(
+            "platform", platform
+        ).eq(
+            "platform_user_id", str(platform_user_id)
+        ).execute()
+
+        print(f"Linked conversations to candidate {candidate_id}")
+        return True
+
+    except Exception as e:
+        print(f"Error linking conversation to candidate: {e}")
+        return False
+
+
+async def delete_conversation(
+    platform: str,
+    platform_user_id: str
+) -> int:
+    """
+    Delete all conversation messages and state for a user.
+
+    Returns the number of messages deleted.
+    """
+    client = get_supabase()
+
+    try:
+        # Delete messages
+        result = client.table("conversations").delete().eq(
+            "platform", platform
+        ).eq(
+            "platform_user_id", str(platform_user_id)
+        ).execute()
+
+        deleted_count = len(result.data) if result.data else 0
+
+        # Delete state
+        client.table("conversation_states").delete().eq(
+            "platform", platform
+        ).eq(
+            "platform_user_id", str(platform_user_id)
+        ).execute()
+
+        print(f"Deleted {deleted_count} messages for {platform}:{platform_user_id}")
+        return deleted_count
+
+    except Exception as e:
+        print(f"Error deleting conversation: {e}")
+        return 0
+
+
+async def get_all_conversations_summary() -> List[Dict[str, Any]]:
+    """
+    Get a summary of all conversations for CRM display.
+
+    Returns list of conversation summaries with user info and message counts.
+    """
+    client = get_supabase()
+
+    try:
+        # Get all conversation states with candidate info
+        result = client.table("conversation_states").select(
+            "*, candidates(id, full_name, telegram_username, phone)"
+        ).order("updated_at", desc=True).execute()
+
+        summaries = []
+        for state in result.data or []:
+            # Get message count for this user
+            msg_result = client.table("conversations").select(
+                "id", count="exact"
+            ).eq(
+                "platform", state["platform"]
+            ).eq(
+                "platform_user_id", state["platform_user_id"]
+            ).execute()
+
+            candidate = state.get("candidates") or {}
+
+            summaries.append({
+                "platform": state["platform"],
+                "platform_user_id": state["platform_user_id"],
+                "candidate_id": state.get("candidate_id"),
+                "candidate_name": candidate.get("full_name") or state.get("candidate_name") or "Unknown",
+                "username": candidate.get("telegram_username"),
+                "phone": candidate.get("phone"),
+                "stage": state.get("stage", "initial"),
+                "message_count": msg_result.count if msg_result else 0,
+                "last_updated": state.get("updated_at"),
+                "applied_role": state.get("applied_role"),
+            })
+
+        return summaries
+
+    except Exception as e:
+        print(f"Error getting conversations summary: {e}")
+        return []
