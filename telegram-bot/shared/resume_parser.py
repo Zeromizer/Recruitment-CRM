@@ -3,12 +3,17 @@ from io import BytesIO
 import os
 import subprocess
 import tempfile
+import base64
 import PyPDF2
 from docx import Document
 
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
-    """Extract text content from a PDF file."""
+    """Extract text content from a PDF file using PyPDF2.
+
+    Note: This only works for PDFs with selectable text. For image-based PDFs
+    (like Canva resumes), use extract_text_from_pdf_with_vision() as a fallback.
+    """
     try:
         pdf_reader = PyPDF2.PdfReader(BytesIO(pdf_bytes))
         text = ""
@@ -17,6 +22,76 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
         return text.strip()
     except Exception as e:
         print(f"Error extracting PDF text: {e}")
+        return ""
+
+
+async def extract_text_from_pdf_with_vision(pdf_bytes: bytes, anthropic_client=None) -> str:
+    """Extract text from a PDF using Claude's vision API (for image-based PDFs like Canva resumes).
+
+    This is used as a fallback when PyPDF2 cannot extract text (e.g., when text is rendered as images).
+
+    Args:
+        pdf_bytes: The PDF file as bytes
+        anthropic_client: Optional Anthropic client. If not provided, will try to import from ai_screening.
+
+    Returns:
+        Extracted text from the PDF, or empty string on failure.
+    """
+    # Get anthropic client if not provided
+    if anthropic_client is None:
+        try:
+            from shared.ai_screening import anthropic_client as shared_client
+            anthropic_client = shared_client
+        except ImportError:
+            try:
+                from ai_screening import anthropic_client as shared_client
+                anthropic_client = shared_client
+            except ImportError:
+                pass
+
+    if not anthropic_client:
+        print("Error: Anthropic client not available for vision extraction")
+        return ""
+
+    try:
+        # Encode PDF as base64
+        pdf_base64 = base64.standard_b64encode(pdf_bytes).decode("utf-8")
+
+        print("Using Claude vision API to extract text from image-based PDF...")
+
+        response = anthropic_client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=4096,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "document",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "application/pdf",
+                                "data": pdf_base64
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": """Extract ALL text content from this resume/CV document.
+Include everything: name, contact details, work experience, education, skills, certifications, etc.
+Format it in a readable way, preserving the structure and sections.
+Just output the extracted text, no commentary."""
+                        }
+                    ]
+                }
+            ]
+        )
+
+        extracted_text = response.content[0].text
+        print(f"Vision API extracted {len(extracted_text)} characters from PDF")
+        return extracted_text.strip()
+
+    except Exception as e:
+        print(f"Error extracting PDF text with vision API: {e}")
         return ""
 
 

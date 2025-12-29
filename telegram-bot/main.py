@@ -7,6 +7,7 @@ import tempfile
 import subprocess
 import re
 import time
+import base64
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
 from io import BytesIO
@@ -304,6 +305,59 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
         return text.strip()
     except Exception as e:
         print(f"Error extracting PDF text: {e}")
+        return ""
+
+
+async def extract_text_from_pdf_with_vision(pdf_bytes: bytes) -> str:
+    """Extract text from a PDF using Claude's vision API (for image-based PDFs like Canva resumes).
+
+    This is used as a fallback when PyPDF2 cannot extract text (e.g., when text is rendered as images).
+    """
+    global anthropic_client
+
+    if not anthropic_client:
+        print("Error: Anthropic client not initialized for vision extraction")
+        return ""
+
+    try:
+        # Encode PDF as base64
+        pdf_base64 = base64.standard_b64encode(pdf_bytes).decode("utf-8")
+
+        print("Using Claude vision API to extract text from image-based PDF...")
+
+        response = anthropic_client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=4096,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "document",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "application/pdf",
+                                "data": pdf_base64
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": """Extract ALL text content from this resume/CV document.
+Include everything: name, contact details, work experience, education, skills, certifications, etc.
+Format it in a readable way, preserving the structure and sections.
+Just output the extracted text, no commentary."""
+                        }
+                    ]
+                }
+            ]
+        )
+
+        extracted_text = response.content[0].text
+        print(f"Vision API extracted {len(extracted_text)} characters from PDF")
+        return extracted_text.strip()
+
+    except Exception as e:
+        print(f"Error extracting PDF text with vision API: {e}")
         return ""
 
 
@@ -739,6 +793,10 @@ def setup_handlers(telegram_client):
 
                         if mime_type == "application/pdf" or file_name.lower().endswith('.pdf'):
                             resume_text = extract_text_from_pdf(file_bytes)
+                            # If PyPDF2 extraction failed (image-based PDF like Canva), use Claude vision
+                            if not resume_text or len(resume_text) < 100:
+                                print(f"PyPDF2 extracted only {len(resume_text)} chars, trying vision API fallback...")
+                                resume_text = await extract_text_from_pdf_with_vision(file_bytes)
                         elif mime_type in ["application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"] or file_name.lower().endswith(('.doc', '.docx')):
                             resume_text = extract_text_from_word(file_bytes)
                             # Convert Word to PDF for preview compatibility
