@@ -303,6 +303,41 @@ export function fileToBase64(file: File): Promise<string> {
   });
 }
 
+// Screen resume via Supabase Edge Function (avoids CORS issues)
+async function screenResumeViaEdgeFunction(input: ScreeningInput, jobRoles: JobRole[]): Promise<ScreeningResult> {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+
+  if (!supabaseUrl) {
+    throw new Error('Supabase URL not configured. Please add VITE_SUPABASE_URL to your environment.');
+  }
+
+  const response = await fetch(`${supabaseUrl}/functions/v1/screen-resume`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      pdfBase64: input.pdfBase64,
+      emailSubject: input.emailSubject,
+      mediaType: input.mediaType || 'application/pdf',
+      jobRoles: jobRoles,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(errorData.error || `Edge function error: ${response.statusText}`);
+  }
+
+  const result = await response.json();
+
+  if (result.error) {
+    throw new Error(result.error);
+  }
+
+  return result as ScreeningResult;
+}
+
 // Full screening workflow
 export async function performFullScreening(input: ScreeningInput): Promise<ScreeningResult> {
   // Step 1: Fetch job roles (from Google Sheets or fallback)
@@ -311,8 +346,19 @@ export async function performFullScreening(input: ScreeningInput): Promise<Scree
   // Step 2: Determine media type (default to PDF)
   const mediaType = input.mediaType || 'application/pdf';
 
-  // Step 3: Screen the resume with Claude AI
-  const result = await screenResume(input.pdfBase64, input.emailSubject, jobRoles, mediaType);
+  // Step 3: Try Supabase Edge Function first (avoids CORS), fall back to direct API
+  let result: ScreeningResult;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+
+  if (supabaseUrl) {
+    // Use Edge Function (recommended - avoids CORS)
+    console.log('Using Supabase Edge Function for screening...');
+    result = await screenResumeViaEdgeFunction(input, jobRoles);
+  } else {
+    // Fall back to direct API call (only works in non-browser environments)
+    console.log('Supabase not configured, attempting direct API call...');
+    result = await screenResume(input.pdfBase64, input.emailSubject, jobRoles, mediaType);
+  }
 
   // Step 4: Log to Google Sheets (optional, doesn't block)
   logToGoogleSheets(result, input.emailSubject).catch(console.warn);
