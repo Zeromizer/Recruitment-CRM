@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Bot,
   Briefcase,
@@ -126,6 +126,7 @@ export default function BotConfig() {
   } | null>(null);
   const [conversationMessages, setConversationMessages] = useState<ConversationMessage[]>([]);
   const [loadingConversations, setLoadingConversations] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load data on mount
   useEffect(() => {
@@ -518,6 +519,13 @@ Return ONLY the JSON, no explanation.`,
       return date.toLocaleDateString('en-SG', { day: 'numeric', month: 'short' });
     }
   }
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [conversationMessages]);
 
   // Load conversations and set up realtime subscription when tab is selected
   useEffect(() => {
@@ -1573,6 +1581,7 @@ Return ONLY the JSON, no explanation.`,
                             </div>
                           ))
                         )}
+                        <div ref={messagesEndRef} />
                       </div>
                     </>
                   ) : (
