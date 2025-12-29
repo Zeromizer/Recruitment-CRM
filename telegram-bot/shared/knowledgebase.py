@@ -266,10 +266,45 @@ FAQ_KNOWLEDGE = {
 
 ROLE_KNOWLEDGE = {
     # =========================================================================
-    # PROFESSIONAL / EXECUTIVE ROLES
+    # ACTIVE JOBS - Set is_active: True to enable, False to disable
+    # =========================================================================
+    "warehouse_packer": {
+        "title": "Warehouse Operations/Packer",
+        "is_active": True,  # Currently hiring
+        "keywords": ["warehouse", "packer", "packing", "logistics", "jurong", "shift", "operations"],
+        "salary": "$2,200 - $2,700/month",
+        "location": "6 Fishery Port Road, Singapore 619747 (Jurong Port)",
+        "work_type": "Full-time, 6 days/week",
+        "shifts": {
+            "day": "10.00am to 7.00pm",
+            "overnight": "9.00pm to 6.00am"
+        },
+        "responsibilities": [
+            "Select, weigh, pack (wrap), and label fresh fruits and vegetables",
+            "Sort various categories of warehouse goods (rice, flour, cooking oil, meat, etc.)",
+            "Assist in maintaining warehouse cleanliness, organization, and proper stock arrangement",
+            "Perform any other duties assigned by supervisors"
+        ],
+        "requirements": [
+            "Singaporeans Only",
+            "Basic numerical conversion knowledge (e.g., 1kg = 1000g)"
+        ],
+        "experience_questions": [
+            "are u a singaporean?",
+            "do u have any warehouse or packing experience?",
+            "are u able to do shift work? we have day shift (10am-7pm) or overnight shift (9pm-6am)"
+        ],
+        "key_skills": ["Basic math", "Physical stamina", "Attention to detail", "Able to work shifts"],
+        "typical_schedule": "6 days/week, day or overnight shifts",
+        "citizenship_required": "SC",  # Singaporeans only
+        "notes": "Must be Singaporean. Pay up to $2,700/month. Location at Jurong Port."
+    },
+    # =========================================================================
+    # INACTIVE JOBS - Keep for future use, set is_active: True when needed
     # =========================================================================
     "accountant": {
         "title": "Accountant / Finance Professional",
+        "is_active": False,
         "keywords": ["accountant", "accounting", "finance", "audit", "cpa", "acca", "financial"],
         "experience_questions": [
             "how many years of accounting experience do u have?",
@@ -282,6 +317,7 @@ ROLE_KNOWLEDGE = {
     },
     "hr_professional": {
         "title": "HR Professional",
+        "is_active": False,
         "keywords": ["hr", "human resource", "recruitment", "talent", "payroll", "compensation"],
         "experience_questions": [
             "what areas of HR have u worked in?",
@@ -294,6 +330,7 @@ ROLE_KNOWLEDGE = {
     },
     "legal_professional": {
         "title": "Legal / Compliance Professional",
+        "is_active": False,
         "keywords": ["legal", "lawyer", "compliance", "paralegal", "contract", "regulatory"],
         "experience_questions": [
             "what's ur legal background or specialization?",
@@ -306,6 +343,7 @@ ROLE_KNOWLEDGE = {
     },
     "it_professional": {
         "title": "IT / Technology Professional",
+        "is_active": False,
         "keywords": ["it", "software", "developer", "tech", "data", "engineer", "programmer", "digital"],
         "experience_questions": [
             "what programming languages or technologies do u work with?",
@@ -318,6 +356,7 @@ ROLE_KNOWLEDGE = {
     },
     "sales_marketing": {
         "title": "Sales / Marketing Professional",
+        "is_active": False,
         "keywords": ["sales", "marketing", "business development", "digital marketing", "brand"],
         "experience_questions": [
             "what's ur sales or marketing background?",
@@ -330,6 +369,7 @@ ROLE_KNOWLEDGE = {
     },
     "supply_chain": {
         "title": "Supply Chain / Logistics Professional",
+        "is_active": False,
         "keywords": ["supply chain", "logistics", "procurement", "warehouse", "shipping", "inventory"],
         "experience_questions": [
             "what's ur experience in supply chain or logistics?",
@@ -342,6 +382,7 @@ ROLE_KNOWLEDGE = {
     },
     "healthcare": {
         "title": "Healthcare Professional",
+        "is_active": False,
         "keywords": ["healthcare", "medical", "nurse", "hospital", "clinical", "pharma"],
         "experience_questions": [
             "what's ur healthcare background?",
@@ -352,11 +393,9 @@ ROLE_KNOWLEDGE = {
         "typical_schedule": "Shift-based for clinical roles",
         "notes": "Valid licenses and certifications required"
     },
-    # =========================================================================
-    # TEMP / PART-TIME ROLES
-    # =========================================================================
     "barista": {
         "title": "Barista",
+        "is_active": False,
         "keywords": ["barista", "coffee", "cafe", "latte"],
         "experience_questions": [
             "do u have experience making coffee with latte art?",
@@ -369,6 +408,7 @@ ROLE_KNOWLEDGE = {
     },
     "phone_researcher": {
         "title": "Phone Researcher / Survey Caller",
+        "is_active": False,
         "keywords": ["researcher", "phone", "survey", "data collection", "government"],
         "experience_questions": [
             "do u have experience with phone surveys or data collection?",
@@ -381,6 +421,7 @@ ROLE_KNOWLEDGE = {
     },
     "event_crew": {
         "title": "Event Crew / Carnival Staff",
+        "is_active": False,
         "keywords": ["event", "carnival", "christmas", "exhibition", "roadshow"],
         "experience_questions": [
             "do u have experience with events or customer service?",
@@ -393,6 +434,7 @@ ROLE_KNOWLEDGE = {
     },
     "admin_assistant": {
         "title": "Admin Assistant",
+        "is_active": False,
         "keywords": ["admin", "administrative", "office", "data entry", "clerical"],
         "experience_questions": [
             "do u have experience with admin work?",
@@ -405,6 +447,7 @@ ROLE_KNOWLEDGE = {
     },
     "customer_service": {
         "title": "Customer Service Representative",
+        "is_active": False,
         "keywords": ["customer service", "retail", "service", "helpdesk", "support"],
         "experience_questions": [
             "do u have experience in customer service?",
@@ -417,6 +460,7 @@ ROLE_KNOWLEDGE = {
     },
     "promoter": {
         "title": "Promoter / Brand Ambassador",
+        "is_active": False,
         "keywords": ["promoter", "promotion", "sales", "brand ambassador", "sampling"],
         "experience_questions": [
             "do u have experience with promotions or sales?",
@@ -429,6 +473,7 @@ ROLE_KNOWLEDGE = {
     },
     "fnb_service": {
         "title": "F&B Service Crew",
+        "is_active": False,
         "keywords": ["waiter", "waitress", "f&b", "restaurant", "service crew", "food"],
         "experience_questions": [
             "do u have experience in f&b or restaurant service?",
@@ -441,6 +486,7 @@ ROLE_KNOWLEDGE = {
     },
     "general": {
         "title": "General Position",
+        "is_active": True,  # Always active as fallback
         "keywords": [],
         "experience_questions": [
             "what kind of work experience do u have?",
@@ -458,19 +504,31 @@ ROLE_KNOWLEDGE = {
 # HELPER FUNCTIONS
 # =============================================================================
 
+def get_active_roles() -> Dict[str, Dict]:
+    """Get only active roles (is_active=True)."""
+    return {
+        key: role for key, role in ROLE_KNOWLEDGE.items()
+        if role.get("is_active", False) and key != "general"
+    }
+
+
 def identify_role_from_text(text: str) -> Optional[str]:
     """
     Identify the job role from a text message or resume.
     Returns the role key or None if no match found.
+    Only matches against ACTIVE roles.
     """
     if not text:
         return None
 
     text_lower = text.lower()
 
+    # First, check active roles only
     for role_key, role_info in ROLE_KNOWLEDGE.items():
         if role_key == "general":
             continue
+        if not role_info.get("is_active", False):
+            continue  # Skip inactive roles
         for keyword in role_info.get("keywords", []):
             if keyword in text_lower:
                 return role_key
@@ -636,13 +694,38 @@ def build_system_prompt(context: ConversationContext) -> str:
         f"- Application form: {APPLICATION_FORM_URL} (select '{RECRUITER_NAME}' as consultant)",
         f"- Company: {COMPANY_INFO['description']}",
         f"- EA Licence: {EA_LICENCE}",
-        "- We cover: executive search, permanent recruitment, contract/temp staffing, and work pass services",
-        "- Industries: Accounting & Finance, Tech, Legal, HR, Manufacturing, Supply Chain, Sales & Marketing, Government/Healthcare, F&B, Retail",
-        "- Locations: Singapore (main) and Malaysia",
-        "- Most roles need Singapore Citizens or PRs (we can help with work passes for some roles)",
         "- Website: www.cgp.sg for more job listings",
         ""
     ])
+
+    # Active jobs - show details
+    active_roles = get_active_roles()
+    if active_roles:
+        prompt_parts.append("## CURRENT JOB OPENINGS")
+        for role_key, role in active_roles.items():
+            prompt_parts.append(f"**{role.get('title', role_key)}**")
+            if role.get('salary'):
+                prompt_parts.append(f"- Pay: {role['salary']}")
+            if role.get('location'):
+                prompt_parts.append(f"- Location: {role['location']}")
+            if role.get('work_type'):
+                prompt_parts.append(f"- Type: {role['work_type']}")
+            if role.get('shifts'):
+                shifts = role['shifts']
+                prompt_parts.append(f"- Shifts: Day ({shifts.get('day', 'TBD')}) or Overnight ({shifts.get('overnight', 'TBD')})")
+            if role.get('requirements'):
+                prompt_parts.append(f"- Requirements: {', '.join(role['requirements'])}")
+            if role.get('citizenship_required'):
+                cit = role['citizenship_required']
+                if cit == "SC":
+                    prompt_parts.append("- **IMPORTANT: Singaporeans Only**")
+            prompt_parts.append("")
+    else:
+        prompt_parts.extend([
+            "## CURRENT OPENINGS",
+            "- No specific openings at the moment, but collect their info for future opportunities",
+            ""
+        ])
 
     return "\n".join(prompt_parts)
 
@@ -901,6 +984,7 @@ __all__ = [
     'get_resume_acknowledgment',
     'should_ask_citizenship',
     'get_closing_response',
+    'get_active_roles',
 
     # Database integration
     'reload_from_database',
