@@ -101,7 +101,16 @@ def is_first_message(phone: str) -> bool:
     return len(conversation) == 0
 
 
-def should_bot_respond(phone: str, text: str) -> tuple[bool, str]:
+def is_saved_contact(contact: dict) -> bool:
+    """
+    Check if sender is a saved contact.
+    Saved contacts have 'name' or 'shortName' fields.
+    Note: 'pushName' exists for everyone (WhatsApp profile name), so we don't use it.
+    """
+    return bool(contact.get("name") or contact.get("shortName"))
+
+
+def should_bot_respond(phone: str, text: str, contact: dict = None) -> tuple[bool, str]:
     """
     Determine if bot should respond to this message.
     Returns (should_respond, reason).
@@ -113,6 +122,10 @@ def should_bot_respond(phone: str, text: str) -> tuple[bool, str]:
     # Check if already active
     if phone in bot_active_numbers:
         return True, "already_active"
+
+    # Check if sender is a saved contact - don't activate for contacts
+    if contact and is_saved_contact(contact):
+        return False, "saved_contact"
 
     # First message - check for keywords
     if is_first_message(phone):
@@ -326,7 +339,7 @@ async def download_media(media_url: str, file_id: str = None, message_id: str = 
     return None
 
 
-async def process_text_message(phone: str, name: str, text: str):
+async def process_text_message(phone: str, name: str, text: str, contact: dict = None):
     """Process a text message from WhatsApp."""
 
     # Check for stop command first (from recruiter taking over) - works anytime
@@ -353,7 +366,7 @@ async def process_text_message(phone: str, name: str, text: str):
         return
 
     # Check if bot should respond to this message
-    should_respond, respond_reason = should_bot_respond(phone, text)
+    should_respond, respond_reason = should_bot_respond(phone, text, contact)
 
     if not should_respond:
         print(f"Bot not responding to {phone}: {respond_reason}")
@@ -381,7 +394,7 @@ async def process_text_message(phone: str, name: str, text: str):
     # Note: Only create candidate record when resume is received (not on text messages)
 
 
-async def process_document_message(phone: str, name: str, file_name: str, media_url: str, mime_type: str, message_id: str = "", file_id: str = ""):
+async def process_document_message(phone: str, name: str, file_name: str, media_url: str, mime_type: str, message_id: str = "", file_id: str = "", contact: dict = None):
     """Process a document message (resume) from WhatsApp."""
     # Check operating hours (8:30 AM - 10:00 PM Singapore time)
     if not is_within_operating_hours():
@@ -407,6 +420,11 @@ async def process_document_message(phone: str, name: str, file_name: str, media_
     )
 
     if is_resume:
+        # Check if sender is a saved contact - don't activate for contacts
+        if contact and is_saved_contact(contact):
+            print(f"Not activating bot for saved contact: {phone}")
+            return
+
         # Resume = strong intent signal, activate bot if not already active
         if phone not in bot_active_numbers:
             activate_bot(phone)
@@ -568,7 +586,7 @@ async def webhook_handler(request: Request, background_tasks: BackgroundTasks):
             text = message.get("body", "")
             if text and phone:
                 print(f"Message from {phone}: {text[:50]}...")
-                background_tasks.add_task(process_text_message, phone, name, text)
+                background_tasks.add_task(process_text_message, phone, name, text, contact)
 
         elif msg_type == "document":
             # Document message - extract media info
@@ -617,7 +635,7 @@ async def webhook_handler(request: Request, background_tasks: BackgroundTasks):
             if phone:
                 print(f"Document from {phone}: {file_name}")
                 background_tasks.add_task(
-                    process_document_message, phone, name, file_name, media_url, mime_type, message_id, file_id
+                    process_document_message, phone, name, file_name, media_url, mime_type, message_id, file_id, contact
                 )
 
         return JSONResponse({"status": "ok"})
