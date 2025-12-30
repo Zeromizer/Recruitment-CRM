@@ -586,11 +586,28 @@ async def update_conversation_state_db(
         if not data:
             return True
 
-        client.table("conversation_states").update(data).eq(
+        result = client.table("conversation_states").update(data).eq(
             "platform", platform
         ).eq(
             "platform_user_id", str(platform_user_id)
         ).execute()
+
+        # Check if update matched any rows
+        if not result.data:
+            print(f"Warning: No conversation state found to update for {platform}/{platform_user_id}")
+            # Try to create it instead (upsert behavior)
+            create_data = {
+                "platform": platform,
+                "platform_user_id": str(platform_user_id),
+                "stage": "initial",
+                "form_completed": False,
+                "resume_received": False,
+                "experience_discussed": False,
+                "call_scheduled": False,
+                **data
+            }
+            client.table("conversation_states").insert(create_data).execute()
+            print(f"Created new conversation state for {platform}/{platform_user_id}")
 
         return True
 

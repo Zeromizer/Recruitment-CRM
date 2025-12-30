@@ -291,6 +291,7 @@ async def restore_conversation_from_db(user_id: int):
                 "form_completed": db_state.get("form_completed", False),
                 "experience_discussed": db_state.get("experience_discussed", False),
                 "citizenship_status": db_state.get("citizenship_status"),
+                "state_data": db_state.get("state_data", {}),  # Include screening summary
             }
 
         # Only restore messages once (avoid duplicates in memory)
@@ -352,7 +353,8 @@ def get_conversation_state(user_id: int) -> dict:
             "form_completed": False,
             "experience_discussed": False,
             "citizenship_status": None,
-            "call_scheduled": False
+            "call_scheduled": False,
+            "state_data": {}  # For screening summary and other extended data
         }
     return conversation_states[user_id]
 
@@ -1084,16 +1086,26 @@ def setup_handlers(telegram_client):
                             # Save candidate with screening results and resume URL
                             await save_candidate(user_id, username, full_name, screening_result, resume_url)
 
-                            # Update conversation state
+                            # Update conversation state with screening summary
                             matched_job = screening_result.get('job_matched', 'our open positions')
                             first_name = candidate_name.split()[0] if candidate_name else 'there'
+
+                            # Build screening summary for conversation context
+                            screening_summary = {
+                                "score": screening_result.get('score', 0),
+                                "recommendation": screening_result.get('recommendation', 'Review'),
+                                "summary": screening_result.get('summary', ''),
+                                "job_matched": matched_job,
+                                "candidate_name": candidate_name,
+                            }
 
                             await update_conversation_state_async(
                                 user_id,
                                 resume_received=True,
                                 # Don't overwrite candidate_name - keep original Telegram display name
                                 applied_role=matched_job,
-                                stage="resume_received"
+                                stage="resume_received",
+                                state_data={"screening": screening_summary}
                             )
 
                             # Generate natural response using knowledgebase

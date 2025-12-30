@@ -584,6 +584,7 @@ class ConversationContext:
     stage: ConversationStage = ConversationStage.INITIAL_CONTACT
     key_info: Dict[str, Any] = field(default_factory=dict)
     conversation_history_summary: Optional[str] = None
+    screening_summary: Optional[Dict[str, Any]] = None  # AI screening results
 
     def get_pending_objectives(self) -> List[Dict]:
         """Get list of objectives that haven't been completed."""
@@ -667,6 +668,18 @@ def build_system_prompt(context: ConversationContext) -> str:
         completed.append("discussed their experience")
     if completed:
         prompt_parts.append(f"- Already done: {', '.join(completed)}")
+
+    # AI Screening results (if resume was received)
+    if context.screening_summary:
+        screening = context.screening_summary
+        prompt_parts.append("")
+        prompt_parts.append("## RESUME SCREENING RESULTS")
+        prompt_parts.append(f"- Score: {screening.get('score', 'N/A')}/10")
+        prompt_parts.append(f"- Recommendation: {screening.get('recommendation', 'Review')}")
+        if screening.get('summary'):
+            prompt_parts.append(f"- Summary: {screening.get('summary')}")
+        prompt_parts.append("- **Use this info to discuss their fit for the role**")
+
     prompt_parts.append("")
 
     # Current objectives
@@ -774,6 +787,11 @@ def build_context_from_state(user_id: str, state: Dict) -> ConversationContext:
             "conversation_closed": ConversationStage.CLOSING
         }
         context.stage = stage_mapping.get(stage_str, ConversationStage.INITIAL_CONTACT)
+
+        # Extract screening summary from state_data
+        state_data = state.get("state_data", {})
+        if isinstance(state_data, dict) and "screening" in state_data:
+            context.screening_summary = state_data["screening"]
 
     return context
 
