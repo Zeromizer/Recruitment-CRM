@@ -55,6 +55,7 @@ export default {
       animation: {
         'filter-pulse': 'filter-pulse 2s ease-in-out infinite',
         'bounce-subtle': 'bounce-subtle 2s ease-in-out infinite',
+        'highlight-fade': 'highlight-fade 3s ease-out forwards',
       },
       keyframes: {
         'filter-pulse': {
@@ -71,6 +72,20 @@ export default {
           },
           '50%': {
             transform: 'translateY(-2px)',
+          },
+        },
+        'highlight-fade': {
+          '0%': {
+            'background-color': 'rgb(254 243 199)', // amber-100
+            'box-shadow': '0 0 0 2px rgb(252 211 77) inset', // amber-300
+          },
+          '70%': {
+            'background-color': 'rgb(254 243 199)', // keep highlight visible
+            'box-shadow': '0 0 0 2px rgb(252 211 77) inset',
+          },
+          '100%': {
+            'background-color': 'transparent',
+            'box-shadow': '0 0 0 0 transparent',
           },
         },
       },

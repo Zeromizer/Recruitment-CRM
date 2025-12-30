@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Search,
@@ -70,11 +70,22 @@ function getCitizenshipLabel(citizenship: string | null): string {
   return citizenship; // Foreign or other countries
 }
 
-function CandidateRow({ candidate }: { candidate: Candidate }) {
+interface CandidateRowProps {
+  candidate: Candidate;
+  isHighlighted?: boolean;
+  onRowClick?: () => void;
+  rowRef?: React.RefObject<HTMLAnchorElement | null>;
+}
+
+function CandidateRow({ candidate, isHighlighted, onRowClick, rowRef }: CandidateRowProps) {
   return (
     <Link
+      ref={rowRef}
       to={`/candidates/${candidate.id}`}
-      className="grid grid-cols-12 gap-4 items-center p-4 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
+      onClick={onRowClick}
+      className={`grid grid-cols-12 gap-4 items-center p-4 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0 ${
+        isHighlighted ? 'bg-amber-50 ring-2 ring-amber-300 ring-inset animate-highlight-fade' : ''
+      }`}
     >
       {/* Name & Contact */}
       <div className="col-span-3 flex items-center gap-3">
@@ -149,18 +160,128 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
   );
 }
 
+// Storage keys for persisting filter state
+const FILTER_STORAGE_KEY = 'candidatesFilters';
+const LAST_VIEWED_CANDIDATE_KEY = 'lastViewedCandidate';
+
+interface FilterState {
+  search: string;
+  statusFilter: CandidateStatus | '';
+  sourceFilter: string;
+  roleFilter: string;
+  minScoreFilter: number | '';
+  aiCategoryFilter: string;
+  citizenshipFilter: string;
+  showFilters: boolean;
+}
+
+function loadFiltersFromStorage(): Partial<FilterState> {
+  try {
+    const stored = sessionStorage.getItem(FILTER_STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error('Failed to load filters from storage:', e);
+  }
+  return {};
+}
+
+function saveFiltersToStorage(filters: FilterState): void {
+  try {
+    sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters));
+  } catch (e) {
+    console.error('Failed to save filters to storage:', e);
+  }
+}
+
+function getLastViewedCandidate(): string | null {
+  try {
+    return sessionStorage.getItem(LAST_VIEWED_CANDIDATE_KEY);
+  } catch (e) {
+    return null;
+  }
+}
+
+function setLastViewedCandidate(id: string): void {
+  try {
+    sessionStorage.setItem(LAST_VIEWED_CANDIDATE_KEY, id);
+  } catch (e) {
+    console.error('Failed to save last viewed candidate:', e);
+  }
+}
+
+function clearLastViewedCandidate(): void {
+  try {
+    sessionStorage.removeItem(LAST_VIEWED_CANDIDATE_KEY);
+  } catch (e) {
+    // Ignore
+  }
+}
+
 export default function Candidates() {
   const { data: candidates = [], isLoading } = useCandidates();
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<CandidateStatus | ''>('');
-  const [sourceFilter, setSourceFilter] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
-  const [minScoreFilter, setMinScoreFilter] = useState<number | ''>('');
-  const [aiCategoryFilter, setAiCategoryFilter] = useState<string>('');
-  const [citizenshipFilter, setCitizenshipFilter] = useState<string>('');
-  const [showFilters, setShowFilters] = useState(false);
+
+  // Load initial filter state from sessionStorage
+  const initialFilters = useMemo(() => loadFiltersFromStorage(), []);
+
+  const [search, setSearch] = useState(initialFilters.search || '');
+  const [statusFilter, setStatusFilter] = useState<CandidateStatus | ''>(initialFilters.statusFilter || '');
+  const [sourceFilter, setSourceFilter] = useState(initialFilters.sourceFilter || '');
+  const [roleFilter, setRoleFilter] = useState(initialFilters.roleFilter || '');
+  const [minScoreFilter, setMinScoreFilter] = useState<number | ''>(initialFilters.minScoreFilter ?? '');
+  const [aiCategoryFilter, setAiCategoryFilter] = useState<string>(initialFilters.aiCategoryFilter || '');
+  const [citizenshipFilter, setCitizenshipFilter] = useState<string>(initialFilters.citizenshipFilter || '');
+  const [showFilters, setShowFilters] = useState(initialFilters.showFilters || false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [hasUsedFilters, setHasUsedFilters] = useState(false);
+
+  // Track the last viewed candidate for highlighting
+  const [highlightedCandidateId, setHighlightedCandidateId] = useState<string | null>(() => getLastViewedCandidate());
+  const highlightedRowRef = useRef<HTMLAnchorElement | null>(null);
+
+  // Save filters to sessionStorage whenever they change
+  useEffect(() => {
+    saveFiltersToStorage({
+      search,
+      statusFilter,
+      sourceFilter,
+      roleFilter,
+      minScoreFilter,
+      aiCategoryFilter,
+      citizenshipFilter,
+      showFilters,
+    });
+  }, [search, statusFilter, sourceFilter, roleFilter, minScoreFilter, aiCategoryFilter, citizenshipFilter, showFilters]);
+
+  // Scroll to highlighted candidate on initial load and clear highlight after delay
+  useEffect(() => {
+    if (highlightedCandidateId && highlightedRowRef.current) {
+      // Wait for the DOM to settle before scrolling
+      const scrollTimeout = setTimeout(() => {
+        highlightedRowRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }, 100);
+
+      // Clear the highlight after 3 seconds
+      const clearTimeout = setTimeout(() => {
+        setHighlightedCandidateId(null);
+        clearLastViewedCandidate();
+      }, 3000);
+
+      return () => {
+        clearTimeout(scrollTimeout);
+        clearTimeout(clearTimeout);
+      };
+    }
+  }, [highlightedCandidateId, candidates]); // Re-run when candidates load
+
+  // Handler for clicking on a candidate row
+  const handleCandidateClick = useCallback((candidateId: string) => {
+    setLastViewedCandidate(candidateId);
+  }, []);
 
   // Get unique sources for filter (dynamic - only shows sources that exist in candidates)
   const sources = useMemo(() => {
@@ -428,7 +549,13 @@ export default function Candidates() {
         {filteredCandidates.length > 0 ? (
           <div>
             {filteredCandidates.map(candidate => (
-              <CandidateRow key={candidate.id} candidate={candidate} />
+              <CandidateRow
+                key={candidate.id}
+                candidate={candidate}
+                isHighlighted={candidate.id === highlightedCandidateId}
+                onRowClick={() => handleCandidateClick(candidate.id)}
+                rowRef={candidate.id === highlightedCandidateId ? highlightedRowRef : undefined}
+              />
             ))}
           </div>
         ) : (
