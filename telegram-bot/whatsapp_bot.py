@@ -24,7 +24,8 @@ from shared.ai_screening import (
 )
 from shared.knowledgebase import (
     RECRUITER_NAME, COMPANY_NAME, APPLICATION_FORM_URL,
-    get_first_contact_response, identify_role_from_text
+    get_first_contact_response, identify_role_from_text,
+    get_operating_hours_config, get_message_delay_settings
 )
 from shared.database import save_candidate, upload_resume_to_storage, init_supabase
 from shared.resume_parser import extract_text_from_pdf, extract_text_from_pdf_with_vision, extract_text_from_word, convert_word_to_pdf
@@ -66,17 +67,35 @@ CLOSING_PHRASES = [
     "contact you if shortlisted"
 ]
 
-# Operating hours configuration (Singapore timezone)
-TIMEZONE = ZoneInfo("Asia/Singapore")
-OPERATING_START = time(8, 30)  # 8:30 AM
-OPERATING_END = time(22, 0)    # 10:00 PM
-
-
 def is_within_operating_hours() -> bool:
-    """Check if current time is within operating hours (8:30 AM - 10:00 PM Singapore time)."""
-    now = datetime.now(TIMEZONE)
-    current_time = now.time()
-    return OPERATING_START <= current_time <= OPERATING_END
+    """
+    Check if current time is within operating hours based on CRM settings.
+    Operating hours are configured in the CRM's Communication Style settings.
+    """
+    config = get_operating_hours_config()
+
+    # If operating hours are disabled, always return True (24/7 operation)
+    if not config["enabled"]:
+        return True
+
+    try:
+        # Get timezone from config
+        tz = ZoneInfo(config["timezone"])
+        now = datetime.now(tz)
+        current_time = now.time()
+
+        # Parse start and end times from config (format: "HH:MM")
+        start_parts = config["start"].split(":")
+        end_parts = config["end"].split(":")
+
+        start_time = time(int(start_parts[0]), int(start_parts[1]))
+        end_time = time(int(end_parts[0]), int(end_parts[1]))
+
+        return start_time <= current_time <= end_time
+    except Exception as e:
+        print(f"Error checking operating hours: {e}")
+        # Default to allowing operation if there's an error
+        return True
 
 
 def contains_job_keyword(text: str) -> bool:
@@ -238,6 +257,20 @@ async def lifespan(app: FastAPI):
     )
     print("Walichat client OK")
 
+    # Print bot configuration summary from CRM
+    config = get_operating_hours_config()
+    delay_min, delay_max = get_message_delay_settings()
+
+    print("\n" + "="*60)
+    print("BOT CONFIGURATION (from CRM)")
+    print("="*60)
+    print(f"Operating Hours: {'Enabled' if config['enabled'] else 'Disabled (24/7)'}")
+    if config['enabled']:
+        print(f"  Active Time: {config['start']} - {config['end']}")
+        print(f"  Timezone: {config['timezone']}")
+    print(f"Message Delays: {delay_min}s - {delay_max}s")
+    print("="*60 + "\n")
+
     print("=" * 50)
     print("WhatsApp Bot is running! Waiting for webhooks...")
     print("=" * 50)
@@ -299,8 +332,9 @@ async def send_whatsapp_message(phone: str, message: str) -> bool:
 
         # Add delay before next message (except for last one)
         if i < len(parts) - 1:
-            # Natural "thinking" delay: 3-6 seconds randomly
-            thinking_delay = random.uniform(3.0, 6.0)
+            # Natural "thinking" delay from CRM config
+            delay_min, delay_max = get_message_delay_settings()
+            thinking_delay = random.uniform(delay_min, delay_max)
             # Typing delay: ~0.05s per character (simulates typing speed)
             typing_delay = len(parts[i + 1]) * 0.05
             # Total delay, capped at 15 seconds

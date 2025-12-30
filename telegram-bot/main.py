@@ -27,7 +27,8 @@ from shared.knowledgebase import (
     RECRUITER_NAME, COMPANY_NAME, APPLICATION_FORM_URL,
     ConversationContext, build_system_prompt, build_context_from_state,
     identify_role_from_text, identify_role_semantic, get_experience_question,
-    get_resume_acknowledgment, reload_from_database, embed_existing_knowledge
+    get_resume_acknowledgment, reload_from_database, embed_existing_knowledge,
+    get_operating_hours_config, is_telegram_quote_reply_enabled, get_message_delay_settings
 )
 from shared.training_handlers import handle_training_message, init_admin_users
 from shared.database import (
@@ -37,45 +38,11 @@ from shared.database import (
 
 # Conversation memory (max messages per user for AI context)
 conversations = {}
-MAX_MESSAGES = 25  # Increased for better context
+MAX_MESSAGES = 25  # Max messages per conversation
 conversation_states = {}
 
 # Track which users have been restored from DB
 restored_users = set()
-
-# Operating hours configuration (Singapore timezone)
-TIMEZONE = ZoneInfo("Asia/Singapore")
-OPERATING_START = dt_time(8, 30)  # 8:30 AM
-OPERATING_END = dt_time(22, 0)    # 10:00 PM
-
-# Knowledgebase auto-refresh interval (5 minutes)
-KB_REFRESH_INTERVAL = 300  # seconds
-
-
-async def periodic_knowledgebase_refresh():
-    """
-    Background task that periodically refreshes the knowledgebase from database.
-    This ensures the bot picks up changes made in the CRM without requiring a restart.
-    """
-    while True:
-        try:
-            await asyncio.sleep(KB_REFRESH_INTERVAL)
-            print(f"[{datetime.now(TIMEZONE)}] Auto-refreshing knowledgebase...")
-            success = await reload_from_database()
-            if success:
-                print(f"[{datetime.now(TIMEZONE)}] Knowledgebase auto-refresh complete")
-            else:
-                print(f"[{datetime.now(TIMEZONE)}] Knowledgebase auto-refresh: no changes")
-        except Exception as e:
-            print(f"[{datetime.now(TIMEZONE)}] Error during knowledgebase auto-refresh: {e}")
-
-
-def is_within_operating_hours() -> bool:
-    """Check if current time is within operating hours (8:30 AM - 10:00 PM Singapore time)."""
-    now = datetime.now(TIMEZONE)
-    current_time = now.time()
-    return OPERATING_START <= current_time <= OPERATING_END
-
 
 # Spam protection
 rate_limit_tracker = {}  # {user_id: [timestamp1, timestamp2, ...]}
@@ -90,6 +57,9 @@ SPAM_KEYWORDS = [
     "nigerian prince", "wire transfer", "western union",
     "telegram premium", "free premium", "hack", "password"
 ]
+
+# Knowledgebase auto-refresh interval (5 minutes)
+KB_REFRESH_INTERVAL = 300  # seconds
 
 
 def get_blocked_users() -> set:
@@ -117,6 +87,62 @@ def get_whitelist_users() -> set:
 def is_whitelist_mode() -> bool:
     """Check if whitelist mode is enabled."""
     return os.environ.get('TELEGRAM_WHITELIST_MODE', '').lower() in ('true', '1', 'yes')
+
+
+async def periodic_knowledgebase_refresh():
+    """
+    Background task that periodically refreshes the knowledgebase from database.
+    This ensures the bot picks up changes made in the CRM without requiring a restart.
+    """
+    while True:
+        try:
+            await asyncio.sleep(KB_REFRESH_INTERVAL)
+            # Get timezone from CRM settings for logging
+            config = get_operating_hours_config()
+            try:
+                tz = ZoneInfo(config["timezone"])
+                now = datetime.now(tz)
+            except:
+                now = datetime.now()
+            print(f"[{now}] Auto-refreshing knowledgebase...")
+            success = await reload_from_database()
+            if success:
+                print(f"[{now}] Knowledgebase auto-refresh complete")
+            else:
+                print(f"[{now}] Knowledgebase auto-refresh: no changes")
+        except Exception as e:
+            print(f"[{datetime.now()}] Error during knowledgebase auto-refresh: {e}")
+
+
+def is_within_operating_hours() -> bool:
+    """
+    Check if current time is within operating hours based on CRM settings.
+    Operating hours are configured in the CRM's Communication Style settings.
+    """
+    config = get_operating_hours_config()
+
+    # If operating hours are disabled, always return True (24/7 operation)
+    if not config["enabled"]:
+        return True
+
+    try:
+        # Get timezone from config
+        tz = ZoneInfo(config["timezone"])
+        now = datetime.now(tz)
+        current_time = now.time()
+
+        # Parse start and end times from config (format: "HH:MM")
+        start_parts = config["start"].split(":")
+        end_parts = config["end"].split(":")
+
+        start_time = dt_time(int(start_parts[0]), int(start_parts[1]))
+        end_time = dt_time(int(end_parts[0]), int(end_parts[1]))
+
+        return start_time <= current_time <= end_time
+    except Exception as e:
+        print(f"Error checking operating hours: {e}")
+        # Default to allowing operation if there's an error
+        return True
 
 
 def is_user_allowed(user_id: int) -> tuple[bool, str]:
@@ -903,8 +929,8 @@ async def send_telegram_messages(event, telegram_client, message: str):
                 total_delay = min(thinking_delay + typing_delay, 10.0)
                 await asyncio.sleep(total_delay)
 
-        # First message replies directly to user's message, rest are normal responses
-        if i == 0:
+        # First message - use reply (quote) if enabled in CRM config, otherwise use respond
+        if i == 0 and is_telegram_quote_reply_enabled():
             await event.reply(part)
         else:
             await event.respond(part)
@@ -1115,6 +1141,22 @@ async def main():
     if not validate_env_vars():
         sys.exit(1)
     print("Environment variables OK")
+
+    # Print bot configuration summary from CRM
+    config = get_operating_hours_config()
+    quote_enabled = is_telegram_quote_reply_enabled()
+    delay_min, delay_max = get_message_delay_settings()
+
+    print("\n" + "="*60)
+    print("BOT CONFIGURATION (from CRM)")
+    print("="*60)
+    print(f"Operating Hours: {'Enabled' if config['enabled'] else 'Disabled (24/7)'}")
+    if config['enabled']:
+        print(f"  Active Time: {config['start']} - {config['end']}")
+        print(f"  Timezone: {config['timezone']}")
+    print(f"Telegram Quote Reply: {'Enabled' if quote_enabled else 'Disabled'}")
+    print(f"Message Delays: {delay_min}s - {delay_max}s")
+    print("="*60 + "\n")
 
     # Get environment variables
     api_id = int(os.environ.get('TELEGRAM_API_ID'))
