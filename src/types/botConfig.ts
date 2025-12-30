@@ -19,7 +19,7 @@ export interface JobPost {
   experience_questions: string[];
   key_skills: string[];
   typical_schedule?: string;
-  citizenship_required?: 'SC' | 'PR' | 'Any';
+  citizenship_required?: string[]; // Array: ['SC', 'PR', 'MY_CHINESE', 'Foreigner']
   notes?: string;
   // Job Scoring fields for AI screening
   scoring_requirements?: string; // Detailed requirements text for AI scoring
@@ -117,7 +117,7 @@ export interface JobFormData {
   requirements: string;
   experience_questions: string;
   key_skills: string;
-  citizenship_required: 'SC' | 'PR' | 'Any';
+  citizenship_required: string[]; // Array of citizenship options
   notes: string;
   // Job Scoring fields
   scoring_requirements: string;

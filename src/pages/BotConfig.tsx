@@ -63,6 +63,14 @@ const tabs: { id: TabType; name: string; icon: typeof Briefcase }[] = [
   { id: 'conversations', name: 'Conversations', icon: MessageCircle },
 ];
 
+// Citizenship options for checkboxes
+const CITIZENSHIP_OPTIONS = [
+  { value: 'SC', label: 'Singapore Citizen' },
+  { value: 'PR', label: 'Singapore PR' },
+  { value: 'MY_CHINESE', label: 'Malaysian Chinese' },
+  { value: 'Foreigner', label: 'Foreigner (with valid pass)' },
+];
+
 // Empty job form data
 const emptyJobForm: JobFormData = {
   key: '',
@@ -79,7 +87,7 @@ const emptyJobForm: JobFormData = {
   requirements: '',
   experience_questions: '',
   key_skills: '',
-  citizenship_required: 'Any',
+  citizenship_required: [],
   notes: '',
   scoring_requirements: '',
   scoring_guide: '',
@@ -202,6 +210,17 @@ export default function BotConfig() {
 
   function openEditJobModal(job: JobPost) {
     setEditingJob(job.key);
+    // Handle backward compatibility: convert old string format to array
+    let citizenshipArray: string[] = [];
+    if (Array.isArray(job.citizenship_required)) {
+      citizenshipArray = job.citizenship_required;
+    } else if (job.citizenship_required === 'SC') {
+      citizenshipArray = ['SC'];
+    } else if (job.citizenship_required === 'PR') {
+      citizenshipArray = ['SC', 'PR'];
+    }
+    // 'Any' or undefined means all options allowed, so leave empty (no restrictions)
+
     setJobForm({
       key: job.key,
       title: job.title,
@@ -217,7 +236,7 @@ export default function BotConfig() {
       requirements: job.requirements?.join('\n') || '',
       experience_questions: job.experience_questions?.join('\n') || '',
       key_skills: job.key_skills?.join(', ') || '',
-      citizenship_required: job.citizenship_required || 'Any',
+      citizenship_required: citizenshipArray,
       notes: job.notes || '',
       scoring_requirements: job.scoring_requirements || '',
       scoring_guide: job.scoring_guide || '',
@@ -250,7 +269,7 @@ export default function BotConfig() {
         requirements: jobForm.requirements.split('\n').map(r => r.trim()).filter(Boolean),
         experience_questions: jobForm.experience_questions.split('\n').map(q => q.trim()).filter(Boolean),
         key_skills: jobForm.key_skills.split(',').map(s => s.trim()).filter(Boolean),
-        citizenship_required: jobForm.citizenship_required !== 'Any' ? jobForm.citizenship_required : undefined,
+        citizenship_required: jobForm.citizenship_required.length > 0 ? jobForm.citizenship_required : undefined,
         notes: jobForm.notes || undefined,
         scoring_requirements: jobForm.scoring_requirements || undefined,
         scoring_guide: jobForm.scoring_guide || undefined,
@@ -455,7 +474,7 @@ Return ONLY a JSON object with these fields (use empty string if not found):
   "responsibilities": "comma-separated list of responsibilities",
   "requirements": "comma-separated list of requirements",
   "keywords": "comma-separated keywords for matching (job type, industry, skills)",
-  "citizenship_required": "SC for Singaporean only, PR for PR/Citizen, Any for no restriction",
+  "citizenship_required": ["array of eligible citizenship: SC, PR, MY_CHINESE, Foreigner - leave empty if open to all"],
   "notes": "any other important notes",
   "scoring_requirements": "detailed paragraph of key requirements for AI screening",
   "scoring_guide": "Score 8-10: excellent criteria. Score 5-7: acceptable criteria. Score 1-4: poor fit criteria."
@@ -525,7 +544,7 @@ Return ONLY the JSON, no explanation.`,
         requirements: jobData.requirements || '',
         experience_questions: '',
         key_skills: '',
-        citizenship_required: (jobData.citizenship_required as 'SC' | 'PR' | 'Any') || 'Any',
+        citizenship_required: Array.isArray(jobData.citizenship_required) ? jobData.citizenship_required : [],
         notes: jobData.notes || '',
         scoring_requirements: jobData.scoring_requirements || '',
         scoring_guide: jobData.scoring_guide || '',
@@ -605,7 +624,7 @@ Return ONLY the JSON, no explanation.`,
         requirements: jobData.requirements || '',
         experience_questions: '',
         key_skills: '',
-        citizenship_required: (jobData.citizenship_required as 'SC' | 'PR' | 'Any') || 'Any',
+        citizenship_required: Array.isArray(jobData.citizenship_required) ? jobData.citizenship_required : [],
         notes: jobData.notes || '',
         scoring_requirements: jobData.scoring_requirements || '',
         scoring_guide: jobData.scoring_guide || '',
@@ -922,10 +941,14 @@ Return ONLY the JSON, no explanation.`,
         if (job.requirements && job.requirements.length > 0) {
           parts.push(`- Requirements: ${job.requirements.join(', ')}`);
         }
-        if (job.citizenship_required === 'SC') {
-          parts.push('- **IMPORTANT: Singaporeans Only**');
-        } else if (job.citizenship_required === 'PR') {
-          parts.push('- **Requires: Singapore PR or Citizen**');
+        if (job.citizenship_required && job.citizenship_required.length > 0) {
+          const citizenLabels = Array.isArray(job.citizenship_required)
+            ? job.citizenship_required.map(c => {
+                const option = CITIZENSHIP_OPTIONS.find(o => o.value === c);
+                return option ? option.label : c;
+              }).join(', ')
+            : job.citizenship_required;
+          parts.push(`- **Eligible: ${citizenLabels}**`);
         }
         if (job.notes) parts.push(`- Notes: ${job.notes}`);
         parts.push('');
@@ -1095,9 +1118,11 @@ Return ONLY the JSON, no explanation.`,
                           }`}>
                             {job.is_active ? 'Active' : 'Inactive'}
                           </span>
-                          {job.citizenship_required === 'SC' && (
+                          {job.citizenship_required && job.citizenship_required.length > 0 && (
                             <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
-                              SC Only
+                              {Array.isArray(job.citizenship_required)
+                                ? job.citizenship_required.join('/')
+                                : job.citizenship_required}
                             </span>
                           )}
                         </div>
@@ -2077,16 +2102,38 @@ Return ONLY the JSON, no explanation.`,
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Citizenship Requirement</label>
-                <select
-                  value={jobForm.citizenship_required}
-                  onChange={(e) => setJobForm({ ...jobForm, citizenship_required: e.target.value as 'SC' | 'PR' | 'Any' })}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red"
-                >
-                  <option value="Any">Any (SC/PR/Foreigner)</option>
-                  <option value="SC">Singaporeans Only</option>
-                  <option value="PR">SC or PR Only</option>
-                </select>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Citizenship Requirement
+                  <span className="text-xs text-slate-500 ml-2">(leave unchecked for any)</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {CITIZENSHIP_OPTIONS.map((option) => (
+                    <label
+                      key={option.value}
+                      className="flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={jobForm.citizenship_required.includes(option.value)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setJobForm({
+                              ...jobForm,
+                              citizenship_required: [...jobForm.citizenship_required, option.value],
+                            });
+                          } else {
+                            setJobForm({
+                              ...jobForm,
+                              citizenship_required: jobForm.citizenship_required.filter(v => v !== option.value),
+                            });
+                          }
+                        }}
+                        className="w-4 h-4 text-cgp-red border-slate-300 rounded focus:ring-cgp-red/20"
+                      />
+                      <span className="text-sm text-slate-700">{option.label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
 
               <div>
