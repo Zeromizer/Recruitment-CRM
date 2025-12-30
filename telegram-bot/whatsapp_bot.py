@@ -17,6 +17,18 @@ from contextlib import asynccontextmanager
 # Add parent directory to path for shared imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Import centralized bot configuration
+from bot_config import (
+    TIMEZONE,
+    OPERATING_START,
+    OPERATING_END,
+    DISABLE_TIME_RESTRICTION,
+    WHATSAPP_DELAY_MIN,
+    WHATSAPP_DELAY_MAX,
+    is_within_operating_hours,
+    print_config_summary
+)
+
 from shared.ai_screening import (
     get_ai_response, screen_resume, init_anthropic, get_conversation,
     mark_resume_received, update_conversation_state, get_resume_response,
@@ -66,17 +78,8 @@ CLOSING_PHRASES = [
     "contact you if shortlisted"
 ]
 
-# Operating hours configuration (Singapore timezone)
-TIMEZONE = ZoneInfo("Asia/Singapore")
-OPERATING_START = time(8, 30)  # 8:30 AM
-OPERATING_END = time(22, 0)    # 10:00 PM
-
-
-def is_within_operating_hours() -> bool:
-    """Check if current time is within operating hours (8:30 AM - 10:00 PM Singapore time)."""
-    now = datetime.now(TIMEZONE)
-    current_time = now.time()
-    return OPERATING_START <= current_time <= OPERATING_END
+# Operating hours and timezone are imported from bot_config
+# is_within_operating_hours() is imported from bot_config
 
 
 def contains_job_keyword(text: str) -> bool:
@@ -238,6 +241,9 @@ async def lifespan(app: FastAPI):
     )
     print("Walichat client OK")
 
+    # Print bot configuration summary
+    print_config_summary()
+
     print("=" * 50)
     print("WhatsApp Bot is running! Waiting for webhooks...")
     print("=" * 50)
@@ -299,8 +305,8 @@ async def send_whatsapp_message(phone: str, message: str) -> bool:
 
         # Add delay before next message (except for last one)
         if i < len(parts) - 1:
-            # Natural "thinking" delay: 3-6 seconds randomly
-            thinking_delay = random.uniform(3.0, 6.0)
+            # Natural "thinking" delay from config
+            thinking_delay = random.uniform(WHATSAPP_DELAY_MIN, WHATSAPP_DELAY_MAX)
             # Typing delay: ~0.05s per character (simulates typing speed)
             typing_delay = len(parts[i + 1]) * 0.05
             # Total delay, capped at 15 seconds
