@@ -38,7 +38,6 @@ import {
   saveCommunicationStyle,
   getObjectives,
   saveObjectives,
-  seedDefaultKnowledgebase,
 } from '../services/knowledgebase';
 import type { JobPost, CompanyProfile, JobFormData } from '../types/botConfig';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
@@ -299,25 +298,6 @@ export default function BotConfig() {
     }
   }
 
-  // ============================================================================
-  // SEED DATA
-  // ============================================================================
-
-  async function handleSeedData() {
-    if (!confirm('This will add default configuration data. Continue?')) return;
-
-    setSaving(true);
-    try {
-      await seedDefaultKnowledgebase();
-      await loadData();
-      setSuccess('Default data seeded successfully');
-    } catch (err) {
-      console.error('Error seeding data:', err);
-      setError('Failed to seed data');
-    } finally {
-      setSaving(false);
-    }
-  }
 
   // ============================================================================
   // IMAGE IMPORT
@@ -858,21 +838,19 @@ Return ONLY the JSON, no explanation.`,
             <p className="text-sm text-slate-500">Manage your chatbot's knowledge and behavior</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
+          <div className="text-xs text-slate-500">
+            <div className="flex items-center gap-1">
+              <RefreshCw className="w-3 h-3" />
+              Bot auto-syncs every 5 minutes
+            </div>
+          </div>
           <button
             onClick={loadData}
             className="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 flex items-center gap-2"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
-          </button>
-          <button
-            onClick={handleSeedData}
-            disabled={saving}
-            className="px-3 py-2 text-sm font-medium text-white bg-cgp-red rounded-lg hover:bg-cgp-red/90 flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            {jobs.length === 0 && !companyProfile ? 'Seed Default Data' : 'Reset to Defaults'}
           </button>
         </div>
       </div>
@@ -1218,7 +1196,7 @@ Return ONLY the JSON, no explanation.`,
               <div className="text-center py-12 text-slate-500">
                 <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 <p>No communication style configured.</p>
-                <p className="text-sm">Click "Reset to Defaults" to get started.</p>
+                <p className="text-sm">Click below to set up your communication style.</p>
                 <button
                   onClick={() => setCommunicationStyle({
                     tone: 'friendly',
@@ -1516,7 +1494,7 @@ Return ONLY the JSON, no explanation.`,
               <div className="text-center py-12 text-slate-500">
                 <Target className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 <p>No objectives configured.</p>
-                <p className="text-sm">Click "Reset to Defaults" to get started.</p>
+                <p className="text-sm">Click below to set up conversation objectives.</p>
                 <button
                   onClick={() => setObjectives({
                     primary_goal: 'Qualify candidates for job openings and collect their contact information for follow-up',
