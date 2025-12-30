@@ -93,6 +93,13 @@ export default function BotConfig() {
     response_length: string;
     message_delay: string;
     custom_phrases: string;
+    // Operating hours settings
+    operating_hours_enabled: boolean;
+    operating_hours_start: string;
+    operating_hours_end: string;
+    operating_hours_timezone: string;
+    // Telegram-specific settings
+    telegram_quote_reply: boolean;
   } | null>(null);
   const [objectives, setObjectives] = useState<{
     primary_goal: string;
@@ -1221,6 +1228,11 @@ Return ONLY the JSON, no explanation.`,
                     response_length: 'concise',
                     message_delay: 'normal',
                     custom_phrases: '',
+                    operating_hours_enabled: true,
+                    operating_hours_start: '08:30',
+                    operating_hours_end: '22:00',
+                    operating_hours_timezone: 'Asia/Singapore',
+                    telegram_quote_reply: true,
                   })}
                   className="mt-4 px-4 py-2 text-sm font-medium text-cgp-red border border-cgp-red rounded-lg hover:bg-cgp-red/5"
                 >
@@ -1331,6 +1343,138 @@ Return ONLY the JSON, no explanation.`,
                       rows={4}
                     />
                     <p className="text-xs text-slate-400 mt-1">Custom phrases the bot can use (one per line)</p>
+                  </div>
+                </div>
+
+                {/* Bot Behavior Settings */}
+                <div className="mt-8 pt-6 border-t border-slate-200">
+                  <h3 className="text-md font-semibold text-slate-800 mb-4">Bot Behavior Settings</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Operating Hours */}
+                    <div className="space-y-4">
+                      <div>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={communicationStyle.operating_hours_enabled ?? true}
+                            onChange={(e) => setCommunicationStyle({ ...communicationStyle, operating_hours_enabled: e.target.checked })}
+                            className="w-4 h-4 text-cgp-red border-slate-300 rounded focus:ring-cgp-red"
+                          />
+                          <span className="text-sm font-medium text-slate-700">Enable Operating Hours Restriction</span>
+                        </label>
+                        <p className="text-xs text-slate-400 mt-1 ml-6">
+                          When enabled, bot will only respond during specified hours
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Start Time</label>
+                        <input
+                          type="time"
+                          value={communicationStyle.operating_hours_start || '08:30'}
+                          onChange={(e) => setCommunicationStyle({ ...communicationStyle, operating_hours_start: e.target.value })}
+                          disabled={!(communicationStyle.operating_hours_enabled ?? true)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red disabled:bg-slate-100 disabled:text-slate-400"
+                        />
+                        <p className="text-xs text-slate-400 mt-1">Bot starts responding from this time</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">End Time</label>
+                        <input
+                          type="time"
+                          value={communicationStyle.operating_hours_end || '22:00'}
+                          onChange={(e) => setCommunicationStyle({ ...communicationStyle, operating_hours_end: e.target.value })}
+                          disabled={!(communicationStyle.operating_hours_enabled ?? true)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red disabled:bg-slate-100 disabled:text-slate-400"
+                        />
+                        <p className="text-xs text-slate-400 mt-1">Bot stops responding after this time</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Timezone</label>
+                        <select
+                          value={communicationStyle.operating_hours_timezone || 'Asia/Singapore'}
+                          onChange={(e) => setCommunicationStyle({ ...communicationStyle, operating_hours_timezone: e.target.value })}
+                          disabled={!(communicationStyle.operating_hours_enabled ?? true)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red disabled:bg-slate-100 disabled:text-slate-400"
+                        >
+                          <option value="Asia/Singapore">Singapore (GMT+8)</option>
+                          <option value="Asia/Kuala_Lumpur">Malaysia (GMT+8)</option>
+                          <option value="Asia/Tokyo">Tokyo (GMT+9)</option>
+                          <option value="Asia/Hong_Kong">Hong Kong (GMT+8)</option>
+                          <option value="Asia/Bangkok">Bangkok (GMT+7)</option>
+                          <option value="Asia/Jakarta">Jakarta (GMT+7)</option>
+                          <option value="America/New_York">New York (EST/EDT)</option>
+                          <option value="America/Los_Angeles">Los Angeles (PST/PDT)</option>
+                          <option value="Europe/London">London (GMT/BST)</option>
+                          <option value="Australia/Sydney">Sydney (AEST/AEDT)</option>
+                        </select>
+                        <p className="text-xs text-slate-400 mt-1">Timezone for operating hours</p>
+                      </div>
+                    </div>
+
+                    {/* Telegram Settings */}
+                    <div className="space-y-4">
+                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <h4 className="text-sm font-semibold text-blue-900 mb-2">Telegram Bot Settings</h4>
+                        <p className="text-xs text-blue-700 mb-3">
+                          These settings only apply to the Telegram bot
+                        </p>
+
+                        <div>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={communicationStyle.telegram_quote_reply ?? true}
+                              onChange={(e) => setCommunicationStyle({ ...communicationStyle, telegram_quote_reply: e.target.checked })}
+                              className="w-4 h-4 text-cgp-red border-slate-300 rounded focus:ring-cgp-red"
+                            />
+                            <span className="text-sm font-medium text-slate-700">Enable Quote Reply</span>
+                          </label>
+                          <p className="text-xs text-slate-500 mt-2 ml-6">
+                            When enabled, the bot's first message will quote (reply to) the user's message
+                          </p>
+                          <p className="text-xs text-slate-400 mt-1 ml-6">
+                            Disable this if you don't want message quoting in Telegram
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+                        <h4 className="text-sm font-semibold text-slate-700 mb-2">Current Settings Summary</h4>
+                        <div className="space-y-1 text-xs text-slate-600">
+                          <div className="flex justify-between">
+                            <span>Operating Hours:</span>
+                            <span className="font-medium">
+                              {communicationStyle.operating_hours_enabled ?? true ? 'Enabled' : 'Disabled (24/7)'}
+                            </span>
+                          </div>
+                          {(communicationStyle.operating_hours_enabled ?? true) && (
+                            <>
+                              <div className="flex justify-between">
+                                <span>Active Time:</span>
+                                <span className="font-medium">
+                                  {communicationStyle.operating_hours_start || '08:30'} - {communicationStyle.operating_hours_end || '22:00'}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Timezone:</span>
+                                <span className="font-medium">
+                                  {communicationStyle.operating_hours_timezone || 'Asia/Singapore'}
+                                </span>
+                              </div>
+                            </>
+                          )}
+                          <div className="flex justify-between pt-2 border-t border-slate-300">
+                            <span>Telegram Quote Reply:</span>
+                            <span className="font-medium">
+                              {communicationStyle.telegram_quote_reply ?? true ? 'Enabled' : 'Disabled'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

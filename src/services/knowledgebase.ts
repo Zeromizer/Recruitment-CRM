@@ -434,6 +434,13 @@ export async function seedDefaultKnowledgebase(): Promise<void> {
     response_length: 'concise',
     message_delay: 'normal',
     custom_phrases: 'Hello! Thanks for reaching out to CGP!\nSounds great, let me help you with that!\nWelcome to CGP Singapore!',
+    // Operating hours settings
+    operating_hours_enabled: true,
+    operating_hours_start: '08:30',
+    operating_hours_end: '22:00',
+    operating_hours_timezone: 'Asia/Singapore',
+    // Telegram settings
+    telegram_quote_reply: true,
   };
 
   await saveCommunicationStyle(defaultStyle);

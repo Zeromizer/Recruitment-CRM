@@ -17,18 +17,6 @@ from contextlib import asynccontextmanager
 # Add parent directory to path for shared imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Import centralized bot configuration
-from bot_config import (
-    TIMEZONE,
-    OPERATING_START,
-    OPERATING_END,
-    DISABLE_TIME_RESTRICTION,
-    WHATSAPP_DELAY_MIN,
-    WHATSAPP_DELAY_MAX,
-    is_within_operating_hours,
-    print_config_summary
-)
-
 from shared.ai_screening import (
     get_ai_response, screen_resume, init_anthropic, get_conversation,
     mark_resume_received, update_conversation_state, get_resume_response,
@@ -36,7 +24,8 @@ from shared.ai_screening import (
 )
 from shared.knowledgebase import (
     RECRUITER_NAME, COMPANY_NAME, APPLICATION_FORM_URL,
-    get_first_contact_response, identify_role_from_text
+    get_first_contact_response, identify_role_from_text,
+    get_operating_hours_config, get_message_delay_settings
 )
 from shared.database import save_candidate, upload_resume_to_storage, init_supabase
 from shared.resume_parser import extract_text_from_pdf, extract_text_from_pdf_with_vision, extract_text_from_word, convert_word_to_pdf
@@ -78,8 +67,35 @@ CLOSING_PHRASES = [
     "contact you if shortlisted"
 ]
 
-# Operating hours and timezone are imported from bot_config
-# is_within_operating_hours() is imported from bot_config
+def is_within_operating_hours() -> bool:
+    """
+    Check if current time is within operating hours based on CRM settings.
+    Operating hours are configured in the CRM's Communication Style settings.
+    """
+    config = get_operating_hours_config()
+
+    # If operating hours are disabled, always return True (24/7 operation)
+    if not config["enabled"]:
+        return True
+
+    try:
+        # Get timezone from config
+        tz = ZoneInfo(config["timezone"])
+        now = datetime.now(tz)
+        current_time = now.time()
+
+        # Parse start and end times from config (format: "HH:MM")
+        start_parts = config["start"].split(":")
+        end_parts = config["end"].split(":")
+
+        start_time = time(int(start_parts[0]), int(start_parts[1]))
+        end_time = time(int(end_parts[0]), int(end_parts[1]))
+
+        return start_time <= current_time <= end_time
+    except Exception as e:
+        print(f"Error checking operating hours: {e}")
+        # Default to allowing operation if there's an error
+        return True
 
 
 def contains_job_keyword(text: str) -> bool:
@@ -241,8 +257,19 @@ async def lifespan(app: FastAPI):
     )
     print("Walichat client OK")
 
-    # Print bot configuration summary
-    print_config_summary()
+    # Print bot configuration summary from CRM
+    config = get_operating_hours_config()
+    delay_min, delay_max = get_message_delay_settings()
+
+    print("\n" + "="*60)
+    print("BOT CONFIGURATION (from CRM)")
+    print("="*60)
+    print(f"Operating Hours: {'Enabled' if config['enabled'] else 'Disabled (24/7)'}")
+    if config['enabled']:
+        print(f"  Active Time: {config['start']} - {config['end']}")
+        print(f"  Timezone: {config['timezone']}")
+    print(f"Message Delays: {delay_min}s - {delay_max}s")
+    print("="*60 + "\n")
 
     print("=" * 50)
     print("WhatsApp Bot is running! Waiting for webhooks...")
@@ -305,8 +332,9 @@ async def send_whatsapp_message(phone: str, message: str) -> bool:
 
         # Add delay before next message (except for last one)
         if i < len(parts) - 1:
-            # Natural "thinking" delay from config
-            thinking_delay = random.uniform(WHATSAPP_DELAY_MIN, WHATSAPP_DELAY_MAX)
+            # Natural "thinking" delay from CRM config
+            delay_min, delay_max = get_message_delay_settings()
+            thinking_delay = random.uniform(delay_min, delay_max)
             # Typing delay: ~0.05s per character (simulates typing speed)
             typing_delay = len(parts[i + 1]) * 0.05
             # Total delay, capped at 15 seconds

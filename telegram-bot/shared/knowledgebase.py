@@ -1176,6 +1176,63 @@ async def embed_existing_knowledge() -> Dict[str, int]:
 
 
 # =============================================================================
+# BOT CONFIGURATION HELPERS (from CRM)
+# =============================================================================
+
+def get_operating_hours_config() -> Dict[str, Any]:
+    """
+    Get operating hours configuration from CRM settings.
+
+    Returns:
+        Dict with keys:
+        - enabled: bool (whether operating hours are enforced)
+        - start: str (start time in HH:MM format)
+        - end: str (end time in HH:MM format)
+        - timezone: str (timezone name, e.g., 'Asia/Singapore')
+    """
+    crm_settings = COMMUNICATION_STYLE.get("crm_settings", {})
+    return {
+        "enabled": crm_settings.get("operating_hours_enabled", True),
+        "start": crm_settings.get("operating_hours_start", "08:30"),
+        "end": crm_settings.get("operating_hours_end", "22:00"),
+        "timezone": crm_settings.get("operating_hours_timezone", "Asia/Singapore"),
+    }
+
+
+def is_telegram_quote_reply_enabled() -> bool:
+    """
+    Check if Telegram quote reply is enabled from CRM settings.
+
+    Returns:
+        bool: True if quote reply should be used, False otherwise
+    """
+    crm_settings = COMMUNICATION_STYLE.get("crm_settings", {})
+    return crm_settings.get("telegram_quote_reply", True)
+
+
+def get_message_delay_settings() -> tuple[float, float]:
+    """
+    Get message delay settings from CRM configuration.
+
+    Returns:
+        Tuple of (min_delay, max_delay) in seconds
+    """
+    crm_settings = COMMUNICATION_STYLE.get("crm_settings", {})
+    delay_setting = crm_settings.get("message_delay", "normal")
+
+    # Map CRM delay settings to actual delays (min, max)
+    delay_map = {
+        "instant": (0.0, 0.0),
+        "fast": (0.5, 1.0),
+        "normal": (1.5, 3.0),
+        "slow": (3.0, 5.0),
+        "very_slow": (5.0, 8.0),
+    }
+
+    return delay_map.get(delay_setting, (1.5, 3.0))  # Default to normal
+
+
+# =============================================================================
 # EXPORT FOR USE IN AI SCREENING
 # =============================================================================
 
@@ -1207,6 +1264,11 @@ __all__ = [
     'build_context_from_state',
     'get_first_contact_response',
     'get_resume_acknowledgment',
+
+    # Bot Configuration (from CRM)
+    'get_operating_hours_config',
+    'is_telegram_quote_reply_enabled',
+    'get_message_delay_settings',
     'should_ask_citizenship',
     'get_closing_response',
     'get_active_roles',
