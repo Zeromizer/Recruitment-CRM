@@ -554,133 +554,31 @@ Return ONLY the JSON, no explanation.`,
     setError(null);
 
     try {
-      // Use the same API key as resume screening
-      const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-      if (!apiKey) {
-        setError('Anthropic API key not configured. Please set VITE_ANTHROPIC_API_KEY in your environment.');
-        setImportingURL(false);
-        return;
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Supabase not configured');
       }
 
-      // Try multiple CORS proxies
-      let htmlContent = '';
-      let fetchSuccess = false;
-
-      // Try proxy 1: allorigins.win
-      try {
-        const proxy1URL = `https://api.allorigins.win/get?url=${encodeURIComponent(jobURL)}`;
-        const response1 = await fetch(proxy1URL);
-        if (response1.ok) {
-          const data = await response1.json();
-          htmlContent = data.contents;
-          fetchSuccess = true;
-        }
-      } catch (e) {
-        console.log('Proxy 1 failed, trying next...');
-      }
-
-      // Try proxy 2: corsproxy.io if first failed
-      if (!fetchSuccess) {
-        try {
-          const proxy2URL = `https://corsproxy.io/?${encodeURIComponent(jobURL)}`;
-          const response2 = await fetch(proxy2URL);
-          if (response2.ok) {
-            htmlContent = await response2.text();
-            fetchSuccess = true;
-          }
-        } catch (e) {
-          console.log('Proxy 2 failed');
-        }
-      }
-
-      if (!fetchSuccess || !htmlContent) {
-        throw new Error('Unable to fetch webpage. The site may block automated access. Try copying the job details manually.');
-      }
-
-      // Log first 1000 chars for debugging
-      console.log('Fetched HTML preview:', htmlContent.substring(0, 1000));
-
-      // Call Claude API to extract job details with extended tokens
-      const aiResponse = await fetch('https://api.anthropic.com/v1/messages', {
+      // Use Edge Function to fetch and process the URL
+      // This handles JavaScript rendering and bypasses Cloudflare protection
+      const response = await fetch(`${supabaseUrl}/functions/v1/fetch-job-url`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
         },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 2048,
-          messages: [{
-            role: 'user',
-            content: `Extract job posting details from this webpage HTML. The page may use JavaScript rendering, so extract what you can find.
-
-Look for:
-- Job title (often in <h1>, <title>, or meta tags)
-- Salary/pay range
-- Location/address
-- Work type (full-time, part-time, contract)
-- Shift hours
-- Responsibilities/duties (bullet points or paragraphs)
-- Requirements/qualifications
-- Keywords (skills, job type, industry)
-- Citizenship requirements (Singaporean, PR, etc.)
-
-Also generate:
-- scoring_requirements: A detailed paragraph summarizing the key requirements for AI resume screening
-- scoring_guide: A scoring guide in format "Score 8-10: criteria, Score 5-7: criteria, Score 1-4: criteria"
-
-Return ONLY a JSON object with these fields (use empty string if not found):
-{
-  "title": "job title",
-  "salary": "salary range or amount",
-  "location": "work location or address",
-  "work_type": "full-time/part-time/contract",
-  "day_shift": "day shift hours if mentioned",
-  "overnight_shift": "night shift hours if mentioned",
-  "responsibilities": "comma-separated list of main duties/responsibilities",
-  "requirements": "comma-separated list of requirements/qualifications",
-  "keywords": "comma-separated keywords (job type, skills, industry)",
-  "citizenship_required": "SC for Singaporean only, PR for PR/Citizen, Any for no restriction",
-  "notes": "any other important details",
-  "scoring_requirements": "detailed paragraph of key requirements for AI screening",
-  "scoring_guide": "Score 8-10: excellent criteria. Score 5-7: acceptable criteria. Score 1-4: poor fit criteria."
-}
-
-Return ONLY valid JSON, no explanation or markdown.
-
-HTML content:
-${htmlContent.substring(0, 80000)}`
-          }],
-        }),
+        body: JSON.stringify({ url: jobURL }),
       });
 
-      if (!aiResponse.ok) {
-        const errorData = await aiResponse.json();
-        if (aiResponse.status === 401) {
-          throw new Error('Invalid API key. Check your VITE_ANTHROPIC_API_KEY configuration.');
-        }
-        throw new Error(errorData.error?.message || 'Failed to process URL');
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch job posting');
       }
 
-      const data = await aiResponse.json();
-      const content = data.content[0]?.text;
-
-      console.log('AI Response:', content);
-
-      // Parse the JSON response
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('Could not extract job details. The webpage may not contain standard job posting information. Please fill in the details manually.');
-      }
-
-      const jobData = JSON.parse(jsonMatch[0]);
-
-      // Check if we got meaningful data
-      if (!jobData.title || jobData.title.length < 3) {
-        throw new Error('Could not find job title. Please fill in the details manually and save the URL for reference.');
-      }
+      const jobData = result.data;
 
       // Generate a key from the title
       const key = jobData.title
@@ -723,18 +621,13 @@ ${htmlContent.substring(0, 80000)}`
       setError(err instanceof Error ? err.message : 'Failed to process URL');
 
       // Even if extraction fails, still save the URL
-      if (err instanceof Error && err.message.includes('manually')) {
-        setJobForm({
-          ...emptyJobForm,
-          job_url: jobURL,
-        });
-        setShowURLImportModal(false);
-        setJobURL('');
-        setShowJobModal(true);
-        setSuccess('URL saved. Please fill in job details manually.');
-      }
-
-      setImportingURL(false);
+      setJobForm({
+        ...emptyJobForm,
+        job_url: jobURL,
+      });
+      setShowURLImportModal(false);
+      setJobURL('');
+      setShowJobModal(true);
     } finally {
       setImportingURL(false);
     }
