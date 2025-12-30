@@ -419,7 +419,7 @@ export async function seedDefaultKnowledgebase(): Promise<void> {
     ],
     key_skills: ['Basic math', 'Physical stamina', 'Attention to detail', 'Able to work shifts'],
     typical_schedule: '6 days/week, day or overnight shifts',
-    citizenship_required: 'SC',
+    citizenship_required: ['SC'],
     notes: 'Must be Singaporean. Pay up to $2,700/month. Location at Jurong Port.',
   };
 
