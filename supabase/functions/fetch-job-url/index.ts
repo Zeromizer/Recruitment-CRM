@@ -43,30 +43,54 @@ Deno.serve(async (req) => {
     console.log(`Fetching job URL: ${url}`);
 
     let content = "";
+    const scraperApiKey = Deno.env.get("SCRAPER_API_KEY");
 
-    // Try Jina Reader first (handles JavaScript rendering)
-    try {
-      const jinaUrl = `https://r.jina.ai/${url}`;
-      console.log(`Trying Jina Reader: ${jinaUrl}`);
+    // Method 1: ScraperAPI (best for Cloudflare bypass)
+    if (scraperApiKey) {
+      try {
+        const scraperUrl = `https://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(url)}&render=true`;
+        console.log(`Trying ScraperAPI...`);
 
-      const jinaResponse = await fetch(jinaUrl, {
-        headers: {
-          "Accept": "text/plain",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        },
-      });
+        const scraperResponse = await fetch(scraperUrl, {
+          headers: { "Accept": "text/html" },
+        });
 
-      if (jinaResponse.ok) {
-        content = await jinaResponse.text();
-        console.log(`Jina Reader success, content length: ${content.length}`);
-      } else {
-        console.log(`Jina Reader failed with status: ${jinaResponse.status}`);
+        if (scraperResponse.ok) {
+          content = await scraperResponse.text();
+          console.log(`ScraperAPI success, content length: ${content.length}`);
+        } else {
+          console.log(`ScraperAPI failed with status: ${scraperResponse.status}`);
+        }
+      } catch (e) {
+        console.log(`ScraperAPI error: ${e.message}`);
       }
-    } catch (e) {
-      console.log(`Jina Reader error: ${e.message}`);
     }
 
-    // Fallback: try direct fetch if Jina failed
+    // Method 2: Jina Reader (free, handles some JS)
+    if (!content || content.length < 100) {
+      try {
+        const jinaUrl = `https://r.jina.ai/${url}`;
+        console.log(`Trying Jina Reader: ${jinaUrl}`);
+
+        const jinaResponse = await fetch(jinaUrl, {
+          headers: {
+            "Accept": "text/plain",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          },
+        });
+
+        if (jinaResponse.ok) {
+          content = await jinaResponse.text();
+          console.log(`Jina Reader success, content length: ${content.length}`);
+        } else {
+          console.log(`Jina Reader failed with status: ${jinaResponse.status}`);
+        }
+      } catch (e) {
+        console.log(`Jina Reader error: ${e.message}`);
+      }
+    }
+
+    // Method 3: Direct fetch (fallback)
     if (!content || content.length < 100) {
       console.log("Trying direct fetch...");
       try {
@@ -76,7 +100,6 @@ Deno.serve(async (req) => {
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5",
             "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1",
           },
         });
 
@@ -92,11 +115,10 @@ Deno.serve(async (req) => {
     }
 
     if (!content || content.length < 100) {
-      throw new Error("Could not fetch page content. The site may be blocking automated access.");
+      throw new Error("Could not fetch page content. The site may be blocking automated access. Try using 'Import from Image' instead.");
     }
 
     console.log(`Final content length: ${content.length}`);
-    console.log(`Content preview: ${content.substring(0, 500)}`);
 
     // Use Claude to extract job details
     const aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
