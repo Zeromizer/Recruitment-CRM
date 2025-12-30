@@ -445,6 +445,7 @@ Also generate:
 Return ONLY a JSON object with these fields (use empty string if not found):
 {
   "title": "job title",
+  "url": "job posting URL if visible in browser address bar or anywhere in the image",
   "salary": "salary range",
   "location": "work location",
   "work_type": "full-time/part-time/contract",
@@ -513,6 +514,7 @@ Return ONLY the JSON, no explanation.`,
         title: jobData.title || '',
         is_active: true,
         keywords: jobData.keywords || '',
+        job_url: jobData.url || '',
         salary: jobData.salary || '',
         location: jobData.location || '',
         work_type: jobData.work_type || '',
