@@ -7,7 +7,6 @@ import {
   Trash2,
   ExternalLink,
   Download,
-  Upload,
   Settings,
   AlertCircle,
   CheckCircle,
@@ -35,9 +34,6 @@ export default function JobScoring() {
   const [showConfig, setShowConfig] = useState(false);
   const [sheetUrl, setSheetUrl] = useState('');
   const [sheetConfig, setSheetConfig] = useState<GoogleSheetConfig | null>(null);
-
-  // Editing
-  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -172,7 +168,6 @@ export default function JobScoring() {
       scoringGuide: '',
     };
     setCriteria([...criteria, newCriteria]);
-    setEditingId(newCriteria.id!);
   }
 
   function updateCriteria(id: string, field: keyof JobScoringCriteria, value: string) {
