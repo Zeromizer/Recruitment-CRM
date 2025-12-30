@@ -172,27 +172,6 @@ export default function JobScoring() {
     }
   }
 
-  async function syncToGoogleSheet() {
-    if (!sheetConfig) {
-      setError('Please configure Google Sheet first');
-      setShowConfig(true);
-      return;
-    }
-
-    setSyncingToSheet(true);
-    setError(null);
-
-    try {
-      await updateJobScoringToGoogleSheet(criteria);
-      setSuccess(`Updated Google Sheet with ${criteria.length} jobs`);
-    } catch (err) {
-      console.error('Error syncing to Google Sheet:', err);
-      setError(err instanceof Error ? err.message : 'Failed to sync to Google Sheet');
-    } finally {
-      setSyncingToSheet(false);
-    }
-  }
-
   function handleConfigSave() {
     const spreadsheetId = parseGoogleSheetUrl(sheetUrl);
 
