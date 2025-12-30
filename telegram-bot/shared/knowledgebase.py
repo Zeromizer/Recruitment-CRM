@@ -739,8 +739,20 @@ def build_system_prompt(context: ConversationContext) -> str:
                 prompt_parts.append(f"- Requirements: {', '.join(role['requirements'])}")
             if role.get('citizenship_required'):
                 cit = role['citizenship_required']
-                if cit == "SC":
+                # Handle both array and string format
+                if isinstance(cit, list) and len(cit) > 0:
+                    cit_labels = {
+                        'SC': 'Singapore Citizen',
+                        'PR': 'Singapore PR',
+                        'MY_CHINESE': 'Malaysian Chinese',
+                        'Foreigner': 'Foreigner'
+                    }
+                    labels = [cit_labels.get(c, c) for c in cit]
+                    prompt_parts.append(f"- **Eligible: {', '.join(labels)}**")
+                elif cit == "SC":
                     prompt_parts.append("- **IMPORTANT: Singaporeans Only**")
+                elif cit == "PR":
+                    prompt_parts.append("- **Requires: Singapore PR or Citizen**")
             if role.get('job_url'):
                 prompt_parts.append(f"- Full details: {role['job_url']}")
             prompt_parts.append("")
