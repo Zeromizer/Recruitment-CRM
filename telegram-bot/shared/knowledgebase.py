@@ -728,6 +728,8 @@ def build_system_prompt(context: ConversationContext) -> str:
                 cit = role['citizenship_required']
                 if cit == "SC":
                     prompt_parts.append("- **IMPORTANT: Singaporeans Only**")
+            if role.get('job_url'):
+                prompt_parts.append(f"- Full details: {role['job_url']}")
             prompt_parts.append("")
     else:
         prompt_parts.extend([

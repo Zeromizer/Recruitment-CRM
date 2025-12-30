@@ -70,6 +70,7 @@ const emptyJobForm: JobFormData = {
   salary: '',
   location: '',
   work_type: '',
+  job_url: '',
   day_shift: '',
   overnight_shift: '',
   responsibilities: '',
@@ -122,6 +123,11 @@ export default function BotConfig() {
   const [showImageImportModal, setShowImageImportModal] = useState(false);
   const [importingImage, setImportingImage] = useState(false);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+
+  // URL import state
+  const [showURLImportModal, setShowURLImportModal] = useState(false);
+  const [importingURL, setImportingURL] = useState(false);
+  const [jobURL, setJobURL] = useState('');
 
   // Conversations state
   const [conversationsList, setConversationsList] = useState<ConversationSummary[]>([]);
@@ -498,6 +504,133 @@ Return ONLY the JSON, no explanation.`,
       setError(err instanceof Error ? err.message : 'Failed to process image');
     } finally {
       setImportingImage(false);
+    }
+  }
+
+  async function processURLWithAI() {
+    if (!jobURL.trim()) {
+      setError('Please enter a job posting URL');
+      return;
+    }
+
+    setImportingURL(true);
+    setError(null);
+
+    try {
+      // Use the same API key as resume screening
+      const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        setError('Anthropic API key not configured. Please set VITE_ANTHROPIC_API_KEY in your environment.');
+        setImportingURL(false);
+        return;
+      }
+
+      // Fetch webpage content using a CORS proxy
+      const proxyURL = `https://api.allorigins.win/raw?url=${encodeURIComponent(jobURL)}`;
+      const response = await fetch(proxyURL);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch job posting URL');
+      }
+
+      const htmlContent = await response.text();
+
+      // Call Claude API to extract job details
+      const aiResponse = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1024,
+          messages: [{
+            role: 'user',
+            content: `Extract job posting details from this webpage HTML. Return ONLY a JSON object with these fields (use empty string if not found):
+{
+  "title": "job title",
+  "salary": "salary range",
+  "location": "work location",
+  "work_type": "full-time/part-time/contract",
+  "day_shift": "day shift hours if mentioned",
+  "overnight_shift": "night shift hours if mentioned",
+  "responsibilities": "comma-separated list of responsibilities",
+  "requirements": "comma-separated list of requirements",
+  "keywords": "comma-separated keywords for matching (job type, industry, skills)",
+  "citizenship_required": "SC for Singaporean only, PR for PR/Citizen, Any for no restriction",
+  "notes": "any other important notes"
+}
+
+Return ONLY the JSON, no explanation.
+
+HTML content:
+${htmlContent.substring(0, 50000)}`
+          }],
+        }),
+      });
+
+      if (!aiResponse.ok) {
+        const errorData = await aiResponse.json();
+        if (aiResponse.status === 401) {
+          throw new Error('Invalid API key. Check your VITE_ANTHROPIC_API_KEY configuration.');
+        }
+        throw new Error(errorData.error?.message || 'Failed to process URL');
+      }
+
+      const data = await aiResponse.json();
+      const content = data.content[0]?.text;
+
+      // Parse the JSON response
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('Could not parse job details from URL');
+      }
+
+      const jobData = JSON.parse(jsonMatch[0]);
+
+      // Generate a key from the title
+      const key = jobData.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '')
+        .substring(0, 30);
+
+      // Pre-fill the job form including the URL
+      setJobForm({
+        key: key || '',
+        title: jobData.title || '',
+        is_active: true,
+        keywords: jobData.keywords || '',
+        salary: jobData.salary || '',
+        location: jobData.location || '',
+        work_type: jobData.work_type || '',
+        job_url: jobURL, // Save the URL
+        day_shift: jobData.day_shift || '',
+        overnight_shift: jobData.overnight_shift || '',
+        responsibilities: jobData.responsibilities || '',
+        requirements: jobData.requirements || '',
+        experience_questions: '',
+        key_skills: '',
+        citizenship_required: (jobData.citizenship_required as 'SC' | 'PR' | 'Any') || 'Any',
+        notes: jobData.notes || '',
+      });
+
+      // Close URL modal and open job form
+      setShowURLImportModal(false);
+      setJobURL('');
+      setEditingJob(null);
+      setShowJobModal(true);
+      setSuccess('Job details extracted from URL! Review and save.');
+
+    } catch (err) {
+      console.error('Error processing URL:', err);
+      setError(err instanceof Error ? err.message : 'Failed to process URL');
+      setImportingURL(false);
+    } finally {
+      setImportingURL(false);
     }
   }
 
@@ -902,20 +1035,29 @@ Return ONLY the JSON, no explanation.`,
                 <h2 className="text-lg font-semibold text-slate-800">Job Posts</h2>
                 <p className="text-sm text-slate-500">Manage available positions. Toggle to enable/disable jobs for the bot.</p>
               </div>
-              <button
-                onClick={() => setShowImageImportModal(true)}
-                className="px-4 py-2 text-sm font-medium text-cgp-red border border-cgp-red rounded-lg hover:bg-cgp-red/5 flex items-center gap-2"
-              >
-                <ImagePlus className="w-4 h-4" />
-                Import from Image
-              </button>
-              <button
-                onClick={openAddJobModal}
-                className="px-4 py-2 text-sm font-medium text-white bg-cgp-red rounded-lg hover:bg-cgp-red/90 flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Add Job
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowURLImportModal(true)}
+                  className="px-4 py-2 text-sm font-medium text-cgp-red border border-cgp-red rounded-lg hover:bg-cgp-red/5 flex items-center gap-2"
+                >
+                  <Send className="w-4 h-4" />
+                  Import from URL
+                </button>
+                <button
+                  onClick={() => setShowImageImportModal(true)}
+                  className="px-4 py-2 text-sm font-medium text-cgp-red border border-cgp-red rounded-lg hover:bg-cgp-red/5 flex items-center gap-2"
+                >
+                  <ImagePlus className="w-4 h-4" />
+                  Import from Image
+                </button>
+                <button
+                  onClick={openAddJobModal}
+                  className="px-4 py-2 text-sm font-medium text-white bg-cgp-red rounded-lg hover:bg-cgp-red/90 flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Job
+                </button>
+              </div>
             </div>
 
             {jobs.length === 0 ? (
@@ -1853,6 +1995,21 @@ Return ONLY the JSON, no explanation.`,
                 <p className="text-xs text-slate-500 mt-1">Keywords that trigger this job in conversation</p>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Job Posting URL
+                  <span className="text-xs text-slate-500 font-normal ml-2">(optional)</span>
+                </label>
+                <input
+                  type="url"
+                  value={jobForm.job_url}
+                  onChange={(e) => setJobForm({ ...jobForm, job_url: e.target.value })}
+                  placeholder="https://example.com/job-posting"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red"
+                />
+                <p className="text-xs text-slate-500 mt-1">Link to the original job posting. Bot will share this with candidates.</p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Salary</label>
@@ -2088,6 +2245,85 @@ Return ONLY the JSON, no explanation.`,
                 ) : (
                   <>
                     <Eye className="w-4 h-4" />
+                    Extract Job Details
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* URL Import Modal */}
+      {showURLImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg m-4">
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+              <h2 className="text-lg font-semibold text-slate-800">Import Job from URL</h2>
+              <button
+                onClick={() => {
+                  setShowURLImportModal(false);
+                  setJobURL('');
+                }}
+                className="p-1 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <p className="text-sm text-slate-600">
+                Paste a link to a job posting and AI will extract the details automatically.
+              </p>
+
+              {/* URL Input */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Job Posting URL
+                </label>
+                <input
+                  type="url"
+                  value={jobURL}
+                  onChange={(e) => setJobURL(e.target.value)}
+                  placeholder="https://example.com/job-posting"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cgp-red focus:border-cgp-red"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && jobURL.trim() && !importingURL) {
+                      processURLWithAI();
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg">
+                <strong>Note:</strong> This feature uses Claude AI to analyze the webpage content,
+                using the same API key configured for resume screening.
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 p-4 border-t border-slate-200">
+              <button
+                onClick={() => {
+                  setShowURLImportModal(false);
+                  setJobURL('');
+                }}
+                className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={processURLWithAI}
+                disabled={!jobURL.trim() || importingURL}
+                className="px-4 py-2 text-sm font-medium text-white bg-cgp-red rounded-lg hover:bg-cgp-red/90 disabled:opacity-50 flex items-center gap-2"
+              >
+                {importingURL ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Fetching...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
                     Extract Job Details
                   </>
                 )}
