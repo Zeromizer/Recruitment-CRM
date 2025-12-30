@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -21,10 +21,12 @@ import {
   AlertTriangle,
   ArrowRight,
   FileOutput,
+  Pencil,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import {
   useCandidate,
+  useCandidates,
   useCandidateActivities,
   useCandidateInterviews,
   useUpdateCandidateStatus,
@@ -164,6 +166,7 @@ export default function CandidateDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: candidate, isLoading } = useCandidate(id!);
+  const { data: allCandidates = [] } = useCandidates();
   const { data: activities = [] } = useCandidateActivities(id!);
   const { data: interviews = [] } = useCandidateInterviews(id!);
   const updateStatus = useUpdateCandidateStatus();
@@ -177,6 +180,8 @@ export default function CandidateDetail() {
   const [showCallOutcomeModal, setShowCallOutcomeModal] = useState(false);
   const [showResumeConverterModal, setShowResumeConverterModal] = useState(false);
   const [pendingActivityForOutcome, setPendingActivityForOutcome] = useState<Activity | null>(null);
+  const [showRoleDropdown, setShowRoleDropdown] = useState(false);
+  const [customRole, setCustomRole] = useState('');
   const [interviewForm, setInterviewForm] = useState({
     date: '',
     time: '',
@@ -187,6 +192,12 @@ export default function CandidateDetail() {
     interviewer: '',
     notes: '',
   });
+
+  // Get unique roles from all candidates for the dropdown
+  const availableRoles = useMemo(() => {
+    const roleSet = new Set(allCandidates.map(c => c.applied_role).filter(Boolean));
+    return Array.from(roleSet).sort() as string[];
+  }, [allCandidates]);
 
   if (isLoading) {
     return (
@@ -244,6 +255,46 @@ export default function CandidateDetail() {
       setEditingNotes(false);
     } catch (error) {
       console.error('Failed to save notes:', error);
+    }
+  };
+
+  const handleRoleChange = async (newRole: string) => {
+    if (!newRole.trim() || newRole === candidate.applied_role) {
+      setShowRoleDropdown(false);
+      setCustomRole('');
+      return;
+    }
+
+    try {
+      const oldRole = candidate.applied_role;
+      await updateCandidate.mutateAsync({
+        id: candidate.id,
+        updates: { applied_role: newRole.trim() },
+      });
+
+      // Log activity for role change
+      await createActivity.mutateAsync({
+        candidate_id: candidate.id,
+        candidate_name: candidate.full_name,
+        activity_date: new Date().toISOString(),
+        activity_type: 'Status Change',
+        direction: 'Internal',
+        channel: 'System',
+        subject: `Role changed to ${newRole.trim()}`,
+        details: `Applied role updated from "${oldRole || 'None'}" to "${newRole.trim()}"`,
+        related_job: newRole.trim(),
+        related_client: candidate.client_submitted_to,
+        outcome: null,
+        follow_up_required: false,
+        follow_up_date: null,
+        follow_up_action: null,
+        logged_by: 'Shawn',
+      });
+
+      setShowRoleDropdown(false);
+      setCustomRole('');
+    } catch (error) {
+      console.error('Failed to update role:', error);
     }
   };
 
@@ -417,7 +468,74 @@ export default function CandidateDetail() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-slate-800">{candidate.full_name}</h1>
-                <p className="text-slate-500 mt-1">{candidate.applied_role}</p>
+                {/* Editable Role */}
+                <div className="relative mt-1">
+                  <button
+                    onClick={() => setShowRoleDropdown(!showRoleDropdown)}
+                    className="flex items-center gap-2 text-slate-500 hover:text-slate-700 transition-colors group"
+                  >
+                    <span>{candidate.applied_role || 'No role assigned'}</span>
+                    <Pencil className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                  {showRoleDropdown && (
+                    <div className="absolute left-0 mt-2 w-72 bg-white border border-slate-200 rounded-lg shadow-xl z-20">
+                      {/* Custom role input */}
+                      <div className="p-3 border-b border-slate-100">
+                        <label className="block text-xs text-slate-500 mb-1">Enter new role</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={customRole}
+                            onChange={(e) => setCustomRole(e.target.value)}
+                            placeholder="e.g., Senior Developer"
+                            className="input flex-1 text-sm"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && customRole.trim()) {
+                                handleRoleChange(customRole);
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => handleRoleChange(customRole)}
+                            disabled={!customRole.trim()}
+                            className="btn-primary text-sm px-3 disabled:opacity-50"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                      {/* Existing roles */}
+                      {availableRoles.length > 0 && (
+                        <div className="max-h-48 overflow-y-auto">
+                          <p className="text-xs text-slate-400 px-3 pt-2 pb-1">Or select existing role</p>
+                          {availableRoles
+                            .filter(role => role !== candidate.applied_role)
+                            .map(role => (
+                              <button
+                                key={role}
+                                onClick={() => handleRoleChange(role)}
+                                className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                              >
+                                {role}
+                              </button>
+                            ))}
+                        </div>
+                      )}
+                      {/* Cancel button */}
+                      <div className="p-2 border-t border-slate-100">
+                        <button
+                          onClick={() => {
+                            setShowRoleDropdown(false);
+                            setCustomRole('');
+                          }}
+                          className="w-full text-center text-sm text-slate-500 hover:text-slate-700 py-1"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <div className="flex items-center gap-3 mt-3">
                   {getCitizenshipBadge(candidate.citizenship_status)}
                   {getAICategoryBadge(candidate.ai_category)}
