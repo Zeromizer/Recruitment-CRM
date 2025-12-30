@@ -294,14 +294,6 @@ export default function JobScoring() {
               >
                 <Download className="w-4 h-4" />
                 Export CSV
-                <button
-                onClick={syncToGoogleSheet}
-                disabled={syncingToSheet || !sheetConfig}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-              >
-                <Upload className={`w-4 h-4 ${syncingToSheet ? 'animate-bounce' : ''}`} />
-                {syncingToSheet ? 'Syncing...' : 'Sync to Google Sheet'}
-              </button>
               </button>
               <button
                 onClick={syncToGoogleSheet}
