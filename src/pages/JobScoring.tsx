@@ -19,6 +19,7 @@ import {
   getGoogleSheetConfig,
   saveGoogleSheetConfig,
   fetchJobScoringFromGoogleSheet,
+  updateJobScoringToGoogleSheet,
   downloadCSV,
 } from '../services/googleSheets';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
@@ -28,6 +29,7 @@ export default function JobScoring() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [syncingToSheet, setSyncingToSheet] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -138,6 +140,26 @@ export default function JobScoring() {
       setError(err instanceof Error ? err.message : 'Failed to sync from Google Sheet');
     } finally {
       setSyncing(false);
+    }
+  }
+  async function syncToGoogleSheet() {
+    if (!sheetConfig) {
+      setError('Please configure Google Sheet first');
+      setShowConfig(true);
+      return;
+    }
+
+    setSyncingToSheet(true);
+    setError(null);
+
+    try {
+      await updateJobScoringToGoogleSheet(criteria);
+      setSuccess(`Updated Google Sheet with ${criteria.length} jobs`);
+    } catch (err) {
+      console.error('Error syncing to Google Sheet:', err);
+      setError(err instanceof Error ? err.message : 'Failed to sync to Google Sheet');
+    } finally {
+      setSyncingToSheet(false);
     }
   }
 
@@ -263,6 +285,14 @@ export default function JobScoring() {
               >
                 <Download className="w-4 h-4" />
                 Export CSV
+                <button
+                onClick={syncToGoogleSheet}
+                disabled={syncingToSheet || !sheetConfig}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                <Upload className={`w-4 h-4 ${syncingToSheet ? 'animate-bounce' : ''}`} />
+                {syncingToSheet ? 'Syncing...' : 'Sync to Google Sheet'}
+              </button>
               </button>
               <button
                 onClick={saveToDatabase}
