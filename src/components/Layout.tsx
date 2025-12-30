@@ -11,7 +11,6 @@ import {
   CheckSquare,
   X,
   Bot,
-  FileSpreadsheet,
 } from 'lucide-react';
 
 const navigation = [
@@ -22,7 +21,6 @@ const navigation = [
   { name: 'Interviews', href: '/interviews', icon: Calendar },
   { name: 'Activities', href: '/activities', icon: Activity },
   { name: 'Bot Config', href: '/bot-config', icon: Bot },
-  { name: 'Job Scoring', href: '/job-scoring', icon: FileSpreadsheet },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

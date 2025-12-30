@@ -1,5 +1,7 @@
 // Google Sheets Integration Service
 
+import type { JobPost } from '../types/botConfig';
+
 export interface JobScoringCriteria {
   id?: string;
   jobTitle: string;
@@ -139,4 +141,29 @@ export function downloadCSV(criteria: JobScoringCriteria[], filename: string = '
   a.download = filename;
   a.click();
   window.URL.revokeObjectURL(url);
+}
+
+// Convert JobPost to JobScoringCriteria for Google Sheets sync
+export function jobPostToScoringCriteria(job: JobPost): JobScoringCriteria {
+  return {
+    id: job.id,
+    jobTitle: job.title,
+    requirements: job.scoring_requirements || '',
+    scoringGuide: job.scoring_guide || '',
+    updated_at: job.updated_at,
+  };
+}
+
+// Sync job posts (with scoring data) to Google Sheets
+export async function syncJobPostsToGoogleSheet(jobs: JobPost[]): Promise<void> {
+  // Filter jobs that have scoring data and convert to criteria format
+  const criteria = jobs
+    .filter(job => job.is_active && (job.scoring_requirements || job.scoring_guide))
+    .map(jobPostToScoringCriteria);
+
+  if (criteria.length === 0) {
+    throw new Error('No active jobs with scoring criteria to sync');
+  }
+
+  await updateJobScoringToGoogleSheet(criteria);
 }

@@ -25,6 +25,7 @@ import {
   Loader2,
   User,
   Send,
+  Upload,
 } from 'lucide-react';
 import {
   getJobPosts,
@@ -48,6 +49,7 @@ import {
   type ConversationSummary,
   type ConversationMessage,
 } from '../services/conversations';
+import { syncJobPostsToGoogleSheet } from '../services/googleSheets';
 
 type TabType = 'jobs' | 'company' | 'style' | 'objectives' | 'prompt' | 'conversations';
 
@@ -79,6 +81,8 @@ const emptyJobForm: JobFormData = {
   key_skills: '',
   citizenship_required: 'Any',
   notes: '',
+  scoring_requirements: '',
+  scoring_guide: '',
 };
 
 export default function BotConfig() {
@@ -128,6 +132,9 @@ export default function BotConfig() {
   const [showURLImportModal, setShowURLImportModal] = useState(false);
   const [importingURL, setImportingURL] = useState(false);
   const [jobURL, setJobURL] = useState('');
+
+  // Google Sheets sync state
+  const [syncingToSheets, setSyncingToSheets] = useState(false);
 
   // Conversations state
   const [conversationsList, setConversationsList] = useState<ConversationSummary[]>([]);
@@ -212,6 +219,8 @@ export default function BotConfig() {
       key_skills: job.key_skills?.join(', ') || '',
       citizenship_required: job.citizenship_required || 'Any',
       notes: job.notes || '',
+      scoring_requirements: job.scoring_requirements || '',
+      scoring_guide: job.scoring_guide || '',
     });
     setShowJobModal(true);
   }
@@ -242,6 +251,8 @@ export default function BotConfig() {
         key_skills: jobForm.key_skills.split(',').map(s => s.trim()).filter(Boolean),
         citizenship_required: jobForm.citizenship_required !== 'Any' ? jobForm.citizenship_required : undefined,
         notes: jobForm.notes || undefined,
+        scoring_requirements: jobForm.scoring_requirements || undefined,
+        scoring_guide: jobForm.scoring_guide || undefined,
       };
 
       if (editingJob) {
@@ -283,6 +294,21 @@ export default function BotConfig() {
     } catch (err) {
       console.error('Error deleting job:', err);
       setError('Failed to delete job');
+    }
+  }
+
+  async function handleSyncToGoogleSheets() {
+    setSyncingToSheets(true);
+    setError(null);
+
+    try {
+      await syncJobPostsToGoogleSheet(jobs);
+      setSuccess(`Synced ${jobs.filter(j => j.is_active && (j.scoring_requirements || j.scoring_guide)).length} jobs to Google Sheets`);
+    } catch (err) {
+      console.error('Error syncing to Google Sheets:', err);
+      setError(err instanceof Error ? err.message : 'Failed to sync to Google Sheets');
+    } finally {
+      setSyncingToSheets(false);
     }
   }
 
@@ -411,7 +437,13 @@ export default function BotConfig() {
 
       contentArray.push({
         type: 'text',
-        text: `${imageCountText} Return ONLY a JSON object with these fields (use empty string if not found):
+        text: `${imageCountText}
+
+Also generate:
+- scoring_requirements: A detailed paragraph summarizing the key requirements for AI resume screening
+- scoring_guide: A scoring guide in format "Score 8-10: criteria, Score 5-7: criteria, Score 1-4: criteria"
+
+Return ONLY a JSON object with these fields (use empty string if not found):
 {
   "title": "job title",
   "salary": "salary range",
@@ -423,7 +455,9 @@ export default function BotConfig() {
   "requirements": "comma-separated list of requirements",
   "keywords": "comma-separated keywords for matching (job type, industry, skills)",
   "citizenship_required": "SC for Singaporean only, PR for PR/Citizen, Any for no restriction",
-  "notes": "any other important notes"
+  "notes": "any other important notes",
+  "scoring_requirements": "detailed paragraph of key requirements for AI screening",
+  "scoring_guide": "Score 8-10: excellent criteria. Score 5-7: acceptable criteria. Score 1-4: poor fit criteria."
 }
 
 Return ONLY the JSON, no explanation.`,
@@ -491,6 +525,8 @@ Return ONLY the JSON, no explanation.`,
         key_skills: '',
         citizenship_required: (jobData.citizenship_required as 'SC' | 'PR' | 'Any') || 'Any',
         notes: jobData.notes || '',
+        scoring_requirements: jobData.scoring_requirements || '',
+        scoring_guide: jobData.scoring_guide || '',
       });
 
       // Close image modal and open job form
@@ -591,6 +627,10 @@ Look for:
 - Keywords (skills, job type, industry)
 - Citizenship requirements (Singaporean, PR, etc.)
 
+Also generate:
+- scoring_requirements: A detailed paragraph summarizing the key requirements for AI resume screening
+- scoring_guide: A scoring guide in format "Score 8-10: criteria, Score 5-7: criteria, Score 1-4: criteria"
+
 Return ONLY a JSON object with these fields (use empty string if not found):
 {
   "title": "job title",
@@ -603,7 +643,9 @@ Return ONLY a JSON object with these fields (use empty string if not found):
   "requirements": "comma-separated list of requirements/qualifications",
   "keywords": "comma-separated keywords (job type, skills, industry)",
   "citizenship_required": "SC for Singaporean only, PR for PR/Citizen, Any for no restriction",
-  "notes": "any other important details"
+  "notes": "any other important details",
+  "scoring_requirements": "detailed paragraph of key requirements for AI screening",
+  "scoring_guide": "Score 8-10: excellent criteria. Score 5-7: acceptable criteria. Score 1-4: poor fit criteria."
 }
 
 Return ONLY valid JSON, no explanation or markdown.
@@ -665,6 +707,8 @@ ${htmlContent.substring(0, 80000)}`
         key_skills: '',
         citizenship_required: (jobData.citizenship_required as 'SC' | 'PR' | 'Any') || 'Any',
         notes: jobData.notes || '',
+        scoring_requirements: jobData.scoring_requirements || '',
+        scoring_guide: jobData.scoring_guide || '',
       });
 
       // Close URL modal and open job form
@@ -1098,6 +1142,14 @@ ${htmlContent.substring(0, 80000)}`
                 <p className="text-sm text-slate-500">Manage available positions. Toggle to enable/disable jobs for the bot.</p>
               </div>
               <div className="flex gap-2">
+                <button
+                  onClick={handleSyncToGoogleSheets}
+                  disabled={syncingToSheets || jobs.length === 0}
+                  className="px-4 py-2 text-sm font-medium text-green-700 border border-green-300 rounded-lg hover:bg-green-50 flex items-center gap-2 disabled:opacity-50"
+                >
+                  {syncingToSheets ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  Sync to Google Sheet
+                </button>
                 <button
                   onClick={() => setShowURLImportModal(true)}
                   className="px-4 py-2 text-sm font-medium text-cgp-red border border-cgp-red rounded-lg hover:bg-cgp-red/5 flex items-center gap-2"
@@ -2184,6 +2236,38 @@ ${htmlContent.substring(0, 80000)}`
                   placeholder="Additional notes for the bot..."
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red"
                 />
+              </div>
+
+              {/* AI Scoring Section */}
+              <div className="pt-4 border-t border-slate-200">
+                <h4 className="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                  <Target className="w-4 h-4 text-cgp-red" />
+                  AI Scoring Criteria (for Google Sheets)
+                </h4>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Scoring Requirements</label>
+                    <textarea
+                      value={jobForm.scoring_requirements}
+                      onChange={(e) => setJobForm({ ...jobForm, scoring_requirements: e.target.value })}
+                      rows={3}
+                      placeholder="Detailed requirements for AI screening (e.g., 'Minimum 5 years procurement experience in construction & facilities industry, end-to-end procurement processes...')"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Scoring Guide</label>
+                    <textarea
+                      value={jobForm.scoring_guide}
+                      onChange={(e) => setJobForm({ ...jobForm, scoring_guide: e.target.value })}
+                      rows={3}
+                      placeholder="Score 8-10: 5+ years experience + relevant certifications. Score 5-7: 2-4 years experience. Score 1-4: Entry level or unrelated experience."
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cgp-red/20 focus:border-cgp-red text-sm"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
