@@ -143,12 +143,33 @@ export function downloadCSV(criteria: JobScoringCriteria[], filename: string = '
   window.URL.revokeObjectURL(url);
 }
 
+// Citizenship code to label mapping
+const CITIZENSHIP_LABELS: Record<string, string> = {
+  'SC': 'Singapore Citizen',
+  'PR': 'Singapore PR',
+  'MY_CHINESE': 'Malaysian Chinese',
+  'Foreigner': 'Foreigner (with valid pass)',
+};
+
 // Convert JobPost to JobScoringCriteria for Google Sheets sync
 export function jobPostToScoringCriteria(job: JobPost): JobScoringCriteria {
+  let requirements = job.scoring_requirements || '';
+
+  // Append citizenship requirements if specified
+  if (job.citizenship_required && job.citizenship_required.length > 0) {
+    const citizenshipLabels = job.citizenship_required
+      .map(code => CITIZENSHIP_LABELS[code] || code)
+      .join(', ');
+
+    // Add citizenship info at the end of requirements
+    const citizenshipText = `\n\nCitizenship Requirement: ${citizenshipLabels}`;
+    requirements = requirements + citizenshipText;
+  }
+
   return {
     id: job.id,
     jobTitle: job.title,
-    requirements: job.scoring_requirements || '',
+    requirements: requirements,
     scoringGuide: job.scoring_guide || '',
     updated_at: job.updated_at,
   };
