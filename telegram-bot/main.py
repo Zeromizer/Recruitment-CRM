@@ -35,34 +35,21 @@ from shared.database import (
     update_conversation_state_db, link_conversation_to_candidate
 )
 
-# Import centralized bot configuration
-from bot_config import (
-    TIMEZONE,
-    OPERATING_START,
-    OPERATING_END,
-    DISABLE_TIME_RESTRICTION,
-    TELEGRAM_ENABLE_QUOTE_REPLY,
-    TELEGRAM_DELAY_MIN,
-    TELEGRAM_DELAY_MAX,
-    RATE_LIMIT_MESSAGES,
-    RATE_LIMIT_WINDOW,
-    SPAM_KEYWORDS,
-    MAX_CONVERSATION_MESSAGES,
-    KB_REFRESH_INTERVAL,
-    is_within_operating_hours,
-    get_blocked_users,
-    get_whitelist_users,
-    is_whitelist_mode,
-    print_config_summary
-)
-
 # Conversation memory (max messages per user for AI context)
 conversations = {}
-MAX_MESSAGES = MAX_CONVERSATION_MESSAGES
+MAX_MESSAGES = 25  # Increased for better context
 conversation_states = {}
 
 # Track which users have been restored from DB
 restored_users = set()
+
+# Operating hours configuration (Singapore timezone)
+TIMEZONE = ZoneInfo("Asia/Singapore")
+OPERATING_START = dt_time(8, 30)  # 8:30 AM
+OPERATING_END = dt_time(22, 0)    # 10:00 PM
+
+# Knowledgebase auto-refresh interval (5 minutes)
+KB_REFRESH_INTERVAL = 300  # seconds
 
 
 async def periodic_knowledgebase_refresh():
@@ -83,14 +70,53 @@ async def periodic_knowledgebase_refresh():
             print(f"[{datetime.now(TIMEZONE)}] Error during knowledgebase auto-refresh: {e}")
 
 
-# is_within_operating_hours() is now imported from bot_config
+def is_within_operating_hours() -> bool:
+    """Check if current time is within operating hours (8:30 AM - 10:00 PM Singapore time)."""
+    now = datetime.now(TIMEZONE)
+    current_time = now.time()
+    return OPERATING_START <= current_time <= OPERATING_END
 
 
 # Spam protection
 rate_limit_tracker = {}  # {user_id: [timestamp1, timestamp2, ...]}
-# RATE_LIMIT_MESSAGES and RATE_LIMIT_WINDOW are imported from bot_config
-# SPAM_KEYWORDS is imported from bot_config
-# get_blocked_users(), get_whitelist_users(), is_whitelist_mode() are imported from bot_config
+RATE_LIMIT_MESSAGES = 10  # Max messages per time window
+RATE_LIMIT_WINDOW = 60  # Time window in seconds (1 minute)
+
+# Spam keywords to ignore (case-insensitive)
+SPAM_KEYWORDS = [
+    "crypto", "bitcoin", "ethereum", "investment opportunity",
+    "make money fast", "work from home", "earn $", "earn usd",
+    "click here", "free money", "lottery", "you have won",
+    "nigerian prince", "wire transfer", "western union",
+    "telegram premium", "free premium", "hack", "password"
+]
+
+
+def get_blocked_users() -> set:
+    """Get set of blocked user IDs from environment variable."""
+    blocked = os.environ.get('BLOCKED_TELEGRAM_USERS', '')
+    if not blocked:
+        return set()
+    try:
+        return set(int(uid.strip()) for uid in blocked.split(',') if uid.strip())
+    except ValueError:
+        return set()
+
+
+def get_whitelist_users() -> set:
+    """Get set of whitelisted user IDs (if whitelist mode is enabled)."""
+    whitelist = os.environ.get('WHITELIST_TELEGRAM_USERS', '')
+    if not whitelist:
+        return set()
+    try:
+        return set(int(uid.strip()) for uid in whitelist.split(',') if uid.strip())
+    except ValueError:
+        return set()
+
+
+def is_whitelist_mode() -> bool:
+    """Check if whitelist mode is enabled."""
+    return os.environ.get('TELEGRAM_WHITELIST_MODE', '').lower() in ('true', '1', 'yes')
 
 
 def is_user_allowed(user_id: int) -> tuple[bool, str]:
@@ -877,8 +903,8 @@ async def send_telegram_messages(event, telegram_client, message: str):
                 total_delay = min(thinking_delay + typing_delay, 10.0)
                 await asyncio.sleep(total_delay)
 
-        # First message - use reply (quote) if enabled in config, otherwise use respond
-        if i == 0 and TELEGRAM_ENABLE_QUOTE_REPLY:
+        # First message replies directly to user's message, rest are normal responses
+        if i == 0:
             await event.reply(part)
         else:
             await event.respond(part)
@@ -1089,9 +1115,6 @@ async def main():
     if not validate_env_vars():
         sys.exit(1)
     print("Environment variables OK")
-
-    # Print bot configuration summary
-    print_config_summary()
 
     # Get environment variables
     api_id = int(os.environ.get('TELEGRAM_API_ID'))
