@@ -74,7 +74,16 @@ export default function JobScoring() {
 
       if (dbError) throw dbError;
 
-      setCriteria(data || []);
+      // Map snake_case from Supabase to camelCase for component
+      const mappedCriteria = (data || []).map((item: any) => ({
+        id: item.id,
+        jobTitle: item.job_title,
+        requirements: item.requirements,
+        scoringGuide: item.scoring_guide,
+        updated_at: item.updated_at,
+      }));
+
+      setCriteria(mappedCriteria);
     } catch (err) {
       console.error('Error loading job scoring:', err);
       setError(err instanceof Error ? err.message : 'Failed to load job scoring criteria');
@@ -142,6 +151,27 @@ export default function JobScoring() {
       setSyncing(false);
     }
   }
+  async function syncToGoogleSheet() {
+    if (!sheetConfig) {
+      setError('Please configure Google Sheet first');
+      setShowConfig(true);
+      return;
+    }
+
+    setSyncingToSheet(true);
+    setError(null);
+
+    try {
+      await updateJobScoringToGoogleSheet(criteria);
+      setSuccess(`Updated Google Sheet with ${criteria.length} jobs`);
+    } catch (err) {
+      console.error('Error syncing to Google Sheet:', err);
+      setError(err instanceof Error ? err.message : 'Failed to sync to Google Sheet');
+    } finally {
+      setSyncingToSheet(false);
+    }
+  }
+
   async function syncToGoogleSheet() {
     if (!sheetConfig) {
       setError('Please configure Google Sheet first');
@@ -293,6 +323,14 @@ export default function JobScoring() {
                 <Upload className={`w-4 h-4 ${syncingToSheet ? 'animate-bounce' : ''}`} />
                 {syncingToSheet ? 'Syncing...' : 'Sync to Google Sheet'}
               </button>
+              </button>
+              <button
+                onClick={syncToGoogleSheet}
+                disabled={syncingToSheet || !sheetConfig}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                <Upload className={`w-4 h-4 ${syncingToSheet ? 'animate-bounce' : ''}`} />
+                {syncingToSheet ? 'Syncing...' : 'Sync to Google Sheet'}
               </button>
               <button
                 onClick={saveToDatabase}
