@@ -258,7 +258,7 @@ export default function Candidates() {
   useEffect(() => {
     if (highlightedCandidateId && highlightedRowRef.current) {
       // Wait for the DOM to settle before scrolling
-      const scrollTimeout = setTimeout(() => {
+      const scrollTimer = setTimeout(() => {
         highlightedRowRef.current?.scrollIntoView({
           behavior: 'smooth',
           block: 'center',
@@ -266,14 +266,14 @@ export default function Candidates() {
       }, 100);
 
       // Clear the highlight after 3 seconds
-      const clearTimeout = setTimeout(() => {
+      const fadeTimer = setTimeout(() => {
         setHighlightedCandidateId(null);
         clearLastViewedCandidate();
       }, 3000);
 
       return () => {
-        clearTimeout(scrollTimeout);
-        clearTimeout(clearTimeout);
+        clearTimeout(scrollTimer);
+        clearTimeout(fadeTimer);
       };
     }
   }, [highlightedCandidateId, candidates]); // Re-run when candidates load
