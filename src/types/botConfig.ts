@@ -9,6 +9,7 @@ export interface JobPost {
   salary?: string;
   location?: string;
   work_type?: string;
+  job_url?: string; // URL to the original job posting
   shifts?: {
     day?: string;
     overnight?: string;
@@ -106,6 +107,7 @@ export interface JobFormData {
   salary: string;
   location: string;
   work_type: string;
+  job_url: string; // URL to the original job posting
   day_shift: string;
   overnight_shift: string;
   responsibilities: string;
