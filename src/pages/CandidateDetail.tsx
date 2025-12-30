@@ -478,7 +478,7 @@ export default function CandidateDetail() {
                     <Pencil className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </button>
                   {showRoleDropdown && (
-                    <div className="absolute left-0 mt-2 w-72 bg-white border border-slate-200 rounded-lg shadow-xl z-20">
+                    <div className="absolute left-0 mt-2 w-80 bg-white border border-slate-200 rounded-lg shadow-xl z-20">
                       {/* Custom role input */}
                       <div className="p-3 border-b border-slate-100">
                         <label className="block text-xs text-slate-500 mb-1">Enter new role</label>
@@ -488,7 +488,7 @@ export default function CandidateDetail() {
                             value={customRole}
                             onChange={(e) => setCustomRole(e.target.value)}
                             placeholder="e.g., Senior Developer"
-                            className="input flex-1 text-sm"
+                            className="input flex-1 text-sm min-w-0"
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' && customRole.trim()) {
                                 handleRoleChange(customRole);
@@ -498,7 +498,7 @@ export default function CandidateDetail() {
                           <button
                             onClick={() => handleRoleChange(customRole)}
                             disabled={!customRole.trim()}
-                            className="btn-primary text-sm px-3 disabled:opacity-50"
+                            className="bg-cgp-red text-white text-sm px-3 py-2 rounded-lg font-medium hover:bg-cgp-red-dark transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed flex-shrink-0"
                           >
                             Save
                           </button>
