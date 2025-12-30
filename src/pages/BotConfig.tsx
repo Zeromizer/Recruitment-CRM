@@ -241,6 +241,7 @@ export default function BotConfig() {
         salary: jobForm.salary || undefined,
         location: jobForm.location || undefined,
         work_type: jobForm.work_type || undefined,
+        job_url: jobForm.job_url || undefined,
         shifts: (jobForm.day_shift || jobForm.overnight_shift) ? {
           day: jobForm.day_shift || undefined,
           overnight: jobForm.overnight_shift || undefined,
