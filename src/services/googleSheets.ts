@@ -72,21 +72,26 @@ export async function fetchJobScoringFromGoogleSheet(
   }
 }
 
-// Update Google Sheets using Apps Script (no OAuth needed)
+// Update Google Sheets using Supabase Edge Function proxy (avoids CORS issues)
 export async function updateJobScoringToGoogleSheet(
   criteria: JobScoringCriteria[]
 ): Promise<void> {
   try {
-    const appsScriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-    if (!appsScriptUrl || appsScriptUrl === 'https://script.google.com/macros/s/your-script-id/exec') {
-      throw new Error('Google Apps Script URL not configured');
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error('Supabase not configured');
     }
 
-    const response = await fetch(appsScriptUrl, {
+    // Use Supabase Edge Function as proxy to avoid CORS issues
+    const edgeFunctionUrl = `${supabaseUrl}/functions/v1/sync-google-sheet`;
+
+    const response = await fetch(edgeFunctionUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
       },
       body: JSON.stringify({
         criteria: criteria.map(c => ({
