@@ -544,7 +544,7 @@ def identify_role_from_text(text: str) -> Optional[str]:
 
 def get_experience_question(role_key: str) -> str:
     """Get an appropriate experience question for a role."""
-    role = ROLE_KNOWLEDGE.get(role_key, ROLE_KNOWLEDGE["general"])
+    role = get_role_info(role_key)
     questions = role.get("experience_questions", [])
     if questions:
         # Return the first question (could randomize if desired)
@@ -990,11 +990,16 @@ def get_role_from_db(role_key: str) -> Optional[Dict]:
 
 
 def get_all_roles() -> Dict[str, Dict]:
-    """Get all roles, merging database and static."""
-    roles = dict(ROLE_KNOWLEDGE)  # Start with static
+    """Get all roles, preferring database over static."""
+    # If database is loaded, use ONLY database roles + the 'general' fallback
     if _db_loaded and "role" in _db_knowledge:
-        roles.update(_db_knowledge["role"])  # Database overrides
-    return roles
+        db_roles = dict(_db_knowledge["role"])
+        # Always include the 'general' fallback role from static
+        if "general" in ROLE_KNOWLEDGE:
+            db_roles["general"] = ROLE_KNOWLEDGE["general"]
+        return db_roles
+    # Fallback to static roles only if database not loaded
+    return dict(ROLE_KNOWLEDGE)
 
 
 def get_faq_from_db(key: str) -> Optional[str]:
