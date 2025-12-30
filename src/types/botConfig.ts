@@ -21,6 +21,9 @@ export interface JobPost {
   typical_schedule?: string;
   citizenship_required?: 'SC' | 'PR' | 'Any';
   notes?: string;
+  // Job Scoring fields for AI screening
+  scoring_requirements?: string; // Detailed requirements text for AI scoring
+  scoring_guide?: string; // Scoring criteria (e.g., "Score 8-10: 5+ years experience...")
   created_at?: string;
   updated_at?: string;
 }
@@ -116,6 +119,9 @@ export interface JobFormData {
   key_skills: string;
   citizenship_required: 'SC' | 'PR' | 'Any';
   notes: string;
+  // Job Scoring fields
+  scoring_requirements: string;
+  scoring_guide: string;
 }
 
 export interface CompanyFormData {
