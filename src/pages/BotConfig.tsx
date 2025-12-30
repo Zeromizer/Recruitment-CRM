@@ -203,6 +203,7 @@ export default function BotConfig() {
       salary: job.salary || '',
       location: job.location || '',
       work_type: job.work_type || '',
+      job_url: job.job_url || '',
       day_shift: job.shifts?.day || '',
       overnight_shift: job.shifts?.overnight || '',
       responsibilities: job.responsibilities?.join('\n') || '',

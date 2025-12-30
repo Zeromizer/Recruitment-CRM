@@ -107,7 +107,7 @@ export interface JobFormData {
   salary: string;
   location: string;
   work_type: string;
-  job_url: string; // URL to the original job posting
+  job_url?: string; // URL to the original job posting (optional)
   day_shift: string;
   overnight_shift: string;
   responsibilities: string;
