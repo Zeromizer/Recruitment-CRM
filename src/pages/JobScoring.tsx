@@ -7,6 +7,7 @@ import {
   Trash2,
   ExternalLink,
   Download,
+  Upload,
   Settings,
   AlertCircle,
   CheckCircle,
