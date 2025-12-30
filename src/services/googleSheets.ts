@@ -72,29 +72,39 @@ export async function fetchJobScoringFromGoogleSheet(
   }
 }
 
-// Update Google Sheets using the API (requires OAuth or service account)
+// Update Google Sheets using Apps Script (no OAuth needed)
 export async function updateJobScoringToGoogleSheet(
-  spreadsheetId: string,
-  criteria: JobScoringCriteria[],
-  range: string = 'Sheet1!A2:C'
+  criteria: JobScoringCriteria[]
 ): Promise<void> {
   try {
-    // This requires backend implementation with proper authentication
-    // For now, we'll use a backend proxy endpoint
-    const response = await fetch('/api/google-sheets/update', {
+    const appsScriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL;
+
+    if (!appsScriptUrl || appsScriptUrl === 'https://script.google.com/macros/s/your-script-id/exec') {
+      throw new Error('Google Apps Script URL not configured');
+    }
+
+    const response = await fetch(appsScriptUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        spreadsheetId,
-        range,
-        values: criteria.map(c => [c.jobTitle, c.requirements, c.scoringGuide]),
+        criteria: criteria.map(c => ({
+          jobTitle: c.jobTitle,
+          requirements: c.requirements,
+          scoringGuide: c.scoringGuide,
+        })),
       }),
     });
 
     if (!response.ok) {
-      throw new Error('Failed to update Google Sheets');
+      const errorText = await response.text();
+      throw new Error(`Failed to update Google Sheets: ${errorText}`);
+    }
+
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to update Google Sheets');
     }
   } catch (error) {
     console.error('Error updating Google Sheets:', error);
