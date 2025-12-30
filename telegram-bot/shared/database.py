@@ -137,13 +137,14 @@ async def save_candidate(
             data["ai_score"] = screening_result.get("score", 0)
             data["ai_summary"] = screening_result.get("summary", "")
 
-            # Add citizenship status - map to database format
-            citizenship = screening_result.get("citizenship_status", "")
-            if citizenship == "Singapore Citizen":
+            # Add citizenship status - map to database format (handle variations from AI)
+            raw_citizenship = (screening_result.get("citizenship_status", "") or "").lower().strip()
+
+            if raw_citizenship in ("singapore citizen", "singaporean", "sc", "singapore citizens"):
                 data["citizenship_status"] = "SC"
-            elif citizenship == "PR":
+            elif raw_citizenship in ("pr", "permanent resident"):
                 data["citizenship_status"] = "PR"
-            elif citizenship == "Foreigner":
+            elif raw_citizenship in ("foreigner", "foreign") or "pass holder" in raw_citizenship or "work permit" in raw_citizenship:
                 data["citizenship_status"] = "Foreign"
             else:
                 data["citizenship_status"] = "Not Identified"
