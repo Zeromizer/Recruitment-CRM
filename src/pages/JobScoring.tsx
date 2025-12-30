@@ -71,7 +71,16 @@ export default function JobScoring() {
 
       if (dbError) throw dbError;
 
-      setCriteria(data || []);
+      // Map snake_case from Supabase to camelCase for component
+      const mappedCriteria = (data || []).map((item: any) => ({
+        id: item.id,
+        jobTitle: item.job_title,
+        requirements: item.requirements,
+        scoringGuide: item.scoring_guide,
+        updated_at: item.updated_at,
+      }));
+
+      setCriteria(mappedCriteria);
     } catch (err) {
       console.error('Error loading job scoring:', err);
       setError(err instanceof Error ? err.message : 'Failed to load job scoring criteria');
