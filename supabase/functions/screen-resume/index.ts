@@ -177,13 +177,15 @@ Use the scoring guide for the matched role. Score 1-10.`;
       throw new Error(`Failed to parse AI response: ${content.substring(0, 200)}`);
     }
 
-    // Map citizenship status to expected format
+    // Map citizenship status to expected format (handle variations from AI)
     let citizenshipStatus: string;
-    if (parsed.citizenship_status === 'Singapore Citizen') {
+    const rawCitizenship = (parsed.citizenship_status || '').toLowerCase().trim();
+
+    if (rawCitizenship === 'singapore citizen' || rawCitizenship === 'singaporean' || rawCitizenship === 'sc' || rawCitizenship === 'singapore citizens') {
       citizenshipStatus = 'SC';
-    } else if (parsed.citizenship_status === 'PR') {
+    } else if (rawCitizenship === 'pr' || rawCitizenship === 'permanent resident') {
       citizenshipStatus = 'PR';
-    } else if (parsed.citizenship_status === 'Foreigner') {
+    } else if (rawCitizenship === 'foreigner' || rawCitizenship === 'foreign' || rawCitizenship.includes('pass holder') || rawCitizenship.includes('work permit')) {
       citizenshipStatus = 'Foreign';
     } else {
       citizenshipStatus = 'Not Identified';
