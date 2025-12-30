@@ -526,17 +526,45 @@ Return ONLY the JSON, no explanation.`,
         return;
       }
 
-      // Fetch webpage content using a CORS proxy
-      const proxyURL = `https://api.allorigins.win/raw?url=${encodeURIComponent(jobURL)}`;
-      const response = await fetch(proxyURL);
+      // Try multiple CORS proxies
+      let htmlContent = '';
+      let fetchSuccess = false;
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch job posting URL');
+      // Try proxy 1: allorigins.win
+      try {
+        const proxy1URL = `https://api.allorigins.win/get?url=${encodeURIComponent(jobURL)}`;
+        const response1 = await fetch(proxy1URL);
+        if (response1.ok) {
+          const data = await response1.json();
+          htmlContent = data.contents;
+          fetchSuccess = true;
+        }
+      } catch (e) {
+        console.log('Proxy 1 failed, trying next...');
       }
 
-      const htmlContent = await response.text();
+      // Try proxy 2: corsproxy.io if first failed
+      if (!fetchSuccess) {
+        try {
+          const proxy2URL = `https://corsproxy.io/?${encodeURIComponent(jobURL)}`;
+          const response2 = await fetch(proxy2URL);
+          if (response2.ok) {
+            htmlContent = await response2.text();
+            fetchSuccess = true;
+          }
+        } catch (e) {
+          console.log('Proxy 2 failed');
+        }
+      }
 
-      // Call Claude API to extract job details
+      if (!fetchSuccess || !htmlContent) {
+        throw new Error('Unable to fetch webpage. The site may block automated access. Try copying the job details manually.');
+      }
+
+      // Log first 1000 chars for debugging
+      console.log('Fetched HTML preview:', htmlContent.substring(0, 1000));
+
+      // Call Claude API to extract job details with extended tokens
       const aiResponse = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -547,28 +575,41 @@ Return ONLY the JSON, no explanation.`,
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 1024,
+          max_tokens: 2048,
           messages: [{
             role: 'user',
-            content: `Extract job posting details from this webpage HTML. Return ONLY a JSON object with these fields (use empty string if not found):
+            content: `Extract job posting details from this webpage HTML. The page may use JavaScript rendering, so extract what you can find.
+
+Look for:
+- Job title (often in <h1>, <title>, or meta tags)
+- Salary/pay range
+- Location/address
+- Work type (full-time, part-time, contract)
+- Shift hours
+- Responsibilities/duties (bullet points or paragraphs)
+- Requirements/qualifications
+- Keywords (skills, job type, industry)
+- Citizenship requirements (Singaporean, PR, etc.)
+
+Return ONLY a JSON object with these fields (use empty string if not found):
 {
   "title": "job title",
-  "salary": "salary range",
-  "location": "work location",
+  "salary": "salary range or amount",
+  "location": "work location or address",
   "work_type": "full-time/part-time/contract",
   "day_shift": "day shift hours if mentioned",
   "overnight_shift": "night shift hours if mentioned",
-  "responsibilities": "comma-separated list of responsibilities",
-  "requirements": "comma-separated list of requirements",
-  "keywords": "comma-separated keywords for matching (job type, industry, skills)",
+  "responsibilities": "comma-separated list of main duties/responsibilities",
+  "requirements": "comma-separated list of requirements/qualifications",
+  "keywords": "comma-separated keywords (job type, skills, industry)",
   "citizenship_required": "SC for Singaporean only, PR for PR/Citizen, Any for no restriction",
-  "notes": "any other important notes"
+  "notes": "any other important details"
 }
 
-Return ONLY the JSON, no explanation.
+Return ONLY valid JSON, no explanation or markdown.
 
 HTML content:
-${htmlContent.substring(0, 50000)}`
+${htmlContent.substring(0, 80000)}`
           }],
         }),
       });
@@ -584,13 +625,20 @@ ${htmlContent.substring(0, 50000)}`
       const data = await aiResponse.json();
       const content = data.content[0]?.text;
 
+      console.log('AI Response:', content);
+
       // Parse the JSON response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        throw new Error('Could not parse job details from URL');
+        throw new Error('Could not extract job details. The webpage may not contain standard job posting information. Please fill in the details manually.');
       }
 
       const jobData = JSON.parse(jsonMatch[0]);
+
+      // Check if we got meaningful data
+      if (!jobData.title || jobData.title.length < 3) {
+        throw new Error('Could not find job title. Please fill in the details manually and save the URL for reference.');
+      }
 
       // Generate a key from the title
       const key = jobData.title
@@ -624,11 +672,24 @@ ${htmlContent.substring(0, 50000)}`
       setJobURL('');
       setEditingJob(null);
       setShowJobModal(true);
-      setSuccess('Job details extracted from URL! Review and save.');
+      setSuccess('Job details extracted! Please review and adjust as needed.');
 
     } catch (err) {
       console.error('Error processing URL:', err);
       setError(err instanceof Error ? err.message : 'Failed to process URL');
+
+      // Even if extraction fails, still save the URL
+      if (err instanceof Error && err.message.includes('manually')) {
+        setJobForm({
+          ...emptyJobForm,
+          job_url: jobURL,
+        });
+        setShowURLImportModal(false);
+        setJobURL('');
+        setShowJobModal(true);
+        setSuccess('URL saved. Please fill in job details manually.');
+      }
+
       setImportingURL(false);
     } finally {
       setImportingURL(false);
