@@ -42,44 +42,61 @@ Deno.serve(async (req) => {
 
     console.log(`Fetching job URL: ${url}`);
 
-    // Use Jina Reader to fetch and render the page (handles JavaScript)
-    // This service renders JS and returns clean markdown
-    const jinaUrl = `https://r.jina.ai/${url}`;
+    let content = "";
 
-    const fetchResponse = await fetch(jinaUrl, {
-      headers: {
-        "Accept": "text/plain",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      },
-    });
+    // Try Jina Reader first (handles JavaScript rendering)
+    try {
+      const jinaUrl = `https://r.jina.ai/${url}`;
+      console.log(`Trying Jina Reader: ${jinaUrl}`);
 
-    if (!fetchResponse.ok) {
-      // Fallback: try direct fetch with browser headers
-      console.log("Jina Reader failed, trying direct fetch...");
-
-      const directResponse = await fetch(url, {
+      const jinaResponse = await fetch(jinaUrl, {
         headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-          "Accept-Language": "en-US,en;q=0.5",
-          "Accept-Encoding": "gzip, deflate, br",
-          "Connection": "keep-alive",
-          "Upgrade-Insecure-Requests": "1",
+          "Accept": "text/plain",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         },
       });
 
-      if (!directResponse.ok) {
-        throw new Error(`Failed to fetch URL: ${directResponse.status}`);
+      if (jinaResponse.ok) {
+        content = await jinaResponse.text();
+        console.log(`Jina Reader success, content length: ${content.length}`);
+      } else {
+        console.log(`Jina Reader failed with status: ${jinaResponse.status}`);
+      }
+    } catch (e) {
+      console.log(`Jina Reader error: ${e.message}`);
+    }
+
+    // Fallback: try direct fetch if Jina failed
+    if (!content || content.length < 100) {
+      console.log("Trying direct fetch...");
+      try {
+        const directResponse = await fetch(url, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+          },
+        });
+
+        if (directResponse.ok) {
+          content = await directResponse.text();
+          console.log(`Direct fetch success, content length: ${content.length}`);
+        } else {
+          console.log(`Direct fetch failed with status: ${directResponse.status}`);
+        }
+      } catch (e) {
+        console.log(`Direct fetch error: ${e.message}`);
       }
     }
 
-    const content = await fetchResponse.text();
-
     if (!content || content.length < 100) {
-      throw new Error("Retrieved content is too short or empty");
+      throw new Error("Could not fetch page content. The site may be blocking automated access.");
     }
 
-    console.log(`Fetched content length: ${content.length}`);
+    console.log(`Final content length: ${content.length}`);
+    console.log(`Content preview: ${content.substring(0, 500)}`);
 
     // Use Claude to extract job details
     const aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
