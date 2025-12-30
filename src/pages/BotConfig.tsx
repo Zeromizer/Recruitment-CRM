@@ -362,40 +362,39 @@ export default function BotConfig() {
     setImagePreviews(prev => prev.filter((_, i) => i !== index));
   }
 
-  // Handle paste from clipboard
-  async function handlePaste(event: ClipboardEvent) {
-    const items = event.clipboardData?.items;
-    if (!items) return;
+  // Listen for paste events when image import modal is open
+  useEffect(() => {
+    if (!showImageImportModal) return;
 
-    const newPreviews: string[] = [];
+    async function handlePaste(event: ClipboardEvent) {
+      const items = event.clipboardData?.items;
+      if (!items) return;
 
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.type.startsWith('image/')) {
-        const file = item.getAsFile();
-        if (file) {
-          const base64 = await new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target?.result as string);
-            reader.readAsDataURL(file);
-          });
-          newPreviews.push(base64);
+      const newPreviews: string[] = [];
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            const base64 = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = (e) => resolve(e.target?.result as string);
+              reader.readAsDataURL(file);
+            });
+            newPreviews.push(base64);
+          }
         }
+      }
+
+      if (newPreviews.length > 0) {
+        event.preventDefault();
+        setImagePreviews(prev => [...prev, ...newPreviews]);
       }
     }
 
-    if (newPreviews.length > 0) {
-      event.preventDefault();
-      setImagePreviews(prev => [...prev, ...newPreviews]);
-    }
-  }
-
-  // Listen for paste events when image import modal is open
-  useEffect(() => {
-    if (showImageImportModal) {
-      document.addEventListener('paste', handlePaste);
-      return () => document.removeEventListener('paste', handlePaste);
-    }
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
   }, [showImageImportModal]);
 
   async function processImageWithAI() {
