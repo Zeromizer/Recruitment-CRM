@@ -98,15 +98,21 @@ export async function parseResumeWithAI(
   pdfBase64?: string
 ): Promise<ParsedResume> {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl) {
     throw new Error('Supabase URL not configured. Please add VITE_SUPABASE_URL to your .env file.');
+  }
+
+  if (!supabaseAnonKey) {
+    throw new Error('Supabase anon key not configured. Please add VITE_SUPABASE_ANON_KEY to your .env file.');
   }
 
   const response = await fetch(`${supabaseUrl}/functions/v1/parse-resume`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${supabaseAnonKey}`,
     },
     body: JSON.stringify({
       resumeText,
